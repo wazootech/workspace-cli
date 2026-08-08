@@ -31,17 +31,17 @@ interface CliOptions {
 }
 
 function usage(): void {
-  console.log(`workspace-cli (wsc)
+  console.log(`workspace-cli (wspace)
 
 Usage:
-  wsc check [--json]
-  wsc sync [--json]
-  wsc update [--json]
-  wsc worktree add <repo> <feature>
-  wsc worktree list [--stale] [--json]
-  wsc worktree remove <repo> <feature>
-  wsc env sync
-  wsc validate
+  wspace check [--json]
+  wspace sync [--json]
+  wspace update [--json]
+  wspace worktree add <repo> <feature>
+  wspace worktree list [--stale] [--json]
+  wspace worktree remove <repo> <feature>
+  wspace env sync
+  wspace validate
 
 Options:
   --manifest <path>  Manifest path (default: repos.json)
@@ -116,7 +116,7 @@ async function runWorktree(
     case "add": {
       const [repoName, feature] = opts.positional;
       if (!repoName || !feature) {
-        console.error("Usage: wsc worktree add <repo> <feature>");
+        console.error("Usage: wspace worktree add <repo> <feature>");
         return 2;
       }
       const repository = manifest.repositories.find((r) => r.name === repoName);
@@ -141,7 +141,7 @@ async function runWorktree(
     case "remove": {
       const [repoName, feature] = opts.positional;
       if (!repoName || !feature) {
-        console.error("Usage: wsc worktree remove <repo> <feature>");
+        console.error("Usage: wspace worktree remove <repo> <feature>");
         return 2;
       }
       const repository = manifest.repositories.find((r) => r.name === repoName);
@@ -164,7 +164,7 @@ async function runWorktree(
       return 0;
     }
     default:
-      console.error("Usage: wsc worktree add|list|remove");
+      console.error("Usage: wspace worktree add|list|remove");
       return 2;
   }
 }
@@ -223,7 +223,7 @@ async function runCommand(
       return await runWorktree(opts, manifest, paths, g);
     case "env": {
       if (opts.subcommand !== "sync") {
-        console.error("Usage: wsc env sync");
+        console.error("Usage: wspace env sync");
         return 2;
       }
       const rows = await syncEnv(g, manifest, paths);

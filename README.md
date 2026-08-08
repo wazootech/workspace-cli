@@ -1,8 +1,8 @@
-# wsc — Wazoo workspace CLI
+# wspace — Wazoo workspace CLI
 
 ## Goal
 
-`wsc` is a small, git-native CLI that manages a multi-repo Wazoo workspace
+`wspace` is a small, git-native CLI that manages a multi-repo Wazoo workspace
 without Git submodules. It keeps the working rules in one place and makes them
 enforceable from the terminal.
 
@@ -17,20 +17,21 @@ Design principles:
   default branches; it never resets, rebases, stashes, or rewrites history.
 - **Machine-readable output.** `check --json` emits structured results for
   tools; plain output is for humans.
-- **Exit code contract.** `wsc check` exits `0` when the workspace is clean and
-  `1` when any repository is dirty, diverged, missing, or otherwise not in sync.
+- **Exit code contract.** `wspace check` exits `0` when the workspace is clean
+  and `1` when any repository is dirty, diverged, missing, or otherwise not in
+  sync.
 
 ## Commands
 
-- `wsc check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
+- `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
-- `wsc update` — fetch remotes and fast-forward only clean default branches.
-- `wsc worktree add|list|remove` — create, list, and remove git worktrees under
-  `worktrees/<repo>/<feature>/`.
-- `wsc env sync` — copy local environment files from a gitignored `secrets/`
+- `wspace update` — fetch remotes and fast-forward only clean default branches.
+- `wspace worktree add|list|remove` — create, list, and remove git worktrees
+  under `worktrees/<repo>/<feature>/`.
+- `wspace env sync` — copy local environment files from a gitignored `secrets/`
   vault into checkouts and worktrees.
-- `wsc sync` — convenience alias that runs update + env sync.
-- `wsc validate` — validate the manifest without touching any repository.
+- `wspace sync` — convenience alias that runs update + env sync.
+- `wspace validate` — validate the manifest without touching any repository.
 
 ## Install
 
@@ -40,7 +41,7 @@ Build a local binary:
 deno task build
 ```
 
-Requires a Deno runtime (v2+). The `wsc` binary has no runtime dependencies.
+Requires a Deno runtime (v2+). The `wspace` binary has no runtime dependencies.
 
 ## Development
 

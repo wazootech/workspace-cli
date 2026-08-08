@@ -2,7 +2,7 @@
 
 ## Repository
 
-`wazootech/workspace-cli` — the `wsc` binary. A thin, git-native CLI for
+`wazootech/workspace-cli` — the `wspace` binary. A thin, git-native CLI for
 managing the Wazoo multi-repo workspace without submodules. See `README.md`.
 
 ## Conventions
@@ -15,7 +15,7 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
   interface over `git`/`gh`/filesystem) so logic stays testable.
 - Commands never mutate user work: update fast-forwards clean default branches
   only; worktree and env operations refuse dirty or feature-branch checkouts.
-- `wsc check` exits 0 on clean, 1 on any non-clean repo.
+- `wspace check` exits 0 on clean, 1 on any non-clean repo.
 
 ## Verification
 

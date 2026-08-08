@@ -19,7 +19,7 @@ import {
 const g = new SystemGit();
 
 async function configure(dir: string): Promise<void> {
-  await g.run(["config", "user.email", "wsc-test@example.com"], dir);
+  await g.run(["config", "user.email", "wspace-test@example.com"], dir);
   await g.run(["config", "user.name", "WSC Test"], dir);
   await g.run(["config", "commit.gpgsign", "false"], dir);
 }
@@ -233,7 +233,7 @@ Deno.test("update skips when default branch is checked out in a worktree", async
   }
 });
 
-Deno.test("wsc check reports CLEAN via CLI", async () => {
+Deno.test("wspace check reports CLEAN via CLI", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");

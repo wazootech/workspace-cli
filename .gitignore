@@ -1,6 +1,10 @@
 # Deno test artifact created in test directories during runs
 **/.test.json
 
+# Built binary
+/wspace
+/wspace.exe
+
 # OS noise
 .DS_Store
 Thumbs.db
