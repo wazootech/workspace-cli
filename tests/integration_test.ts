@@ -10,6 +10,7 @@ import {
 import type { ManifestPaths } from "../src/manifest.ts";
 import { exists } from "../src/manifest.ts";
 import { run } from "../src/cli.ts";
+import { collectStatus } from "../src/status.ts";
 import { runUpdate } from "../src/update.ts";
 import {
   addWorktree,
@@ -278,6 +279,90 @@ Deno.test("wspace check reports CLEAN via CLI", async () => {
     );
     const code = await run(["check", "--json", "--manifest", manifestPath]);
     assertEquals(code, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("repoStatus reports MISSING when path does not exist", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rows = await collectStatus(
+      g,
+      { repositories: [{ name: "a", url: "u", path: join(dir, "nope") }] },
+      pathsFor(dir),
+    );
+    assertEquals(rows[0].state, "MISSING");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("repoStatus reports INVALID when path has no .git", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const empty = join(dir, "empty");
+    await Deno.mkdir(empty, { recursive: true });
+    const rows = await collectStatus(
+      g,
+      { repositories: [{ name: "a", url: "u", path: empty }] },
+      pathsFor(dir),
+    );
+    assertEquals(rows[0].state, "INVALID");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const reposDir = join(dir, "repos");
+    await Deno.mkdir(reposDir, { recursive: true });
+    const work = await makeRepoWithMain(dir, "a");
+    const unmanaged = join(reposDir, "stray");
+    await g.run(["clone", join(dir, "a.git"), unmanaged]);
+
+    const rows = await collectStatus(
+      g,
+      { repositories: [{ name: "a", url: "u", path: work }] },
+      { ...pathsFor(dir), repositoriesDirectory: reposDir },
+    );
+    const unmanagedRow = rows.find((r) => r.name === "(unmanaged) stray");
+    assert(unmanagedRow, "unmanaged checkout should be reported");
+    assertEquals(unmanagedRow.state, "CLEAN");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("defaultBranch returns undefined when origin/HEAD is missing", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    await g.run(["remote", "set-head", "origin", "--delete"], work);
+    assertEquals(await defaultBranch(g, work), undefined);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const empty = join(dir, "empty");
+    await Deno.mkdir(empty, { recursive: true });
+    const rows = await collectStatus(
+      g,
+      {
+        repositories: [
+          { name: "missing", url: "u", path: join(dir, "nope") },
+          { name: "invalid", url: "u", path: empty },
+        ],
+      },
+      pathsFor(dir),
+    );
+    assertEquals(rows.map((r) => r.state).sort(), ["INVALID", "MISSING"]);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
