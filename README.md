@@ -37,7 +37,13 @@ Design principles:
 
 ## Install
 
-Build a local binary:
+Install from JSR as the `wspace` binary:
+
+```sh
+deno install -g --name wspace jsr:@wazoo/workspace
+```
+
+Or build a local binary:
 
 ```sh
 deno task build

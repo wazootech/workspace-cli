@@ -1,10 +1,13 @@
 {
-  "name": "@wazoo/workspace-cli",
+  "name": "@wazoo/workspace",
   "version": "0.1.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts",
     "./cli": "./src/cli.ts"
+  },
+  "bin": {
+    "wspace": "./src/cli.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",
