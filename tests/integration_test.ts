@@ -8,6 +8,7 @@ import {
   SystemGit,
 } from "../src/git.ts";
 import type { ManifestPaths } from "../src/manifest.ts";
+import { exists } from "../src/manifest.ts";
 import { run } from "../src/cli.ts";
 import { runUpdate } from "../src/update.ts";
 import {
@@ -228,6 +229,39 @@ Deno.test("update skips when default branch is checked out in a worktree", async
         detail: "main checked out in a worktree",
       },
     ]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("wspace init clones missing repositories", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    await makeRepoWithMain(dir, "b");
+    await Deno.remove(join(dir, "b"), { recursive: true });
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "a", url: "u", path: work },
+          { name: "b", url: join(dir, "b.git"), path: join(dir, "b") },
+        ],
+      }),
+    );
+    const code = await run(["init", "--manifest", manifestPath]);
+    assertEquals(code, 0);
+    assertEquals(
+      await exists(join(dir, "b", ".git")),
+      true,
+      "missing repo should be cloned",
+    );
+    assertEquals(
+      await exists(join(dir, "b", "a.txt")),
+      true,
+      "cloned repo should contain seeded file",
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

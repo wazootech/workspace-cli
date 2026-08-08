@@ -25,12 +25,14 @@ Design principles:
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
+- `wspace init` — clone missing repositories from the manifest. Prints a warning
+  that fresh clones lack gitignored files and repo-specific setup.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
 - `wspace worktree add|list|remove` — create, list, and remove git worktrees
   under `worktrees/<repo>/<feature>/`.
 - `wspace env sync` — copy local environment files from a gitignored `secrets/`
   vault into checkouts and worktrees.
-- `wspace sync` — convenience alias that runs update + env sync.
+- `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 
 ## Install

@@ -17,7 +17,15 @@ import type { WorkspaceManifest } from "./types.ts";
 import { runUpdate } from "./update.ts";
 import { addWorktree, listWorktrees, removeWorktree } from "./worktrees.ts";
 
-const COMMANDS = ["check", "sync", "update", "worktree", "env", "validate"];
+const COMMANDS = [
+  "check",
+  "init",
+  "sync",
+  "update",
+  "worktree",
+  "env",
+  "validate",
+];
 
 class CliHelp extends Error {}
 
@@ -35,6 +43,7 @@ function usage(): void {
 
 Usage:
   wspace check [--json]
+  wspace init [--json]
   wspace sync [--json]
   wspace update [--json]
   wspace worktree add <repo> <feature>
@@ -169,6 +178,31 @@ async function runWorktree(
   }
 }
 
+async function cloneMissing(
+  g: GitRunner,
+  manifest: WorkspaceManifest,
+  paths: ManifestPaths,
+): Promise<{ name: string; state: string; detail?: string }[]> {
+  await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+  const rows: { name: string; state: string; detail?: string }[] = [];
+  for (const repository of manifest.repositories) {
+    const repoPath = resolveRepositoryPath(repository, paths);
+    if (await exists(repoPath)) {
+      rows.push({ name: repository.name, state: "EXISTS" });
+      continue;
+    }
+    const result = await clone(g, repository.url, repoPath);
+    rows.push(
+      result.code === 0 ? { name: repository.name, state: "CLONED" } : {
+        name: repository.name,
+        state: "CLONE_FAILED",
+        detail: result.stderr,
+      },
+    );
+  }
+  return rows;
+}
+
 async function runCommand(
   opts: CliOptions,
   manifest: WorkspaceManifest,
@@ -185,28 +219,22 @@ async function runCommand(
       }
       return hasErrors(rows) ? 1 : 0;
     }
-    case "sync": {
-      await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
-      const rows: { name: string; state: string; detail?: string }[] = [];
-      for (const repository of manifest.repositories) {
-        const repoPath = resolveRepositoryPath(repository, paths);
-        if (await exists(repoPath)) {
-          rows.push({ name: repository.name, state: "EXISTS" });
-          continue;
-        }
-        const result = await clone(g, repository.url, repoPath);
-        rows.push(
-          result.code === 0 ? { name: repository.name, state: "CLONED" } : {
-            name: repository.name,
-            state: "CLONE_FAILED",
-            detail: result.stderr,
-          },
-        );
-      }
+    case "sync":
+    case "init": {
+      const rows = await cloneMissing(g, manifest, paths);
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
         console.table(rows);
+      }
+      if (opts.command === "init") {
+        console.error(
+          `NOTE: Fresh clones do not contain files listed in .gitignore.
+Required setup steps may include:
+  - Running npm install / deno install / pip install etc. in each repo
+  - Copying .env files from secrets/ (run: wspace env sync)
+  - Any repo-specific setup documented in each repo's README`,
+        );
       }
       return 0;
     }
