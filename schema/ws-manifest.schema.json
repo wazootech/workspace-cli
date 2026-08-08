@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazootech/workspace-cli/blob/main/schema/ws-manifest.schema.json",
+  "title": "Workspace manifest",
+  "type": "object",
+  "required": ["repositories"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "workspaceRoot": { "type": "string" },
+    "repositoriesDirectory": { "type": "string" },
+    "worktreesDirectory": { "type": "string" },
+    "vaultDirectory": { "type": "string" },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "url"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "path": { "type": "string" },
+          "groups": { "type": "array", "items": { "type": "string" } },
+          "localFiles": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

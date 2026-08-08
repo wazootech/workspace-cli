@@ -1,0 +1,6 @@
+# Deno test artifact created in test directories during runs
+**/.test.json
+
+# OS noise
+.DS_Store
+Thumbs.db
