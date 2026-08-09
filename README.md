@@ -41,6 +41,11 @@ Design principles:
   vault into checkouts and worktrees.
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
+- `wspace factory bootstrap [<repository-path>]` — discover a Git repository and
+  install deterministic, repository-local `.wazoo/` metadata. Use `--dry-run` to
+  inspect changes or `--force` to overwrite conflicting managed files.
+- `wspace factory smoke [<repository-path>] [--json]` — validate and report the
+  factory metadata without running scripts or modifying the repository.
 
 ## Install
 

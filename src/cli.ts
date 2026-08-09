@@ -15,6 +15,7 @@ import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import { runUpdate } from "./update.ts";
+import { bootstrapFactory, smokeFactory } from "./factory.ts";
 import {
   addWorktree,
   branchExists,
@@ -32,6 +33,7 @@ const COMMANDS = [
   "worktree",
   "env",
   "validate",
+  "factory",
 ];
 
 class CliHelp extends Error {}
@@ -42,6 +44,8 @@ interface CliOptions {
   manifestPath: string;
   json: boolean;
   stale: boolean;
+  dryRun: boolean;
+  force: boolean;
   positional: string[];
 }
 
@@ -58,6 +62,8 @@ Usage:
   wspace worktree remove <repo> <feature>
   wspace env sync
   wspace validate
+  wspace factory bootstrap [<repository-path>] [--dry-run] [--force]
+  wspace factory smoke [<repository-path>] [--json]
 
 Options:
   --manifest <path>  Manifest path (default: repos.json)
@@ -66,7 +72,7 @@ Options:
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
-    boolean: ["help", "json", "stale"],
+    boolean: ["help", "json", "stale", "dry-run", "force"],
     string: ["manifest"],
     alias: { h: "help" },
   });
@@ -87,6 +93,8 @@ function parseCliArgs(args: string[]): CliOptions {
     manifestPath: parsed.manifest ?? "repos.json",
     json: parsed.json ?? false,
     stale: parsed.stale ?? false,
+    dryRun: parsed["dry-run"] ?? false,
+    force: parsed.force ?? false,
     positional: positional.slice(2),
   };
 }
@@ -322,6 +330,71 @@ Required setup steps may include:
 
 export async function run(args: string[]): Promise<number> {
   const opts = parseCliArgs(args);
+  if (opts.command === "factory") {
+    if (!opts.subcommand || !["bootstrap", "smoke"].includes(opts.subcommand)) {
+      console.error(
+        "Usage: wspace factory bootstrap|smoke [<repository-path>]",
+      );
+      return 2;
+    }
+    if (opts.positional.length > 1) {
+      console.error("Factory commands accept at most one repository path");
+      return 2;
+    }
+    const target = opts.positional[0] ?? Deno.cwd();
+    if (opts.subcommand === "bootstrap") {
+      const result = await bootstrapFactory(new SystemGit(), target, {
+        dryRun: opts.dryRun,
+        force: opts.force,
+      });
+      if (opts.json) console.log(JSON.stringify(result, null, 2));
+      else {
+        console.log(`Git root: ${result.root}`);
+        console.log(`Repository: ${result.discovery.identity}`);
+        console.log(`Dirty: ${result.discovery.dirty ? "yes" : "no"}`);
+        console.log(
+          `AGENTS.md: ${
+            result.discovery.inspections.agents ? "present" : "missing"
+          }`,
+        );
+        console.log(
+          `Workflows: ${
+            result.discovery.inspections.workflows.join(", ") || "none"
+          }`,
+        );
+        console.log(
+          `Metadata: ${
+            result.discovery.inspections.metadata.join(", ") || "none"
+          }`,
+        );
+        console.log(
+          `Agent config: ${
+            result.discovery.inspections.agentConfig.join(", ") || "none"
+          }`,
+        );
+        console.table(result.actions);
+      }
+      return result.actions.some((action) => action.action === "conflict")
+        ? 1
+        : 0;
+    }
+    if (opts.subcommand === "smoke") {
+      const result = await smokeFactory(new SystemGit(), target);
+      if (opts.json) console.log(JSON.stringify(result, null, 2));
+      else {
+        console.log(
+          `Factory manifest: ${
+            result.valid ? "VALID" : "INVALID"
+          }\nGit root: ${result.root}\nDirty: ${result.dirty ? "yes" : "no"}${
+            result.error ? `\nError: ${result.error}` : ""
+          }\nCommands: ${
+            result.commands.join(", ") || "none"
+          }\nProtected paths: ${result.protectedPaths.join(", ") || "none"}`,
+        );
+      }
+      return result.valid ? 0 : 1;
+    }
+  }
   const manifestPath = resolve(Deno.cwd(), opts.manifestPath);
   const manifest = await loadManifest(manifestPath);
   const paths = manifestPaths(manifest, manifestPath);
