@@ -16,6 +16,7 @@ import {
   addWorktree,
   listWorktrees,
   removeWorktree,
+  staleness,
 } from "../src/worktrees.ts";
 
 const g = new SystemGit();
@@ -202,6 +203,99 @@ Deno.test("worktree add/list/remove round trip", async () => {
       ),
       undefined,
     );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("worktree add attaches an existing branch", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    assertEquals((await g.run(["branch", "feature-x"], work)).code, 0);
+    const worktreePath = join(dir, "worktrees", "a", "feature-x");
+    assertEquals(
+      (await addWorktree(g, work, worktreePath, "feature-x")).code,
+      0,
+    );
+    const worktrees = await listWorktrees(g, work);
+    assert(
+      worktrees.some((w) =>
+        w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
+      ),
+      "worktree for existing branch not found",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("worktree add branches from an explicit start point", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    await seedCommitOnOrigin(dir, "a", "two\n");
+    assertEquals((await g.run(["fetch", "--prune"], work)).code, 0);
+    assertEquals(
+      (await g.run(["checkout", "-b", "base-branch"], work)).code,
+      0,
+    );
+
+    const worktreePath = join(dir, "worktrees", "a", "feature-x");
+    assertEquals(
+      (await addWorktree(g, work, worktreePath, "feature-x", "origin/main"))
+        .code,
+      0,
+    );
+
+    const head = (await g.run(["rev-parse", "HEAD"], worktreePath)).stdout;
+    const originMain = (await g.run(["rev-parse", "origin/main"], work)).stdout;
+    const baseBranch = (await g.run(["rev-parse", "base-branch"], work)).stdout;
+    assertEquals(head, originMain);
+    assert(head !== baseBranch, "forked from HEAD instead of the start point");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("staleness flags merged branches and never the main worktree", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    const worktreePath = join(dir, "worktrees", "a", "feature-x");
+    assertEquals(
+      (await addWorktree(g, work, worktreePath, "feature-x", "origin/main"))
+        .code,
+      0,
+    );
+    const worktrees = await listWorktrees(g, work);
+    const created = worktrees.find((w) =>
+      w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
+    );
+    assert(created, "worktree not found");
+
+    assertEquals(
+      await staleness(g, work, created, "main"),
+      { stale: true, reason: "merged" },
+    );
+
+    await Deno.writeTextFile(join(worktreePath, "a.txt"), "feature\n");
+    assertEquals((await g.run(["add", "."], worktreePath)).code, 0);
+    await configure(worktreePath);
+    assertEquals(
+      (await g.run(["commit", "-m", "feature work"], worktreePath)).code,
+      0,
+    );
+    assertEquals(
+      await staleness(g, work, created, "main"),
+      { stale: false },
+    );
+
+    const main = worktrees.find((w) =>
+      w.path.replaceAll("\\", "/") === work.replaceAll("\\", "/")
+    );
+    assert(main, "main worktree not found");
+    assertEquals(await staleness(g, work, main, "main"), { stale: false });
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

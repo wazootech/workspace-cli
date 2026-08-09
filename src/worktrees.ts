@@ -1,3 +1,5 @@
+import { normalize } from "@std/path";
+import { defaultBranch, hasRef } from "./git.ts";
 import type { GitResult, GitRunner } from "./git.ts";
 import type { Worktree } from "./types.ts";
 
@@ -55,16 +57,29 @@ export async function listWorktrees(
   return result.code === 0 ? parseWorktreesPorcelain(result.stdout) : [];
 }
 
+export async function branchExists(
+  g: GitRunner,
+  repoPath: string,
+  branch: string,
+): Promise<boolean> {
+  return await hasRef(g, repoPath, `refs/heads/${branch}`);
+}
+
 export async function addWorktree(
   g: GitRunner,
   repoPath: string,
   worktreePath: string,
   branch: string,
+  startPoint?: string,
 ): Promise<GitResult> {
-  return await g.run(
-    ["worktree", "add", "--track", "-b", branch, worktreePath],
-    repoPath,
-  );
+  if (await branchExists(g, repoPath, branch)) {
+    return await g.run(["worktree", "add", worktreePath, branch], repoPath);
+  }
+  const args = ["worktree", "add", "--no-track", "-b", branch, worktreePath];
+  if (startPoint) {
+    args.push(startPoint);
+  }
+  return await g.run(args, repoPath);
 }
 
 export async function removeWorktree(
@@ -77,4 +92,51 @@ export async function removeWorktree(
     await g.run(["worktree", "prune"], repoPath);
   }
   return result;
+}
+
+export async function defaultBranchStartPoint(
+  g: GitRunner,
+  repoPath: string,
+): Promise<string | undefined> {
+  const branch = await defaultBranch(g, repoPath);
+  return branch ? `origin/${branch}` : undefined;
+}
+
+export async function branchIsAncestor(
+  g: GitRunner,
+  repoPath: string,
+  branch: string,
+  ref: string,
+): Promise<boolean> {
+  return (await g.run(["merge-base", "--is-ancestor", branch, ref], repoPath))
+    .code === 0;
+}
+
+export interface WorktreeStaleness {
+  stale: boolean;
+  reason?: "merged" | "branch-missing";
+}
+
+export async function staleness(
+  g: GitRunner,
+  repoPath: string,
+  wt: Worktree,
+  defaultBranchName: string | undefined,
+): Promise<WorktreeStaleness> {
+  if (normalize(wt.path) === normalize(repoPath)) {
+    return { stale: false };
+  }
+  if (!defaultBranchName || wt.bare || wt.detached || !wt.branch) {
+    return { stale: false };
+  }
+  if (!(await branchExists(g, repoPath, wt.branch))) {
+    return { stale: true, reason: "branch-missing" };
+  }
+  const merged = await branchIsAncestor(
+    g,
+    repoPath,
+    wt.branch,
+    `origin/${defaultBranchName}`,
+  );
+  return merged ? { stale: true, reason: "merged" } : { stale: false };
 }

@@ -1,4 +1,4 @@
-import { join } from "@std/path";
+import { join, normalize } from "@std/path";
 import type { GitRunner } from "./git.ts";
 import {
   branchAb,
@@ -12,10 +12,6 @@ import { exists, resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { RepositoryEntry, UpdateAction } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";
-
-function normalizePath(path: string): string {
-  return path.replaceAll("\\", "/").replace(/\/+$/, "");
-}
 
 export async function planUpdate(
   g: GitRunner,
@@ -65,7 +61,7 @@ export async function planUpdate(
 
     const worktrees = await listWorktrees(g, repoPath);
     const linkedWorktrees = worktrees.filter(
-      (w) => normalizePath(w.path) !== normalizePath(repoPath),
+      (w) => normalize(w.path) !== normalize(repoPath),
     );
     if (linkedWorktrees.some((w) => w.branch === defaultBranchName)) {
       actions.push({
