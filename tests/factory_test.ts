@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
-import { join } from "@std/path";
+import { join, normalize } from "@std/path";
 import {
   bootstrapFactory,
   smokeFactory,
@@ -64,7 +64,7 @@ Deno.test("factory bootstrap is deterministic, idempotent, and handles Windows p
     const content = await Deno.readTextFile(
       join(root, ".wazoo", "factory.json"),
     );
-    const second = await bootstrapFactory(git, root.replaceAll("/", "\\"));
+    const second = await bootstrapFactory(git, normalize(root));
     assertEquals(second.actions.map((a) => a.action), [
       "unchanged",
       "unchanged",
