@@ -28,8 +28,15 @@ Design principles:
 - `wspace init` — clone missing repositories from the manifest. Prints a warning
   that fresh clones lack gitignored files and repo-specific setup.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
-- `wspace worktree add|list|remove` — create, list, and remove git worktrees
-  under `worktrees/<repo>/<feature>/`.
+- `wspace worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
+  under `worktrees/<repo>/<feature>/`, branching from the repo's default-branch
+  baseline (`origin/<default>`) or an explicit `<commit-ish>`. Attaches an
+  existing branch of the same name with a warning.
+- `wspace worktree list [--stale] [--json]` — list worktrees across all
+  repositories. `--stale` filters to linked worktrees whose branch is fully
+  merged into the default branch (or missing), i.e. safe removal candidates.
+- `wspace worktree remove <repo> <feature>` — remove a worktree, then prune and
+  tidy the now-empty `worktrees/<repo>/` directory.
 - `wspace env sync` — copy local environment files from a gitignored `secrets/`
   vault into checkouts and worktrees.
 - `wspace sync` — alias for `wspace init`.
@@ -64,3 +71,4 @@ integration tests against real local git repositories).
 
 - [ADR-0001: Git-native worktrees](docs/adr/0001-git-native-worktrees.md)
 - [ADR-0002: Conservative update policy](docs/adr/0002-conservative-update-policy.md)
+- [ADR-0003: Explicit worktree baseline and merged-branch staleness](docs/adr/0003-worktree-baseline-and-staleness.md)
