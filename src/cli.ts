@@ -1,7 +1,7 @@
 import { join, resolve } from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
 import { syncEnv } from "./env.ts";
-import { clone } from "./git.ts";
+import { clone, defaultBranch } from "./git.ts";
 import type { GitRunner } from "./git.ts";
 import { SystemGit } from "./git.ts";
 import {
@@ -15,7 +15,14 @@ import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import { runUpdate } from "./update.ts";
-import { addWorktree, listWorktrees, removeWorktree } from "./worktrees.ts";
+import {
+  addWorktree,
+  branchExists,
+  defaultBranchStartPoint,
+  listWorktrees,
+  removeWorktree,
+  staleness,
+} from "./worktrees.ts";
 
 const COMMANDS = [
   "check",
@@ -46,7 +53,7 @@ Usage:
   wspace init [--json]
   wspace sync [--json]
   wspace update [--json]
-  wspace worktree add <repo> <feature>
+  wspace worktree add <repo> <feature> [<commit-ish>]
   wspace worktree list [--stale] [--json]
   wspace worktree remove <repo> <feature>
   wspace env sync
@@ -98,23 +105,36 @@ async function runWorktree(
         branch?: string;
         bare: boolean;
         detached: boolean;
+        stale?: boolean;
+        reason?: string;
       }[] = [];
       for (const repository of manifest.repositories) {
         const repoPath = resolveRepositoryPath(repository, paths);
         if (!(await exists(repoPath))) {
           continue;
         }
+        const defaultName = opts.stale
+          ? await defaultBranch(g, repoPath)
+          : undefined;
         for (const wt of await listWorktrees(g, repoPath)) {
-          rows.push({
+          const row: (typeof rows)[number] = {
             repo: repository.name,
             path: wt.path,
             branch: wt.branch,
             bare: wt.bare,
             detached: wt.detached,
-          });
+          };
+          if (opts.stale) {
+            const s = await staleness(g, repoPath, wt, defaultName);
+            row.stale = s.stale;
+            if (s.reason) {
+              row.reason = s.reason;
+            }
+          }
+          rows.push(row);
         }
       }
-      const filtered = opts.stale ? rows.filter((r) => r.detached) : rows;
+      const filtered = opts.stale ? rows.filter((r) => r.stale) : rows;
       if (opts.json) {
         console.log(JSON.stringify(filtered, null, 2));
       } else {
@@ -123,9 +143,11 @@ async function runWorktree(
       return 0;
     }
     case "add": {
-      const [repoName, feature] = opts.positional;
+      const [repoName, feature, startPoint] = opts.positional;
       if (!repoName || !feature) {
-        console.error("Usage: wspace worktree add <repo> <feature>");
+        console.error(
+          "Usage: wspace worktree add <repo> <feature> [<commit-ish>]",
+        );
         return 2;
       }
       const repository = manifest.repositories.find((r) => r.name === repoName);
@@ -139,7 +161,28 @@ async function runWorktree(
         return 2;
       }
       const worktreePath = join(paths.worktreesDirectory, repoName, feature);
-      const result = await addWorktree(g, repoPath, worktreePath, feature);
+      const reattach = await branchExists(g, repoPath, feature);
+      let startPointArg: string | undefined = startPoint;
+      if (reattach) {
+        console.warn(
+          `Branch ${feature} already exists; attaching existing branch`,
+        );
+      } else {
+        startPointArg ??= await defaultBranchStartPoint(g, repoPath);
+        if (!startPointArg) {
+          console.error(
+            "Cannot resolve a default-branch baseline (no origin/HEAD); pass an explicit <commit-ish>",
+          );
+          return 2;
+        }
+      }
+      const result = await addWorktree(
+        g,
+        repoPath,
+        worktreePath,
+        feature,
+        startPointArg,
+      );
       if (result.code !== 0) {
         console.error(result.stderr);
         return 1;
@@ -169,6 +212,9 @@ async function runWorktree(
         console.error(result.stderr);
         return 1;
       }
+      await Deno.remove(join(paths.worktreesDirectory, repoName), {
+        recursive: false,
+      }).catch(() => {});
       console.log(`Removed worktree ${worktreePath}`);
       return 0;
     }
