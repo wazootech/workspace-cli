@@ -4,8 +4,8 @@ import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 export const CURRENT_SCHEMA_VERSION = 1;
 
 export const DEFAULT_MANIFEST_FILENAMES = [
-  "wspace.json",
   "workspace.json",
+  "wspace.json",
   "repos.json",
 ];
 

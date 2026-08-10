@@ -62,7 +62,7 @@ Usage:
   wspace validate
 
 Options:
-  --manifest <path>  Manifest path (default: wspace.json / workspace.json / repos.json)
+  --manifest <path>  Manifest path (default: workspace.json / wspace.json / repos.json)
   --json             Machine-readable output
   --stale            Filter worktrees fully merged into origin/<default> (or missing branch)
   --dry-run          Preview environment sync operations without modifying files

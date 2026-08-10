@@ -85,13 +85,13 @@ Deno.test("validateManifest rejects invalid repo names or traversal", () => {
   );
 });
 
-Deno.test("findDefaultManifestPath respects fallback order wspace.json -> workspace.json -> repos.json", async () => {
+Deno.test("findDefaultManifestPath respects fallback order workspace.json -> wspace.json -> repos.json", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
-    // When no manifest exists, defaults to wspace.json
+    // When no manifest exists, defaults to workspace.json
     assertEquals(
       await findDefaultManifestPath(tempDir),
-      join(tempDir, "wspace.json"),
+      join(tempDir, "workspace.json"),
     );
 
     // If repos.json exists, resolves repos.json
@@ -99,15 +99,15 @@ Deno.test("findDefaultManifestPath respects fallback order wspace.json -> worksp
     await Deno.writeTextFile(reposPath, "{}");
     assertEquals(await findDefaultManifestPath(tempDir), reposPath);
 
-    // If workspace.json exists, takes priority over repos.json
-    const workspacePath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(workspacePath, "{}");
-    assertEquals(await findDefaultManifestPath(tempDir), workspacePath);
-
-    // If wspace.json exists, takes top priority
+    // If wspace.json exists, takes priority over repos.json
     const wspacePath = join(tempDir, "wspace.json");
     await Deno.writeTextFile(wspacePath, "{}");
     assertEquals(await findDefaultManifestPath(tempDir), wspacePath);
+
+    // If workspace.json exists, takes top priority
+    const workspacePath = join(tempDir, "workspace.json");
+    await Deno.writeTextFile(workspacePath, "{}");
+    assertEquals(await findDefaultManifestPath(tempDir), workspacePath);
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
