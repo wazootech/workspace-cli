@@ -1,6 +1,10 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { dirname, join } from "@std/path";
-import { manifestPaths, validateManifest } from "../src/manifest.ts";
+import {
+  findDefaultManifestPath,
+  manifestPaths,
+  validateManifest,
+} from "../src/manifest.ts";
 import type { WorkspaceManifest } from "../src/types.ts";
 
 Deno.test("validateManifest accepts a valid manifest", () => {
@@ -79,4 +83,32 @@ Deno.test("validateManifest rejects invalid repo names or traversal", () => {
     Error,
     "invalid characters or path traversal",
   );
+});
+
+Deno.test("findDefaultManifestPath respects fallback order wspace.json -> workspace.json -> repos.json", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    // When no manifest exists, defaults to wspace.json
+    assertEquals(
+      await findDefaultManifestPath(tempDir),
+      join(tempDir, "wspace.json"),
+    );
+
+    // If repos.json exists, resolves repos.json
+    const reposPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(reposPath, "{}");
+    assertEquals(await findDefaultManifestPath(tempDir), reposPath);
+
+    // If workspace.json exists, takes priority over repos.json
+    const workspacePath = join(tempDir, "workspace.json");
+    await Deno.writeTextFile(workspacePath, "{}");
+    assertEquals(await findDefaultManifestPath(tempDir), workspacePath);
+
+    // If wspace.json exists, takes top priority
+    const wspacePath = join(tempDir, "wspace.json");
+    await Deno.writeTextFile(wspacePath, "{}");
+    assertEquals(await findDefaultManifestPath(tempDir), wspacePath);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
 });

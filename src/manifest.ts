@@ -3,11 +3,29 @@ import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 
+export const DEFAULT_MANIFEST_FILENAMES = [
+  "wspace.json",
+  "workspace.json",
+  "repos.json",
+];
+
 export interface ManifestPaths {
   root: string;
   repositoriesDirectory: string;
   worktreesDirectory: string;
   vaultDirectory: string;
+}
+
+export async function findDefaultManifestPath(
+  cwd: string = Deno.cwd(),
+): Promise<string> {
+  for (const filename of DEFAULT_MANIFEST_FILENAMES) {
+    const candidate = resolve(cwd, filename);
+    if (await exists(candidate)) {
+      return candidate;
+    }
+  }
+  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0]);
 }
 
 export function validateSafeName(name: string, contextName = "Name"): void {
