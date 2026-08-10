@@ -87,9 +87,10 @@ follow this standard lifecycle:
 
 ### Important Path Resolution Rules
 
-- **Workspace Root Anchor**: All repository and worktree paths in `repos.json`
-  resolve relative to the directory containing `repos.json` (the manifest file),
-  regardless of the caller's current working directory.
+- **Workspace Root Anchor**: All repository and worktree paths in
+  `workspace.json` (or `wspace.json` / `repos.json`) resolve relative to the
+  directory containing the manifest file, regardless of the caller's current
+  working directory.
 - **Why `$PWD` is required with `git -C`**: `git -C repos/<repo>` changes Git's
   working directory to `repos/<repo>` before executing. If you pass a relative
   path like `worktrees/<repo>/<feature>`, Git creates the worktree nested inside
@@ -100,6 +101,22 @@ follow this standard lifecycle:
   `origin/<default>` (resolved via `origin/HEAD`), ensuring feature branches
   start from the remote baseline rather than a local dirty state or arbitrary
   `HEAD`.
+
+### Dependency Management Across Worktrees
+
+Each Git worktree maintains an independent working directory, while modern
+package managers optimize dependency caching across worktrees:
+
+- **`pnpm`**: Uses a central content-addressable store
+  (`~/.local/share/pnpm/store`). Running `pnpm install` in a new worktree
+  hard-links dependencies from the central store without duplicating files or
+  re-downloading packages.
+- **Deno**: Uses the global `DENO_DIR` module cache (`~/.cache/deno` or
+  `%LOCALAPPDATA%\deno`), sharing cached dependencies across all worktrees
+  zero-copy.
+- **npm / yarn**: Running `npm install` or `yarn install` inside a worktree
+  installs dependencies for that worktree, fetching packages from the shared
+  user HTTP cache.
 
 ### Troubleshooting & Common Pitfalls
 
