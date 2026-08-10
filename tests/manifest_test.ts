@@ -34,24 +34,49 @@ Deno.test("validateManifest rejects a newer schema version", () => {
 
 Deno.test("manifestPaths applies defaults under the manifest directory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
-  const paths = manifestPaths(manifest, join("ws", "repos.json"));
-  assertEquals(paths.root, dirname(join("ws", "repos.json")));
-  assertEquals(paths.repositoriesDirectory, join("ws", "repos"));
-  assertEquals(paths.worktreesDirectory, join("ws", "worktrees"));
-  assertEquals(paths.vaultDirectory, join("ws", "secrets"));
+  const manifestFile = join(Deno.cwd(), "ws", "repos.json");
+  const paths = manifestPaths(manifest, manifestFile);
+  assertEquals(paths.root, dirname(manifestFile));
+  assertEquals(
+    paths.repositoriesDirectory,
+    join(dirname(manifestFile), "repos"),
+  );
+  assertEquals(
+    paths.worktreesDirectory,
+    join(dirname(manifestFile), "worktrees"),
+  );
+  assertEquals(paths.vaultDirectory, join(dirname(manifestFile), "secrets"));
 });
 
-Deno.test("manifestPaths honors workspaceRoot override", () => {
+Deno.test("manifestPaths resolves relative workspaceRoot from manifest directory", () => {
   const manifest: WorkspaceManifest = { workspaceRoot: "..", repositories: [] };
-  const paths = manifestPaths(manifest, join("ws", "repos.json"));
-  assertEquals(paths.root, "..");
+  const manifestFile = join(Deno.cwd(), "ws", "repos.json");
+  const paths = manifestPaths(manifest, manifestFile);
+  assertEquals(paths.root, dirname(dirname(manifestFile)));
 });
 
 Deno.test("manifestPaths honors absolute workspaceRoot", () => {
   const manifest: WorkspaceManifest = {
-    workspaceRoot: "C:\\wazoo",
+    workspaceRoot: Deno.build.os === "windows" ? "C:\\wazoo" : "/wazoo",
     repositories: [],
   };
-  const paths = manifestPaths(manifest, "C:\\ws\\repos.json");
-  assertEquals(paths.root, "C:\\wazoo");
+  const manifestFile = Deno.build.os === "windows"
+    ? "C:\\ws\\repos.json"
+    : "/ws/repos.json";
+  const paths = manifestPaths(manifest, manifestFile);
+  assertEquals(
+    paths.root,
+    Deno.build.os === "windows" ? "C:\\wazoo" : "/wazoo",
+  );
+});
+
+Deno.test("validateManifest rejects invalid repo names or traversal", () => {
+  const manifest: WorkspaceManifest = {
+    repositories: [{ name: "../traversal", url: "https://example.com/a.git" }],
+  };
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "invalid characters or path traversal",
+  );
 });

@@ -36,16 +36,29 @@ function matchPattern(pattern: string, name: string): boolean {
   return false;
 }
 
+export interface SyncEnvOptions {
+  dryRun?: boolean;
+}
+
 export interface SyncEnvResult {
   repo: string;
   file: string;
   destination: string;
+  action:
+    | "CREATED"
+    | "OVERWRITTEN"
+    | "WOULD_CREATE"
+    | "WOULD_OVERWRITE"
+    | "SKIPPED"
+    | "FAILED";
+  reason?: string;
 }
 
 export async function syncEnv(
   g: GitRunner,
   manifest: WorkspaceManifest,
   paths: ManifestPaths,
+  options: SyncEnvOptions = {},
 ): Promise<SyncEnvResult[]> {
   const synced: SyncEnvResult[] = [];
   if (!(await exists(paths.vaultDirectory))) {
@@ -80,12 +93,75 @@ export async function syncEnv(
           continue;
         }
         const destination = join(target, fileEntry.name);
-        await Deno.copyFile(source, destination);
-        synced.push({
-          repo: repository.name,
-          file: fileEntry.name,
-          destination,
-        });
+
+        let destExists = false;
+        try {
+          const lstat = await Deno.lstat(destination);
+          destExists = true;
+          if (lstat.isSymlink) {
+            synced.push({
+              repo: repository.name,
+              file: fileEntry.name,
+              destination,
+              action: "FAILED",
+              reason: "Destination is a symlink (rejected for security)",
+            });
+            continue;
+          }
+        } catch (err) {
+          if (!(err instanceof Deno.errors.NotFound)) {
+            synced.push({
+              repo: repository.name,
+              file: fileEntry.name,
+              destination,
+              action: "FAILED",
+              reason: err instanceof Error ? err.message : String(err),
+            });
+            continue;
+          }
+        }
+
+        if (options.dryRun) {
+          synced.push({
+            repo: repository.name,
+            file: fileEntry.name,
+            destination,
+            action: destExists ? "WOULD_OVERWRITE" : "WOULD_CREATE",
+          });
+          continue;
+        }
+
+        try {
+          const tempDest = `${destination}.tmp.${
+            Math.random().toString(36).slice(2)
+          }`;
+          await Deno.copyFile(source, tempDest);
+          try {
+            await Deno.chmod(tempDest, 0o600);
+          } catch {
+            // ignore chmod errors on unsupported OS / filesystems
+          }
+          await Deno.rename(tempDest, destination);
+          try {
+            await Deno.chmod(destination, 0o600);
+          } catch {
+            // ignore chmod errors
+          }
+          synced.push({
+            repo: repository.name,
+            file: fileEntry.name,
+            destination,
+            action: destExists ? "OVERWRITTEN" : "CREATED",
+          });
+        } catch (err) {
+          synced.push({
+            repo: repository.name,
+            file: fileEntry.name,
+            destination,
+            action: "FAILED",
+            reason: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }

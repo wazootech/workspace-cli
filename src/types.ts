@@ -22,11 +22,14 @@ export interface WorkspaceManifest {
 export type RepoState =
   | "MISSING"
   | "INVALID"
+  | "PATH_BLOCKED"
   | "DIRTY"
+  | "WORKTREE_DIRTY"
   | "FEATURE_CLEAN"
   | "DIVERGED"
   | "CLEAN"
-  | "UNKNOWN";
+  | "UNKNOWN"
+  | "ERROR";
 
 export interface RepoStatus {
   name: string;
@@ -38,6 +41,8 @@ export interface RepoStatus {
   behind?: number;
   state: RepoState;
   detail?: string;
+  isWorktree?: boolean;
+  worktreePath?: string;
 }
 
 export interface Worktree {

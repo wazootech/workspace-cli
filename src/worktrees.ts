@@ -1,6 +1,7 @@
 import { normalize } from "@std/path";
 import { defaultBranch, hasRef } from "./git.ts";
 import type { GitResult, GitRunner } from "./git.ts";
+import { validateSafeName } from "./manifest.ts";
 import type { Worktree } from "./types.ts";
 
 export function parseWorktreesPorcelain(output: string): Worktree[] {
@@ -72,6 +73,7 @@ export async function addWorktree(
   branch: string,
   startPoint?: string,
 ): Promise<GitResult> {
+  validateSafeName(branch, "Feature branch name");
   if (await branchExists(g, repoPath, branch)) {
     return await g.run(["worktree", "add", worktreePath, branch], repoPath);
   }
