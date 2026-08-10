@@ -6,6 +6,7 @@ import type { GitRunner } from "./git.ts";
 import { SystemGit } from "./git.ts";
 import {
   exists,
+  findDefaultManifestPath,
   loadManifest,
   manifestPaths,
   resolveRepositoryPath,
@@ -39,7 +40,7 @@ class CliHelp extends Error {}
 interface CliOptions {
   command: string;
   subcommand?: string;
-  manifestPath: string;
+  manifestPath?: string;
   json: boolean;
   stale: boolean;
   dryRun: boolean;
@@ -61,7 +62,7 @@ Usage:
   wspace validate
 
 Options:
-  --manifest <path>  Manifest path (default: repos.json)
+  --manifest <path>  Manifest path (default: wspace.json / workspace.json / repos.json)
   --json             Machine-readable output
   --stale            Filter worktrees fully merged into origin/<default> (or missing branch)
   --dry-run          Preview environment sync operations without modifying files
@@ -93,7 +94,7 @@ function parseCliArgs(args: string[]): CliOptions {
   return {
     command,
     subcommand: positional[1],
-    manifestPath: parsed.manifest ?? "repos.json",
+    manifestPath: parsed.manifest,
     json: parsed.json ?? false,
     stale: parsed.stale ?? false,
     dryRun: parsed["dry-run"] ?? false,
@@ -351,7 +352,9 @@ Required setup steps may include:
 
 export async function run(args: string[]): Promise<number> {
   const opts = parseCliArgs(args);
-  const manifestPath = resolve(Deno.cwd(), opts.manifestPath);
+  const manifestPath = opts.manifestPath
+    ? resolve(Deno.cwd(), opts.manifestPath)
+    : await findDefaultManifestPath();
   const manifest = await loadManifest(manifestPath);
   const paths = manifestPaths(manifest, manifestPath);
   return await runCommand(opts, manifest, paths, new SystemGit());
