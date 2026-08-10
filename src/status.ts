@@ -1,4 +1,4 @@
-import { join } from "@std/path";
+import { join, normalize, relative, resolve } from "@std/path";
 import type { GitRunner } from "./git.ts";
 import {
   branchAb,
@@ -11,6 +11,7 @@ import {
 import { exists, resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
+import { listWorktrees } from "./worktrees.ts";
 
 export interface ClassifyInput {
   dirty: boolean;
@@ -66,49 +67,57 @@ export async function repoStatus(
     return { ...base, state: "INVALID" };
   }
 
-  const branch = await currentBranch(g, repoPath);
-  const defaultBr = await defaultBranch(g, repoPath);
-  const dirty = await isDirty(g, repoPath);
-  const upstream = branch
-    ? await configuredUpstream(g, repoPath, branch)
-    : undefined;
-  const featureBranch = branch !== undefined && branch !== defaultBr;
+  try {
+    const branch = await currentBranch(g, repoPath);
+    const defaultBr = await defaultBranch(g, repoPath);
+    const dirty = await isDirty(g, repoPath);
+    const upstream = branch
+      ? await configuredUpstream(g, repoPath, branch)
+      : undefined;
+    const featureBranch = branch !== undefined && branch !== defaultBr;
 
-  let ahead: number | undefined;
-  let behind: number | undefined;
-  let upstreamRefExists: boolean | undefined;
-  if (upstream && branch) {
-    upstreamRefExists = await hasRef(g, repoPath, `refs/remotes/${upstream}`);
-    if (upstreamRefExists) {
-      const ab = await branchAb(g, repoPath, upstream);
-      if (ab) {
-        ahead = ab.ahead;
-        behind = ab.behind;
+    let ahead: number | undefined;
+    let behind: number | undefined;
+    let upstreamRefExists: boolean | undefined;
+    if (upstream && branch) {
+      upstreamRefExists = await hasRef(g, repoPath, `refs/remotes/${upstream}`);
+      if (upstreamRefExists) {
+        const ab = await branchAb(g, repoPath, upstream);
+        if (ab) {
+          ahead = ab.ahead;
+          behind = ab.behind;
+        }
       }
     }
+
+    const classified = classifyState({
+      dirty,
+      featureBranch,
+      hasDefaultBranch: defaultBr !== undefined,
+      upstream,
+      upstreamRefExists,
+      aheadBehind: ahead !== undefined
+        ? { ahead, behind: behind ?? 0 }
+        : undefined,
+    });
+
+    return {
+      ...base,
+      branch,
+      defaultBranch: defaultBr,
+      upstream,
+      ahead,
+      behind,
+      state: classified.state,
+      detail: classified.detail,
+    };
+  } catch (err) {
+    return {
+      ...base,
+      state: "ERROR",
+      detail: err instanceof Error ? err.message : String(err),
+    };
   }
-
-  const classified = classifyState({
-    dirty,
-    featureBranch,
-    hasDefaultBranch: defaultBr !== undefined,
-    upstream,
-    upstreamRefExists,
-    aheadBehind: ahead !== undefined
-      ? { ahead, behind: behind ?? 0 }
-      : undefined,
-  });
-
-  return {
-    ...base,
-    branch,
-    defaultBranch: defaultBr,
-    upstream,
-    ahead,
-    behind,
-    state: classified.state,
-    detail: classified.detail,
-  };
 }
 
 export async function collectStatus(
@@ -118,6 +127,11 @@ export async function collectStatus(
 ): Promise<RepoStatus[]> {
   const rows: RepoStatus[] = [];
   const managed = new Set(manifest.repositories.map((r) => r.name));
+  const managedPaths = new Set(
+    manifest.repositories.map((r) =>
+      normalize(resolveRepositoryPath(r, paths))
+    ),
+  );
   const reposDir = paths.repositoriesDirectory;
 
   if (await exists(reposDir)) {
@@ -125,7 +139,13 @@ export async function collectStatus(
       if (!entry.isDirectory || entry.name === ".git") {
         continue;
       }
-      const candidatePath = join(reposDir, entry.name);
+      if (managed.has(entry.name)) {
+        continue;
+      }
+      const candidatePath = normalize(resolve(reposDir, entry.name));
+      if (managedPaths.has(candidatePath)) {
+        continue;
+      }
       if (await exists(join(candidatePath, ".git"))) {
         rows.push(
           await repoStatus(
@@ -140,10 +160,63 @@ export async function collectStatus(
 
   for (const repository of manifest.repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
-    if (!managed.has(repository.name)) {
-      continue;
+    const mainStatus = await repoStatus(g, repository, repoPath);
+    rows.push(mainStatus);
+
+    if (mainStatus.state !== "MISSING" && mainStatus.state !== "INVALID") {
+      try {
+        const wts = await listWorktrees(g, repoPath);
+        for (const wt of wts) {
+          if (normalize(wt.path) === normalize(repoPath)) {
+            continue;
+          }
+          const wtExist = await exists(wt.path);
+          let wtState: RepoState = "FEATURE_CLEAN";
+          let wtDetail: string | undefined;
+
+          if (!wtExist) {
+            wtState = "MISSING";
+            wtDetail = "worktree directory missing";
+          } else {
+            try {
+              const dirty = await isDirty(g, wt.path);
+              if (dirty) {
+                wtState = "WORKTREE_DIRTY";
+                wtDetail = "uncommitted changes";
+              } else if (wt.detached) {
+                wtState = "FEATURE_CLEAN";
+                wtDetail = "detached HEAD";
+              }
+            } catch (err) {
+              wtState = "ERROR";
+              wtDetail = err instanceof Error ? err.message : String(err);
+            }
+          }
+
+          rows.push({
+            name: `${repository.name} (worktree: ${
+              wt.branch ?? relative(paths.root, wt.path)
+            })`,
+            path: wt.path,
+            branch: wt.branch,
+            state: wtState,
+            detail: wtDetail,
+            isWorktree: true,
+            worktreePath: wt.path,
+          });
+        }
+      } catch (err) {
+        rows.push({
+          name: `${repository.name} (worktrees)`,
+          path: repoPath,
+          state: "ERROR",
+          detail: `Failed to inspect worktrees: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          isWorktree: true,
+        });
+      }
     }
-    rows.push(await repoStatus(g, repository, repoPath));
   }
   return rows;
 }

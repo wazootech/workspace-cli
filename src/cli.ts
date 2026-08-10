@@ -42,6 +42,7 @@ interface CliOptions {
   manifestPath: string;
   json: boolean;
   stale: boolean;
+  dryRun: boolean;
   positional: string[];
 }
 
@@ -56,17 +57,25 @@ Usage:
   wspace worktree add <repo> <feature> [<commit-ish>]
   wspace worktree list [--stale] [--json]
   wspace worktree remove <repo> <feature>
-  wspace env sync
+  wspace env sync [--dry-run] [--json]
   wspace validate
 
 Options:
   --manifest <path>  Manifest path (default: repos.json)
-  --json             Machine-readable output`);
+  --json             Machine-readable output
+  --stale            Filter worktrees fully merged into origin/<default> (or missing branch)
+  --dry-run          Preview environment sync operations without modifying files
+
+Worktree Commands:
+  worktree add       Creates a worktree at worktrees/<repo>/<feature> on branch <feature>.
+                     Start-point defaults to origin/<default> (resolved via origin/HEAD).
+  worktree list      Lists active worktrees. With --stale, lists safe removal candidates.
+  worktree remove    Removes a worktree at worktrees/<repo>/<feature> and prunes stale references.`);
 }
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
-    boolean: ["help", "json", "stale"],
+    boolean: ["help", "json", "stale", "dry-run"],
     string: ["manifest"],
     alias: { h: "help" },
   });
@@ -87,6 +96,7 @@ function parseCliArgs(args: string[]): CliOptions {
     manifestPath: parsed.manifest ?? "repos.json",
     json: parsed.json ?? false,
     stale: parsed.stale ?? false,
+    dryRun: parsed["dry-run"] ?? false,
     positional: positional.slice(2),
   };
 }
@@ -161,6 +171,10 @@ async function runWorktree(
         return 2;
       }
       const worktreePath = join(paths.worktreesDirectory, repoName, feature);
+      if (await exists(worktreePath)) {
+        console.error(`Worktree path already exists: ${worktreePath}`);
+        return 2;
+      }
       const reattach = await branchExists(g, repoPath, feature);
       let startPointArg: string | undefined = startPoint;
       if (reattach) {
@@ -234,7 +248,15 @@ async function cloneMissing(
   for (const repository of manifest.repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
-      rows.push({ name: repository.name, state: "EXISTS" });
+      if (await exists(join(repoPath, ".git"))) {
+        rows.push({ name: repository.name, state: "EXISTS" });
+      } else {
+        rows.push({
+          name: repository.name,
+          state: "PATH_BLOCKED",
+          detail: "Path exists but is not a Git repository",
+        });
+      }
       continue;
     }
     const result = await clone(g, repository.url, repoPath);
@@ -242,7 +264,7 @@ async function cloneMissing(
       result.code === 0 ? { name: repository.name, state: "CLONED" } : {
         name: repository.name,
         state: "CLONE_FAILED",
-        detail: result.stderr,
+        detail: result.stderr.trim() || `Exit code ${result.code}`,
       },
     );
   }
@@ -273,7 +295,13 @@ async function runCommand(
       } else {
         console.table(rows);
       }
-      if (opts.command === "init") {
+      const failed = rows.some(
+        (r) =>
+          r.state === "CLONE_FAILED" ||
+          r.state === "PATH_BLOCKED" ||
+          r.state === "INVALID",
+      );
+      if (opts.command === "init" && !failed) {
         console.error(
           `NOTE: Fresh clones do not contain files listed in .gitignore.
 Required setup steps may include:
@@ -282,7 +310,7 @@ Required setup steps may include:
   - Any repo-specific setup documented in each repo's README`,
         );
       }
-      return 0;
+      return failed ? 1 : 0;
     }
     case "update": {
       const rows = await runUpdate(g, manifest, paths);
@@ -297,16 +325,17 @@ Required setup steps may include:
       return await runWorktree(opts, manifest, paths, g);
     case "env": {
       if (opts.subcommand !== "sync") {
-        console.error("Usage: wspace env sync");
+        console.error("Usage: wspace env sync [--dry-run] [--json]");
         return 2;
       }
-      const rows = await syncEnv(g, manifest, paths);
+      const rows = await syncEnv(g, manifest, paths, { dryRun: opts.dryRun });
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
         console.table(rows);
       }
-      return 0;
+      const hasFailed = rows.some((r) => r.action === "FAILED");
+      return hasFailed ? 1 : 0;
     }
     case "validate": {
       validateManifest(manifest);

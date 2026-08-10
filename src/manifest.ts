@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join } from "@std/path";
+import { dirname, isAbsolute, normalize, resolve } from "@std/path";
 import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 
 export const CURRENT_SCHEMA_VERSION = 1;
@@ -8,6 +8,23 @@ export interface ManifestPaths {
   repositoriesDirectory: string;
   worktreesDirectory: string;
   vaultDirectory: string;
+}
+
+export function validateSafeName(name: string, contextName = "Name"): void {
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    throw new Error(`${contextName} cannot be empty`);
+  }
+  if (
+    name.includes("/") ||
+    name.includes("\\") ||
+    name === "." ||
+    name === ".." ||
+    name.includes("..")
+  ) {
+    throw new Error(
+      `${contextName} "${name}" contains invalid characters or path traversal`,
+    );
+  }
 }
 
 export function validateManifest(manifest: WorkspaceManifest): void {
@@ -28,6 +45,7 @@ export function validateManifest(manifest: WorkspaceManifest): void {
         }`,
       );
     }
+    validateSafeName(repository.name, "Repository name");
     if (seen.has(repository.name)) {
       throw new Error(`Duplicate repository name: ${repository.name}`);
     }
@@ -40,30 +58,49 @@ export function resolveRepositoryPath(
   paths: ManifestPaths,
 ): string {
   if (!repository.path) {
-    return join(paths.repositoriesDirectory, repository.name);
+    return normalize(resolve(paths.repositoriesDirectory, repository.name));
   }
   if (isAbsolute(repository.path)) {
-    return repository.path;
+    return normalize(resolve(repository.path));
   }
   return repository.path === "."
     ? paths.root
-    : join(paths.root, repository.path);
+    : normalize(resolve(paths.root, repository.path));
 }
 
 export function manifestPaths(
   manifest: WorkspaceManifest,
   manifestPath: string,
 ): ManifestPaths {
-  const manifestDir = dirname(manifestPath);
-  const root = manifest.workspaceRoot ?? manifestDir;
+  const manifestDir = dirname(resolve(manifestPath));
+  const rawRoot = manifest.workspaceRoot ?? manifestDir;
+  const root = isAbsolute(rawRoot)
+    ? normalize(resolve(rawRoot))
+    : normalize(resolve(manifestDir, rawRoot));
+
+  const repositoriesDirectory = manifest.repositoriesDirectory
+    ? isAbsolute(manifest.repositoriesDirectory)
+      ? normalize(resolve(manifest.repositoriesDirectory))
+      : normalize(resolve(root, manifest.repositoriesDirectory))
+    : normalize(resolve(root, "repos"));
+
+  const worktreesDirectory = manifest.worktreesDirectory
+    ? isAbsolute(manifest.worktreesDirectory)
+      ? normalize(resolve(manifest.worktreesDirectory))
+      : normalize(resolve(root, manifest.worktreesDirectory))
+    : normalize(resolve(root, "worktrees"));
+
+  const vaultDirectory = manifest.vaultDirectory
+    ? isAbsolute(manifest.vaultDirectory)
+      ? normalize(resolve(manifest.vaultDirectory))
+      : normalize(resolve(root, manifest.vaultDirectory))
+    : normalize(resolve(root, "secrets"));
+
   return {
     root,
-    repositoriesDirectory: join(
-      root,
-      manifest.repositoriesDirectory ?? "repos",
-    ),
-    worktreesDirectory: join(root, manifest.worktreesDirectory ?? "worktrees"),
-    vaultDirectory: join(root, manifest.vaultDirectory ?? "secrets"),
+    repositoriesDirectory,
+    worktreesDirectory,
+    vaultDirectory,
   };
 }
 

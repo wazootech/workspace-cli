@@ -462,4 +462,110 @@ Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () =>
   }
 });
 
+Deno.test("collectStatus does not double-list managed repositories under reposDir", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const reposDir = join(dir, "repos");
+    await Deno.mkdir(reposDir, { recursive: true });
+    const work = join(reposDir, "a");
+    const origin = join(dir, "a.git");
+    assert((await g.run(["init", "--bare", origin])).code === 0);
+    assert((await g.run(["clone", origin, work])).code === 0);
+
+    const rows = await collectStatus(
+      g,
+      { repositories: [{ name: "a", url: "u", path: work }] },
+      { ...pathsFor(dir), repositoriesDirectory: reposDir },
+    );
+    const names = rows.map((r) => r.name);
+    assertEquals(
+      names,
+      ["a"],
+      "Managed repository should be reported exactly once",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("wspace init fails when destination exists but is not a Git repo", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const nonGitPath = join(dir, "blocked");
+    await Deno.mkdir(nonGitPath, { recursive: true });
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        repositories: [{ name: "blocked", url: "u", path: nonGitPath }],
+      }),
+    );
+    const code = await run(["init", "--manifest", manifestPath]);
+    assertEquals(
+      code,
+      1,
+      "wspace init should exit non-zero when path is blocked",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("collectStatus reports linked worktrees and flags dirty linked worktrees", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    const worktreePath = join(dir, "worktrees", "a", "feat-1");
+    assertEquals((await addWorktree(g, work, worktreePath, "feat-1")).code, 0);
+    await Deno.writeTextFile(join(worktreePath, "dirty.txt"), "uncommitted");
+
+    const rows = await collectStatus(
+      g,
+      { repositories: [{ name: "a", url: "u", path: work }] },
+      pathsFor(dir),
+    );
+    const wtRow = rows.find((r) => r.isWorktree);
+    assert(wtRow, "Linked worktree row should be present");
+    assertEquals(wtRow.state, "WORKTREE_DIRTY");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("env sync --dry-run previews sync without modifying filesystem", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const vaultDir = join(dir, "secrets", "a");
+    await Deno.mkdir(vaultDir, { recursive: true });
+    await Deno.writeTextFile(join(vaultDir, ".env"), "SECRET=123");
+
+    const work = await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: dir,
+        vaultDirectory: "secrets",
+        repositories: [{ name: "a", url: "u", path: work }],
+      }),
+    );
+
+    const code = await run([
+      "env",
+      "sync",
+      "--dry-run",
+      "--manifest",
+      manifestPath,
+    ]);
+    assertEquals(code, 0);
+    assertEquals(
+      await exists(join(work, ".env")),
+      false,
+      "File should not be copied during dry-run",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 export type { GitRunner };
