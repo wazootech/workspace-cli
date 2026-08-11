@@ -83,10 +83,12 @@ When starting work on a feature, bug fix, or agent task:
 
 When an AI agent needs to verify environment integrity before cross-repo edits:
 
-- Call `wspace check --json` to receive structured state (`CLEAN`, `DIRTY`,
-  `FEATURE_CLEAN`, `DIVERGED`, `MISSING`, `UNMANAGED`).
-- If any repository returns error states (`DIRTY`, `DIVERGED`, `MISSING`), halt
-  or request user resolution before modifying code.
+- Call `wspace check --json` to receive structured state per repo (`CLEAN`,
+  `DIRTY`, `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, `INVALID`,
+  `WORKTREE_DIRTY`, `ERROR`).
+- If `wspace check` exits with `1` or returns any state other than `CLEAN` or
+  `FEATURE_CLEAN`, halt or request user resolution before applying multi-repo
+  edits.
 
 ## Guiding Principles
 
