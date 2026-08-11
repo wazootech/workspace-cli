@@ -17,6 +17,9 @@ Execute all workspace commands from the workspace root containing `repos.json`:
 # Inspect workspace baseline health
 wspace check
 
+# Clone missing repositories (or a specific subset of repos)
+wspace init [repo1 repo2 ...]
+
 # Fast-forward clean default branches safely
 wspace update
 

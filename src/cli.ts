@@ -52,8 +52,8 @@ function usage(): void {
 
 Usage:
   wspace check [--json]
-  wspace init [--json]
-  wspace sync [--json]
+  wspace init [<repo...>] [--json]
+  wspace sync [<repo...>] [--json]
   wspace update [--json]
   wspace worktree add <repo> <feature> [<commit-ish>]
   wspace worktree list [--stale] [--json]
@@ -243,10 +243,26 @@ async function cloneMissing(
   g: GitRunner,
   manifest: WorkspaceManifest,
   paths: ManifestPaths,
+  targets: string[] = [],
 ): Promise<{ name: string; state: string; detail?: string }[]> {
   await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+  let repositories = manifest.repositories;
+  if (targets.length > 0) {
+    const validNames = new Set(manifest.repositories.map((r) => r.name));
+    for (const name of targets) {
+      if (!validNames.has(name)) {
+        return [{
+          name,
+          state: "UNKNOWN_REPO",
+          detail: `Repository "${name}" not found in manifest`,
+        }];
+      }
+    }
+    const targetSet = new Set(targets);
+    repositories = repositories.filter((r) => targetSet.has(r.name));
+  }
   const rows: { name: string; state: string; detail?: string }[] = [];
-  for (const repository of manifest.repositories) {
+  for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
       if (await exists(join(repoPath, ".git"))) {
@@ -290,7 +306,10 @@ async function runCommand(
     }
     case "sync":
     case "init": {
-      const rows = await cloneMissing(g, manifest, paths);
+      const targets = opts.subcommand
+        ? [opts.subcommand, ...opts.positional]
+        : [];
+      const rows = await cloneMissing(g, manifest, paths, targets);
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
@@ -300,7 +319,8 @@ async function runCommand(
         (r) =>
           r.state === "CLONE_FAILED" ||
           r.state === "PATH_BLOCKED" ||
-          r.state === "INVALID",
+          r.state === "INVALID" ||
+          r.state === "UNKNOWN_REPO",
       );
       if (opts.command === "init" && !failed) {
         console.error(

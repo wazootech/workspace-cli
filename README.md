@@ -25,8 +25,9 @@ Design principles:
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
-- `wspace init` — clone missing repositories from the manifest. Prints a warning
-  that fresh clones lack gitignored files and repo-specific setup.
+- `wspace init [<repo...>]` — clone missing repositories from the manifest (or
+  only a specified subset of repos). Prints a warning that fresh clones lack
+  gitignored files and repo-specific setup.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
 - `wspace worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
   under `worktrees/<repo>/<feature>/`, branching from the repo's default-branch
