@@ -67,6 +67,7 @@ When starting work on a feature, bug fix, or agent task:
 1. **Push & Create PR**: Inside `worktrees/<repo>/<feature>/`, run:
    ```sh
    git push -u origin <feature>
+   # Note: Clear dummy GITHUB_TOKEN if subshell causes 401: env GITHUB_TOKEN="" gh pr create
    gh pr create
    ```
 2. **Identify Stale Worktrees**: After PR merge, run
