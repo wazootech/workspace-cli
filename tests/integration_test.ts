@@ -362,6 +362,42 @@ Deno.test("wspace init clones missing repositories", async () => {
   }
 });
 
+Deno.test("wspace init clones only specified subset of repositories", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    await makeRepoWithMain(dir, "b");
+    await makeRepoWithMain(dir, "c");
+    await Deno.remove(join(dir, "b"), { recursive: true });
+    await Deno.remove(join(dir, "c"), { recursive: true });
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "a", url: join(dir, "a.git"), path: join(dir, "a") },
+          { name: "b", url: join(dir, "b.git"), path: join(dir, "b") },
+          { name: "c", url: join(dir, "c.git"), path: join(dir, "c") },
+        ],
+      }),
+    );
+    const code = await run(["init", "b", "--manifest", manifestPath]);
+    assertEquals(code, 0);
+    assertEquals(
+      await exists(join(dir, "b", ".git")),
+      true,
+      "specified repo b should be cloned",
+    );
+    assertEquals(
+      await exists(join(dir, "c", ".git")),
+      false,
+      "unspecified repo c should not be cloned",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("wspace check reports CLEAN via CLI", async () => {
   const dir = await Deno.makeTempDir();
   try {
