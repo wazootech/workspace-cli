@@ -1,99 +1,76 @@
 ---
 name: wspace
-description: Manage multi-repo Wazoo workspaces, feature worktrees, conservative default-branch updates, and secret sync using wspace CLI. Use when managing multi-repo workflows, creating feature worktrees, checking baseline health, syncing secrets, or running wspace commands.
+description: Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, and open PRs. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, or running any wspace command.
 ---
 
 # `wspace` workspace skill
 
-Orchestrate multi-repo development, isolate tasks in Git worktrees, refresh
-default branch baselines safely, and synchronize environment secrets using
-`wspace`.
+Drive multi-repo development in the Wazoo workspace: discover state in one round
+trip, isolate each task in a Git worktree, validate with native commands, and
+land a PR. The goal is fewer tool calls and less context per session.
 
-## Quick start
+Command syntax and reference live in
+[`references/COMMANDS.md`](references/COMMANDS.md). This file is the protocol.
 
-Execute all workspace commands from the workspace root containing `repos.json`:
+## Launch hierarchy
 
-```sh
-# Inspect workspace baseline health
-wspace check
+Agent startup is a race to the first useful action. Choose the cheapest
+discovery strategy that the launch context allows, in this order:
 
-# Clone missing repositories (or a specific subset of repos)
-wspace init [repo1 repo2 ...]
+1. **Pre-seated cwd** (0 calls): When the orchestrator or handoff runner knows
+   the target repo and feature branch, start the agent directly in
+   `worktrees/<repo>/<feature>` (or `repos/<repo>`). No discovery needed.
+2. **Explicit handoff metadata** (1 call): When launching at the workspace root
+   with a known target, put `target_dir: worktrees/<repo>/<feature>` in the
+   prompt context. Run one chained `cd <target_dir> && git status`.
+3. **Root discovery** (1 round trip): When starting at the root without a
+   target, do not probe subdirectories. Run one diagnostic query —
+   `wspace check --json` or `wspace worktree list` — to learn every repository's
+   state in a single round trip.
 
-# Fast-forward clean default branches safely
-wspace update
+Batching is the standing rule: gather state in one shell call, never as per-repo
+`ls` or `git status` probes.
 
-# Create isolated feature worktree anchored to origin/<default>
-wspace worktree add <repo> <feature>
-# (Or using raw git): git -C repos/<repo> worktree add "$PWD/worktrees/<repo>/<feature>" -b <feature>
+## Pipeline
 
-# Propagate local secrets to checkouts and worktrees
-wspace env sync
+Complete one logical change per pass through this sequence. Each step ends on a
+checkable condition before the next begins.
 
-# Push branch and open PR from inside worktrees/<repo>/<feature>
-git push -u origin <feature>
-env GITHUB_TOKEN="" gh pr create
+1. **Anchor the baseline.** From the workspace root, run `wspace check` and
+   confirm the target repo is `CLEAN` or `FEATURE_CLEAN`. Refresh clean default
+   branches with `wspace update` when the baseline may be stale.
+2. **Isolate the task.** Create a worktree for the feature:
+   `wspace worktree add <repo> <feature>`. Never edit `repos/<repo>` directly;
+   work inside `worktrees/<repo>/<feature>/`. Sync local credentials with
+   `wspace env sync` when the repo needs them.
+3. **Implement.** Make the change inside the worktree. Commit one logical change
+   at a time; do not stack unrelated work.
+4. **Validate with commands, not deliberation.** Run the repo's native check
+   suite — `deno task ci`, `npm run precommit`, or the documented equivalent. Do
+   not reason about whether checks pass; run them. Format before staging and
+   keep line endings as LF.
+5. **Push and open a PR.** Push the branch and create the PR from inside the
+   worktree. Watch the workflow to completion; do not merge while it is pending
+   or failing.
+6. **Clean up.** After merge, remove the worktree:
+   `wspace worktree remove <repo> <feature>` and prune stale references. Leave
+   the worktree clean before moving to the next task.
 
-# List fully merged stale worktrees and clean up
-wspace worktree list --stale
-wspace worktree remove <repo> <feature>
-```
+## Token and context economy
 
-## Worktree lifecycle and workflows
+- Run checks and builds as shell commands, not AI reasoning. A passing test
+  suite answers "is this done" in one call.
+- Batch independent commands into a single shell call.
+- Hand off a plan artifact between repos or phases, not the full conversation.
+  Start each phase with the context it needs, nothing more.
+- Leave per-repo command syntax to `references/COMMANDS.md`, reached on demand.
 
-### Feature worktree creation and isolation
+## Guardrails
 
-To start work on a feature, bug fix, or agent task:
-
-1. **Baseline health check**: Run `wspace check` to verify the repository is
-   clean or on a default branch.
-2. **Refresh upstreams**: Run `wspace update` to fetch remotes and fast-forward
-   clean default branches (`merge --ff-only`).
-3. **Provision worktree**: Run `wspace worktree add <repo> <feature>` or
-   `git -C repos/<repo> worktree add "$PWD/worktrees/<repo>/<feature>" -b <feature>`.
-   - **Baseline rule**: `wspace worktree add` automatically branches from
-     `origin/<default>` (via `origin/HEAD`) using `--no-track`, preventing
-     accidental forks from dirty local `HEAD` references.
-   - **Path rule**: Always use `$PWD` when running `git -C repos/<repo>` so
-     worktrees resolve to `worktrees/<repo>/<feature>` at the workspace root
-     rather than nested under `repos/<repo>/`.
-4. **Sync secrets**: Run `wspace env sync` (or `--dry-run` to preview) to copy
-   secrets from `secrets/<repo>/` into the new worktree.
-5. **Develop and commit**: Perform changes strictly inside
-   `worktrees/<repo>/<feature>/`. Keep `repos/<repo>/` clean.
-
-### Push, PR, and worktree cleanup
-
-1. **Push and create PR**: Inside `worktrees/<repo>/<feature>/`, run:
-   ```sh
-   git push -u origin <feature>
-   env GITHUB_TOKEN="" gh pr create
-   ```
-2. **Identify stale worktrees**: After PR merge, run
-   `wspace worktree list --stale`.
-   - **Staleness criteria**: Identifies worktrees whose branch has no unique
-     commits beyond `origin/<default>` (fully merged) or whose branch ref is
-     deleted.
-3. **Teardown worktree**: Run `wspace worktree remove <repo> <feature>`.
-   - **Cleanup**: Removes the worktree, prunes stale git references, and cleans
-     up empty parent directories (`worktrees/<repo>/`).
-
-### Machine inspection for agents
-
-To verify workspace integrity before cross-repo edits:
-
-- Call `wspace check --json` to receive structured state per repo (`CLEAN`,
-  `DIRTY`, `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, `INVALID`,
-  `WORKTREE_DIRTY`, `ERROR`).
-- If `wspace check` exits with `1` or returns any state other than `CLEAN` or
-  `FEATURE_CLEAN`, halt or request user resolution before applying multi-repo
-  edits.
-
-## Guiding principles
-
-- **Root anchor**: The workspace root is the single source of truth; all paths
-  resolve relative to the directory containing `repos.json`.
-- **Conservative mutation**: `wspace update` never resets, rebases, stashes, or
-  rewrites history. It skips dirty or feature branches.
-- **Central secret vault**: Never write `.env` files directly in `repos/` or
-  `worktrees/`. Always edit `secrets/<repo>/` and run `wspace env sync`.
+- **Never mutate user work.** `wspace update` never resets, rebases, stashes, or
+  rewrites history. It skips dirty and feature branches. Respect that contract;
+  do not work around it with raw git destructive commands.
+- **Root anchor.** All paths resolve relative to the directory containing the
+  manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
+- **Central secret vault.** Never write `.env` files directly in `repos/` or
+  `worktrees/`. Edit `secrets/<repo>/` and run `wspace env sync`.
