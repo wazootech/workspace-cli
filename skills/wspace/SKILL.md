@@ -56,6 +56,14 @@ checkable condition before the next begins.
    `wspace worktree remove <repo> <feature>` and prune stale references. Leave
    the worktree clean before moving to the next task.
 
+## Goal loop
+
+`wspace` executes one logical change per pass. For goal-oriented runs that keep
+moving through many wayfinder tickets — scan the frontier, claim, execute, file
+blockers as new tickets, record on the map, and stop only at deploy/HITL
+boundaries — load the `wspace-loop` skill instead, which layers on this one and
+delegates each change's mechanics back here.
+
 ## Token and context economy
 
 - Run checks and builds as shell commands, not AI reasoning. A passing test
