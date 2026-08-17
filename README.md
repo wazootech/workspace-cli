@@ -1,3 +1,16 @@
+<p align="center">
+  <a href="https://docs.wazoo.dev">
+    <img src="https://wazoo.dev/assets/wazoo.svg" alt="Wazoo Worlds" width="120" />
+  </a>
+  <br /><br />
+  <em>Git-native CLI for the Wazoo multi-repo workspace.</em>
+  <br /><br />
+  <a href="https://jsr.io/@wazoo/workspace"><img src="https://jsr.io/badges/@wazoo/workspace" alt="JSR" /></a>
+  <a href="https://jsr.io/@wazoo/workspace/score"><img src="https://jsr.io/badges/@wazoo/workspace/score" alt="JSR Score" /></a>
+  <a href="https://github.com/wazootech/workspace-cli"><img src="https://img.shields.io/badge/GitHub-black?logo=github" alt="GitHub" /></a>
+  <a href="https://deepwiki.com/wazootech/workspace-cli"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
+</p>
+
 # wspace — Wazoo workspace CLI
 
 ## Goal
