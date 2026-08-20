@@ -56,7 +56,7 @@ Design principles:
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 
-## Agent skill
+## Agent skills
 
 The [`wspace` agent skill](skills/wspace/SKILL.md) packages the same workspace
 discipline into a loadable skill for coding agents (Claude Code, Cursor,
