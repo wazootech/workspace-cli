@@ -56,6 +56,37 @@ Design principles:
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 
+## Agent skill
+
+The [`wspace` agent skill](skills/wspace/SKILL.md) packages the same workspace
+discipline into a loadable skill for coding agents (Claude Code, Cursor,
+OpenCode, Gemini, and others). It is not a thin wrapper around the CLI — it
+encodes a set of opinionated software engineering practices that apply to any
+multi-repo workspace:
+
+- **Worktree isolation as default.** The skill makes "never edit the canonical
+  checkout" the only path, not an opt-in. Eliminates an entire class of
+  "oops I was on main" incidents across any multi-repo setup.
+- **Single-round-trip discovery.** `wspace check --json` replaces per-repo
+  `ls` and `git status` probing. Fewer tool calls means faster time to the
+  first useful action and less context consumed per session.
+- **Pipeline with verifiable exit conditions.** Each step ends on a checkable
+  artifact — a clean worktree, green CI, a merged PR — not agent reasoning
+  about whether things look right.
+- **Goal loop with hard boundaries.** The FRAME-SCAN-CLAIM-EXECUTE-REFLECT
+  loop, with deploy, publish, and human-in-the-loop hard stops, is a
+  reusable autonomy pattern for driving any multi-repo backlog to completion.
+- **Token and context economy.** Batch commands into single shell calls, hand
+  off plan artifacts between phases (not full conversations), and leave
+  per-repo command syntax in reference files loaded on demand.
+
+```bash
+npx skills add wazootech/workspace-cli@wspace
+```
+
+The skill reads the workspace manifest and CLI the same way a human would —
+but it never needs to be taught the conventions twice.
+
 ## Beginner Worktree Lifecycle
 
 All workspace commands run from the workspace root (the directory containing
