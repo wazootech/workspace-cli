@@ -25,6 +25,25 @@
           "localFiles": { "type": "array", "items": { "type": "string" } }
         }
       }
+    },
+    "workspaces": {
+      "type": "array",
+      "description": "Child workspace manifests (schema v2+). Each entry points to a nested workspace.json.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable name for this sub-workspace."
+          },
+          "path": {
+            "type": "string",
+            "description": "Path to the child workspace.json, relative to this manifest's directory."
+          }
+        }
+      }
     }
   }
 }

@@ -5,11 +5,14 @@ import { clone, defaultBranch } from "./git.ts";
 import type { GitRunner } from "./git.ts";
 import { SystemGit } from "./git.ts";
 import {
+  detectConflicts,
   exists,
   findDefaultManifestPath,
+  listWorkspaces,
   loadManifest,
   manifestPaths,
   resolveRepositoryPath,
+  resolveWorkspaceTree,
   validateManifest,
 } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
@@ -31,6 +34,7 @@ const COMMANDS = [
   "sync",
   "update",
   "worktree",
+  "workspaces",
   "env",
   "validate",
 ];
@@ -45,39 +49,45 @@ interface CliOptions {
   stale: boolean;
   dryRun: boolean;
   positional: string[];
+  workspace?: string;
 }
 
 function usage(): void {
   console.log(`workspace-cli (wspace)
 
 Usage:
-  wspace check [--json]
-  wspace init [<repo...>] [--json]
-  wspace sync [<repo...>] [--json]
-  wspace update [--json]
+  wspace check [--json] [--workspace <name>]
+  wspace init [<repo...>] [--json] [--workspace <name>]
+  wspace sync [<repo...>] [--json] [--workspace <name>]
+  wspace update [--json] [--workspace <name>]
   wspace worktree add <repo> <feature> [<commit-ish>]
-  wspace worktree list [--stale] [--json]
+  wspace worktree list [--stale] [--json] [--workspace <name>]
   wspace worktree remove <repo> <feature>
+  wspace workspaces [--json]
   wspace env sync [--dry-run] [--json]
   wspace validate
 
 Options:
-  --manifest <path>  Manifest path (default: workspace.json / wspace.json / repos.json)
-  --json             Machine-readable output
-  --stale            Filter worktrees fully merged into origin/<default> (or missing branch)
-  --dry-run          Preview environment sync operations without modifying files
+  --manifest <path>   Manifest path (default: workspace.json / wspace.json / repos.json)
+  --json              Machine-readable output
+  --stale             Filter worktrees fully merged into origin/<default> (or missing branch)
+  --dry-run           Preview environment sync operations without modifying files
+  --workspace <name>  Scope command to a specific sub-workspace (by name)
 
 Worktree Commands:
   worktree add       Creates a worktree at worktrees/<repo>/<feature> on branch <feature>.
                      Start-point defaults to origin/<default> (resolved via origin/HEAD).
   worktree list      Lists active worktrees. With --stale, lists safe removal candidates.
-  worktree remove    Removes a worktree at worktrees/<repo>/<feature> and prunes stale references.`);
+  worktree remove    Removes a worktree at worktrees/<repo>/<feature> and prunes stale references.
+
+Sub-workspaces:
+  workspaces         Lists discovered sub-workspaces with repo counts.`);
 }
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
     boolean: ["help", "json", "stale", "dry-run"],
-    string: ["manifest"],
+    string: ["manifest", "workspace"],
     alias: { h: "help" },
   });
   if (parsed.help) {
@@ -99,6 +109,7 @@ function parseCliArgs(args: string[]): CliOptions {
     stale: parsed.stale ?? false,
     dryRun: parsed["dry-run"] ?? false,
     positional: positional.slice(2),
+    workspace: parsed.workspace,
   };
 }
 
@@ -296,7 +307,11 @@ async function runCommand(
 ): Promise<number> {
   switch (opts.command) {
     case "check": {
-      const rows = await collectStatus(g, manifest, paths);
+      const repos = opts.workspace
+        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
+        : manifest.repositories;
+      const scopedManifest = { ...manifest, repositories: repos };
+      const rows = await collectStatus(g, scopedManifest, paths);
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
@@ -309,7 +324,11 @@ async function runCommand(
       const targets = opts.subcommand
         ? [opts.subcommand, ...opts.positional]
         : [];
-      const rows = await cloneMissing(g, manifest, paths, targets);
+      const repos = opts.workspace
+        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
+        : manifest.repositories;
+      const scopedManifest = { ...manifest, repositories: repos };
+      const rows = await cloneMissing(g, scopedManifest, paths, targets);
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
@@ -334,7 +353,11 @@ Required setup steps may include:
       return failed ? 1 : 0;
     }
     case "update": {
-      const rows = await runUpdate(g, manifest, paths);
+      const repos = opts.workspace
+        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
+        : manifest.repositories;
+      const scopedManifest = { ...manifest, repositories: repos };
+      const rows = await runUpdate(g, scopedManifest, paths);
       if (opts.json) {
         console.log(JSON.stringify(rows, null, 2));
       } else {
@@ -342,8 +365,13 @@ Required setup steps may include:
       }
       return 0;
     }
-    case "worktree":
-      return await runWorktree(opts, manifest, paths, g);
+    case "worktree": {
+      const repos = opts.workspace
+        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
+        : manifest.repositories;
+      const scopedManifest = { ...manifest, repositories: repos };
+      return await runWorktree(opts, scopedManifest, paths, g);
+    }
     case "env": {
       if (opts.subcommand !== "sync") {
         console.error("Usage: wspace env sync [--dry-run] [--json]");
@@ -376,8 +404,55 @@ export async function run(args: string[]): Promise<number> {
     ? resolve(Deno.cwd(), opts.manifestPath)
     : await findDefaultManifestPath();
   const manifest = await loadManifest(manifestPath);
+
+  // Resolve the workspace tree if sub-workspaces are declared.
+  let resolvedManifest = manifest;
+  if (manifest.workspaces && manifest.workspaces.length > 0) {
+    const resolved = await resolveWorkspaceTree(manifest, manifestPath);
+
+    // Detect conflicts.
+    const conflicts = detectConflicts(resolved);
+    if (conflicts.length > 0) {
+      console.error("ERROR: Duplicate repository names across workspaces:");
+      for (const c of conflicts) {
+        console.error(
+          `  "${c.repoName}" claimed by: ${c.claimedBy.join(", ")}`,
+        );
+      }
+      return 2;
+    }
+
+    // Build a merged manifest from the resolved tree.
+    resolvedManifest = {
+      ...manifest,
+      repositories: resolved.repositories,
+    };
+  }
+
+  // Handle the workspaces command with resolved data.
+  if (opts.command === "workspaces") {
+    const wsResolved = resolvedManifest !== manifest
+      ? {
+        root: manifest,
+        children: new Map(),
+        repositories: resolvedManifest.repositories,
+      }
+      : {
+        root: manifest,
+        children: new Map(),
+        repositories: manifest.repositories,
+      };
+    const workspaces = listWorkspaces(wsResolved);
+    if (opts.json) {
+      console.log(JSON.stringify(workspaces, null, 2));
+    } else {
+      console.table(workspaces);
+    }
+    return 0;
+  }
+
   const paths = manifestPaths(manifest, manifestPath);
-  return await runCommand(opts, manifest, paths, new SystemGit());
+  return await runCommand(opts, resolvedManifest, paths, new SystemGit());
 }
 
 export async function main(): Promise<number> {
