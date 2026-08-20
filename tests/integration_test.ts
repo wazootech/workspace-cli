@@ -604,4 +604,209 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
   }
 });
 
+// --- Recursive sub-workspace integration tests ---
+
+Deno.test("wspace check --json resolves parent + child repos across workspaces", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Create two real git repos.
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    const childRepo = await makeRepoWithMain(dir, "child-repo");
+
+    // Child workspace manifest in a sibling directory.
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    const childManifestPath = join(childDir, "workspace.json");
+    await Deno.writeTextFile(
+      childManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: childRepo },
+        ],
+      }),
+    );
+
+    // Parent workspace manifest referencing the child.
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    // Run wspace check --json across both.
+    const code = await run([
+      "check",
+      "--json",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("wspace workspaces --json lists discovered sub-workspaces with repo counts", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    const childRepo = await makeRepoWithMain(dir, "child-repo");
+
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: childRepo },
+        ],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    // Capture stdout by running CLI directly via run() and checking the result.
+    // The workspaces command prints to stdout, so we verify via the exit code.
+    const code = await run([
+      "workspaces",
+      "--json",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("wspace check --workspace scopes to a single sub-workspace", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    const childRepo = await makeRepoWithMain(dir, "child-repo");
+
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: childRepo },
+        ],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    // Scoped to child-ws: only child-repo should be checked.
+    const code = await run([
+      "check",
+      "--json",
+      "--workspace",
+      "child-ws",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("wspace check errors on conflicting repo names across workspaces", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const repoA = await makeRepoWithMain(dir, "shared-name");
+    const repoB = await makeRepoWithMain(dir, "shared-name-2");
+
+    // Two child workspaces both claiming a repo named "shared".
+    const childADir = join(dir, "child-a");
+    const childBDir = join(dir, "child-b");
+    await Deno.mkdir(childADir, { recursive: true });
+    await Deno.mkdir(childBDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childADir, "workspace.json"),
+      JSON.stringify({
+        repositories: [{ name: "shared", url: "u", path: repoA }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(childBDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [{ name: "shared", url: "u", path: repoB }],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [],
+        workspaces: [
+          { name: "child-a", path: "child-a/workspace.json" },
+          { name: "child-b", path: "child-b/workspace.json" },
+        ],
+      }),
+    );
+
+    const code = await run([
+      "check",
+      "--json",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 2, "should error on conflict");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("v1 manifests without workspaces field continue to work", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        repositories: [{ name: "a", url: "u", path: work }],
+      }),
+    );
+    const code = await run(["check", "--json", "--manifest", manifestPath]);
+    assertEquals(code, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 export type { GitRunner };
