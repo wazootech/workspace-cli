@@ -17,7 +17,7 @@ import {
 } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
-import type { WorkspaceManifest } from "./types.ts";
+import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -407,8 +407,10 @@ export async function run(args: string[]): Promise<number> {
 
   // Resolve the workspace tree if sub-workspaces are declared.
   let resolvedManifest = manifest;
+  let resolvedTree: ResolvedWorkspace | undefined;
   if (manifest.workspaces && manifest.workspaces.length > 0) {
     const resolved = await resolveWorkspaceTree(manifest, manifestPath);
+    resolvedTree = resolved;
 
     // Detect conflicts.
     const conflicts = detectConflicts(resolved);
@@ -431,17 +433,11 @@ export async function run(args: string[]): Promise<number> {
 
   // Handle the workspaces command with resolved data.
   if (opts.command === "workspaces") {
-    const wsResolved = resolvedManifest !== manifest
-      ? {
-        root: manifest,
-        children: new Map(),
-        repositories: resolvedManifest.repositories,
-      }
-      : {
-        root: manifest,
-        children: new Map(),
-        repositories: manifest.repositories,
-      };
+    const wsResolved = resolvedTree ?? {
+      root: manifest,
+      children: new Map<string, WorkspaceManifest>(),
+      repositories: manifest.repositories,
+    };
     const workspaces = listWorkspaces(wsResolved);
     if (opts.json) {
       console.log(JSON.stringify(workspaces, null, 2));

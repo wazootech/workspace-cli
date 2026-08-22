@@ -1,8 +1,10 @@
 export interface RepositoryEntry {
   name: string;
   url: string;
-  /** Optional path relative to the workspace root. "." maps to the workspace root itself. */
+  /** Optional path relative to the workspace root of the manifest declaring it. "." maps to that root itself. */
   path?: string;
+  /** Absolute path resolved from the owning workspace's root (set in the resolved view). */
+  resolvedPath?: string;
   /** Optional slices, e.g. ["beta"]. Unused by v1 commands except as manifest metadata. */
   groups?: string[];
   /** Optional extra local-config filename patterns to sync from the vault. */

@@ -96,6 +96,9 @@ export function resolveRepositoryPath(
   repository: RepositoryEntry,
   paths: ManifestPaths,
 ): string {
+  if (repository.resolvedPath !== undefined) {
+    return normalize(resolve(repository.resolvedPath));
+  }
   if (!repository.path) {
     return normalize(resolve(paths.repositoriesDirectory, repository.name));
   }
@@ -170,9 +173,11 @@ export async function loadChildManifest(
 }
 
 /**
- * Resolve the workspace tree: load the parent manifest, then load all child
- * manifests declared in `workspaces`, flatten the repo list with workspace
- * attribution, and detect conflicts.
+ * Resolve the workspace tree: load the root manifest, then recursively load
+ * every sub-workspace declared in `workspaces`, flatten the repo list with
+ * workspace attribution, and detect conflicts. Repositories declared by a
+ * sub-workspace resolve their paths against that sub-workspace's own root.
+ * Throws on circular manifest references or duplicate workspace names.
  */
 export async function resolveWorkspaceTree(
   manifest: WorkspaceManifest,
@@ -180,30 +185,49 @@ export async function resolveWorkspaceTree(
 ): Promise<ResolvedWorkspace> {
   const children = new Map<string, WorkspaceManifest>();
   const allRepos: RepositoryEntry[] = [];
+  const visitedManifestDirs = new Set<string>();
 
-  // Parent repos get workspace = undefined (root).
-  for (const repo of manifest.repositories) {
-    allRepos.push({ ...repo, workspace: undefined });
-  }
-
-  if (manifest.workspaces) {
-    for (const wsEntry of manifest.workspaces) {
-      const { manifest: childManifest } = await loadChildManifest(
-        manifestPath,
-        wsEntry,
-      );
-      children.set(wsEntry.name, childManifest);
-      for (const repo of childManifest.repositories) {
-        allRepos.push({ ...repo, workspace: wsEntry.name });
-      }
-    }
-  }
+  await collectWorkspace(manifest, manifestPath, undefined);
 
   return {
     root: manifest,
     children,
     repositories: allRepos,
   };
+
+  async function collectWorkspace(
+    wsManifest: WorkspaceManifest,
+    wsManifestPath: string,
+    workspaceName: string | undefined,
+  ): Promise<void> {
+    const manifestDir = normalize(resolve(dirname(resolve(wsManifestPath))));
+    if (visitedManifestDirs.has(manifestDir)) {
+      throw new Error(`Circular sub-workspace reference at: ${manifestDir}`);
+    }
+    visitedManifestDirs.add(manifestDir);
+
+    const wsPaths = manifestPaths(wsManifest, wsManifestPath);
+    for (const repo of wsManifest.repositories) {
+      allRepos.push({
+        ...repo,
+        workspace: workspaceName,
+        resolvedPath: resolveRepositoryPath(repo, wsPaths),
+      });
+    }
+
+    for (const wsEntry of wsManifest.workspaces ?? []) {
+      if (children.has(wsEntry.name)) {
+        throw new Error(`Duplicate workspace name: ${wsEntry.name}`);
+      }
+      const loaded = await loadChildManifest(wsManifestPath, wsEntry);
+      children.set(wsEntry.name, loaded.manifest);
+      await collectWorkspace(
+        loaded.manifest,
+        loaded.manifestPath,
+        wsEntry.name,
+      );
+    }
+  }
 }
 
 /**

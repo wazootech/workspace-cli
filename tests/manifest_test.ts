@@ -208,6 +208,215 @@ Deno.test("resolveWorkspaceTree flattens parent and child repos", async () => {
   }
 });
 
+Deno.test("resolveWorkspaceTree resolves child repos against the child workspace root", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    const childManifestPath = join(tempDir, "child", "workspace.json");
+    await Deno.mkdir(join(tempDir, "child"), { recursive: true });
+
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "https://example.com/parent.git" },
+        ],
+        workspaces: [{ name: "child-ws", path: "child/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      childManifestPath,
+      JSON.stringify({
+        repositories: [
+          // Relative to the CHILD workspace root (tempDir/child), not the parent's.
+          {
+            name: "child-repo",
+            url: "https://example.com/child.git",
+            path: "repos/child-repo",
+          },
+          {
+            name: "child-root",
+            url: "https://example.com/root.git",
+            path: ".",
+          },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
+
+    assertEquals(resolved.repositories.length, 3);
+    const childRepo = resolved.repositories.find((r) =>
+      r.name === "child-repo"
+    );
+    assertEquals(childRepo?.workspace, "child-ws");
+    assertEquals(
+      childRepo?.resolvedPath,
+      join(tempDir, "child", "repos", "child-repo"),
+    );
+    const childRoot = resolved.repositories.find((r) =>
+      r.name === "child-root"
+    );
+    assertEquals(childRoot?.resolvedPath, join(tempDir, "child"));
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree recurses into nested sub-workspaces", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    await Deno.mkdir(join(tempDir, "child", "nested"), { recursive: true });
+
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "child-ws", path: "child/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "child", "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "mid-repo", url: "https://example.com/mid.git" },
+        ],
+        workspaces: [{ name: "nested-ws", path: "nested/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "child", "nested", "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          {
+            name: "deep-repo",
+            url: "https://example.com/deep.git",
+            path: "deep-repo",
+          },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
+
+    assertEquals(resolved.children.size, 2);
+    assertEquals(resolved.children.has("child-ws"), true);
+    assertEquals(resolved.children.has("nested-ws"), true);
+
+    const mid = resolved.repositories.find((r) => r.name === "mid-repo");
+    assertEquals(mid?.workspace, "child-ws");
+    assertEquals(
+      mid?.resolvedPath,
+      join(tempDir, "child", "repos", "mid-repo"),
+    );
+
+    const deep = resolved.repositories.find((r) => r.name === "deep-repo");
+    assertEquals(deep?.workspace, "nested-ws");
+    assertEquals(
+      deep?.resolvedPath,
+      join(tempDir, "child", "nested", "deep-repo"),
+    );
+
+    const listing = listWorkspaces(resolved);
+    assertEquals(listing.length, 2);
+    assertEquals(
+      listing.find((ws) => ws.name === "nested-ws"),
+      { name: "nested-ws", repos: 1, child: true },
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree throws on circular manifest references", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    await Deno.mkdir(join(tempDir, "a"), { recursive: true });
+    await Deno.mkdir(join(tempDir, "b"), { recursive: true });
+
+    await Deno.writeTextFile(
+      join(tempDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "a", path: "a/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "a", "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "b", path: "../b/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "b", "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "back-to-root", path: "../workspace.json" }],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(join(tempDir, "workspace.json"));
+    await assertRejects(
+      () => resolveWorkspaceTree(manifest, join(tempDir, "workspace.json")),
+      Error,
+      "Circular sub-workspace reference",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree throws on duplicate workspace names across levels", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    await Deno.mkdir(join(tempDir, "one", "inner"), { recursive: true });
+    await Deno.mkdir(join(tempDir, "two"), { recursive: true });
+
+    await Deno.writeTextFile(
+      join(tempDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+        workspaces: [
+          { name: "dup", path: "one/workspace.json" },
+          { name: "two", path: "two/workspace.json" },
+        ],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "one", "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "dup", path: "inner/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "one", "inner", "workspace.json"),
+      JSON.stringify({ repositories: [] }),
+    );
+    await Deno.writeTextFile(
+      join(tempDir, "two", "workspace.json"),
+      JSON.stringify({ repositories: [] }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(join(tempDir, "workspace.json"));
+    await assertRejects(
+      () => resolveWorkspaceTree(manifest, join(tempDir, "workspace.json")),
+      Error,
+      "Duplicate workspace name",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("resolveWorkspaceTree throws when child manifest missing", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
