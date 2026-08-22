@@ -25,9 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Stage schema artifact
+        run: |
+          mkdir -p dist
+          cp schema/ws-manifest.schema.json dist/schema.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: schema
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
