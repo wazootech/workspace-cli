@@ -89,7 +89,7 @@ Deno.test("defaultBranch resolves from origin/HEAD", async () => {
     const work = await makeRepoWithMain(dir, "a");
     assertEquals(await defaultBranch(g, work), "main");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -104,7 +104,7 @@ Deno.test("branchAb reports ahead/behind after advance", async () => {
       behind: 1,
     });
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -121,7 +121,7 @@ Deno.test("update fast-forwards a clean default branch", async () => {
     assertEquals(actions, [{ kind: "FAST_FORWARD", name: "a", commits: 1 }]);
     assertEquals(await isDirty(g, work), false);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -139,7 +139,7 @@ Deno.test("update skips dirty repositories", async () => {
       { kind: "SKIP_DIRTY", name: "a", detail: "uncommitted changes" },
     ]);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -155,7 +155,7 @@ Deno.test("update skips feature-branch checkouts", async () => {
     );
     assertEquals(actions[0].kind, "SKIP_FEATURE");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -174,7 +174,7 @@ Deno.test("update reports CURRENT when already in sync", async () => {
       detail: "origin/main",
     }]);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -204,7 +204,7 @@ Deno.test("worktree add/list/remove round trip", async () => {
       undefined,
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -226,7 +226,7 @@ Deno.test("worktree add attaches an existing branch", async () => {
       "worktree for existing branch not found",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -254,7 +254,7 @@ Deno.test("worktree add branches from an explicit start point", async () => {
     assertEquals(head, originMain);
     assert(head !== baseBranch, "forked from HEAD instead of the start point");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -297,7 +297,7 @@ Deno.test("staleness flags merged branches and never the main worktree", async (
     assert(main, "main worktree not found");
     assertEquals(await staleness(g, work, main, "main"), { stale: false });
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -325,7 +325,7 @@ Deno.test("update skips when default branch is checked out in a worktree", async
       },
     ]);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -358,7 +358,7 @@ Deno.test("wspace init clones missing repositories", async () => {
       "cloned repo should contain seeded file",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -394,7 +394,7 @@ Deno.test("wspace init clones only specified subset of repositories", async () =
       "unspecified repo c should not be cloned",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -410,7 +410,7 @@ Deno.test("wspace check reports CLEAN via CLI", async () => {
     const code = await run(["check", "--json", "--manifest", manifestPath]);
     assertEquals(code, 0);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -424,7 +424,7 @@ Deno.test("repoStatus reports MISSING when path does not exist", async () => {
     );
     assertEquals(rows[0].state, "MISSING");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -440,7 +440,7 @@ Deno.test("repoStatus reports INVALID when path has no .git", async () => {
     );
     assertEquals(rows[0].state, "INVALID");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -462,7 +462,7 @@ Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () =>
     assert(unmanagedRow, "unmanaged checkout should be reported");
     assertEquals(unmanagedRow.state, "CLEAN");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -473,7 +473,7 @@ Deno.test("defaultBranch returns undefined when origin/HEAD is missing", async (
     await g.run(["remote", "set-head", "origin", "--delete"], work);
     assertEquals(await defaultBranch(g, work), undefined);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -494,7 +494,7 @@ Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () =>
     );
     assertEquals(rows.map((r) => r.state).sort(), ["INVALID", "MISSING"]);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -520,7 +520,7 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
       "Managed repository should be reported exactly once",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -543,7 +543,7 @@ Deno.test("wspace init fails when destination exists but is not a Git repo", asy
       "wspace init should exit non-zero when path is blocked",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -564,7 +564,7 @@ Deno.test("collectStatus reports linked worktrees and flags dirty linked worktre
     assert(wtRow, "Linked worktree row should be present");
     assertEquals(wtRow.state, "WORKTREE_DIRTY");
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
   }
 });
 
@@ -600,7 +600,316 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
       "File should not be copied during dry-run",
     );
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await removeTempDir(dir);
+  }
+});
+
+/**
+ * Removes a temp dir, retrying while git still holds file handles open
+ * (Windows denies deletion of in-use files; CI on linux never sees this).
+ */
+async function removeTempDir(dir: string): Promise<void> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      await Deno.remove(dir, { recursive: true });
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+  }
+}
+
+// --- Recursive sub-workspace integration tests ---
+
+/** Captures console.log output produced by fn (the CLI prints via console.log). */
+async function captureStdout(fn: () => Promise<number>): Promise<{
+  code: number;
+  output: string;
+}> {
+  const chunks: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    chunks.push(args.map((a) => String(a)).join(" "));
+  };
+  try {
+    const code = await fn();
+    return { code, output: chunks.join("\n") };
+  } finally {
+    console.log = originalLog;
+  }
+}
+
+Deno.test("wspace check --json resolves parent + child repos across workspaces", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Create two real git repos.
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    await makeRepoWithMain(dir, "child-repo");
+
+    // Child workspace manifest in a sibling directory; the child repo is
+    // declared relative to the CHILD workspace root.
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    const childManifestPath = join(childDir, "workspace.json");
+    await Deno.writeTextFile(
+      childManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: "../child-repo" },
+        ],
+      }),
+    );
+
+    // Parent workspace manifest referencing the child.
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    // Run wspace check --json across both and verify content, not just exit code.
+    const { code, output } = await captureStdout(() =>
+      run(["check", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(code, 0);
+    const rows = JSON.parse(output) as Array<{ name: string; state: string }>;
+    assertEquals(rows.length, 2);
+    assertEquals(
+      rows.find((r) => r.name === "parent-repo")?.state,
+      "CLEAN",
+    );
+    // Resolved from the child manifest's own root via its relative path.
+    assertEquals(rows.find((r) => r.name === "child-repo")?.state, "CLEAN");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace workspaces --json lists discovered sub-workspaces with repo counts", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    await makeRepoWithMain(dir, "child-repo");
+
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: "../child-repo" },
+        ],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    const { code, output } = await captureStdout(() =>
+      run(["workspaces", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(code, 0);
+    const listing = JSON.parse(output) as Array<
+      { name: string; repos: number; child: boolean }
+    >;
+    assertEquals(listing, [
+      { name: "(root)", repos: 1, child: false },
+      { name: "child-ws", repos: 1, child: true },
+    ]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace workspaces and check flatten nested sub-workspace trees", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "mid-repo");
+    await makeRepoWithMain(dir, "deep-repo");
+
+    // root/child-ws/nested-ws tree, all edges relative.
+    await Deno.mkdir(join(dir, "child-ws", "nested-ws"), { recursive: true });
+    await Deno.writeTextFile(
+      join(dir, "child-ws", "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "mid-repo", url: "u", path: "../mid-repo" },
+        ],
+        workspaces: [{ name: "nested-ws", path: "nested-ws/workspace.json" }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(dir, "child-ws", "nested-ws", "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "deep-repo", url: "u", path: "../../deep-repo" },
+        ],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{ name: "child-ws", path: "child-ws/workspace.json" }],
+      }),
+    );
+
+    const listing = await captureStdout(() =>
+      run(["workspaces", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(listing.code, 0);
+    const parsed = JSON.parse(listing.output) as Array<
+      { name: string; repos: number; child: boolean }
+    >;
+    assertEquals(parsed, [
+      { name: "child-ws", repos: 1, child: true },
+      { name: "nested-ws", repos: 1, child: true },
+    ]);
+
+    const check = await captureStdout(() =>
+      run(["check", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(check.code, 0);
+    const rows = JSON.parse(check.output) as Array<
+      { name: string; state: string }
+    >;
+    assertEquals(
+      rows.find((r) => r.name === "deep-repo")?.state,
+      "CLEAN",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace check --workspace scopes to a single sub-workspace", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    const childRepo = await makeRepoWithMain(dir, "child-repo");
+
+    const childDir = join(dir, "child-ws");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [
+          { name: "child-repo", url: "u", path: childRepo },
+        ],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "parent-repo", url: "u", path: parentRepo },
+        ],
+        workspaces: [
+          { name: "child-ws", path: "child-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    // Scoped to child-ws: only child-repo should be checked.
+    const code = await run([
+      "check",
+      "--json",
+      "--workspace",
+      "child-ws",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 0);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace check errors on conflicting repo names across workspaces", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const repoA = await makeRepoWithMain(dir, "shared-name");
+    const repoB = await makeRepoWithMain(dir, "shared-name-2");
+
+    // Two child workspaces both claiming a repo named "shared".
+    const childADir = join(dir, "child-a");
+    const childBDir = join(dir, "child-b");
+    await Deno.mkdir(childADir, { recursive: true });
+    await Deno.mkdir(childBDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childADir, "workspace.json"),
+      JSON.stringify({
+        repositories: [{ name: "shared", url: "u", path: repoA }],
+      }),
+    );
+    await Deno.writeTextFile(
+      join(childBDir, "workspace.json"),
+      JSON.stringify({
+        repositories: [{ name: "shared", url: "u", path: repoB }],
+      }),
+    );
+
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [],
+        workspaces: [
+          { name: "child-a", path: "child-a/workspace.json" },
+          { name: "child-b", path: "child-b/workspace.json" },
+        ],
+      }),
+    );
+
+    const code = await run([
+      "check",
+      "--json",
+      "--manifest",
+      parentManifestPath,
+    ]);
+    assertEquals(code, 2, "should error on conflict");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("v1 manifests without workspaces field continue to work", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const work = await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        repositories: [{ name: "a", url: "u", path: work }],
+      }),
+    );
+    const code = await run(["check", "--json", "--manifest", manifestPath]);
+    assertEquals(code, 0);
+  } finally {
+    await removeTempDir(dir);
   }
 });
 

@@ -1,12 +1,24 @@
 export interface RepositoryEntry {
   name: string;
   url: string;
-  /** Optional path relative to the workspace root. "." maps to the workspace root itself. */
+  /** Optional path relative to the workspace root of the manifest declaring it. "." maps to that root itself. */
   path?: string;
+  /** Absolute path resolved from the owning workspace's root (set in the resolved view). */
+  resolvedPath?: string;
   /** Optional slices, e.g. ["beta"]. Unused by v1 commands except as manifest metadata. */
   groups?: string[];
   /** Optional extra local-config filename patterns to sync from the vault. */
   localFiles?: string[];
+  /** Name of the sub-workspace this repo belongs to (set in resolved view). */
+  workspace?: string;
+}
+
+/** Entry in the `workspaces` array pointing to a child manifest. */
+export interface WorkspaceEntry {
+  /** Human-readable name for this sub-workspace. */
+  name: string;
+  /** Path to the child workspace.json, relative to this manifest's directory. */
+  path: string;
 }
 
 export interface WorkspaceManifest {
@@ -17,6 +29,23 @@ export interface WorkspaceManifest {
   worktreesDirectory?: string;
   vaultDirectory?: string;
   repositories: RepositoryEntry[];
+  /** Child workspace manifests (schema v2+). Each entry points to a nested workspace.json. */
+  workspaces?: WorkspaceEntry[];
+}
+
+/** Flattened view combining parent + all child workspace repositories. */
+export interface ResolvedWorkspace {
+  /** The root (parent) manifest. */
+  root: WorkspaceManifest;
+  /** All child manifests keyed by workspace name. */
+  children: Map<string, WorkspaceManifest>;
+  /** Flattened repository list with workspace attribution. */
+  repositories: RepositoryEntry[];
+}
+
+export interface WorkspaceConflict {
+  repoName: string;
+  claimedBy: string[];
 }
 
 export type RepoState =
