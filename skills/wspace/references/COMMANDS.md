@@ -66,6 +66,10 @@ A `WORKTREE_DIRTY` or `ERROR` state can also appear. If `wspace check` exits `1`
 or returns any state other than `CLEAN` or `FEATURE_CLEAN`, halt or request user
 resolution before applying multi-repo edits.
 
+A `FEATURE_CLEAN` checkout can be fully landed upstream (squash merges detach
+branch commits); run the root AGENTS.md **Upstream verification** tip diff
+before treating its content as stranded.
+
 ## Common pitfalls
 
 - **`PATH_BLOCKED` or `INVALID` during `init`**: An existing path occupies the
