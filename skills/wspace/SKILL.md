@@ -214,3 +214,7 @@ The map is the source of truth for which of those two happened.
   manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
 - **Central secret vault.** Never write `.env` files directly in `repos/` or
   `worktrees/`. Edit `secrets/<repo>/` and run `wspace env sync`.
+- **Tip-diff before stranded-work claims.** `FEATURE_CLEAN` plus "commits ahead"
+  usually means a squash merge detached the branch, not that work is lost.
+  Confirm with `git diff origin/main HEAD` and apply the root AGENTS.md
+  **Upstream verification** rules before planning around it.
