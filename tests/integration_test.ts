@@ -611,7 +611,7 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
 async function removeTempDir(dir: string): Promise<void> {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      await removeTempDir(dir);
+      await Deno.remove(dir, { recursive: true });
       return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
@@ -644,7 +644,7 @@ Deno.test("wspace check --json resolves parent + child repos across workspaces",
   try {
     // Create two real git repos.
     const parentRepo = await makeRepoWithMain(dir, "parent-repo");
-    makeRepoWithMain(dir, "child-repo");
+    await makeRepoWithMain(dir, "child-repo");
 
     // Child workspace manifest in a sibling directory; the child repo is
     // declared relative to the CHILD workspace root.
@@ -741,8 +741,8 @@ Deno.test("wspace workspaces --json lists discovered sub-workspaces with repo co
 Deno.test("wspace workspaces and check flatten nested sub-workspace trees", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    makeRepoWithMain(dir, "mid-repo");
-    makeRepoWithMain(dir, "deep-repo");
+    await makeRepoWithMain(dir, "mid-repo");
+    await makeRepoWithMain(dir, "deep-repo");
 
     // root/child-ws/nested-ws tree, all edges relative.
     await Deno.mkdir(join(dir, "child-ws", "nested-ws"), { recursive: true });
@@ -759,7 +759,7 @@ Deno.test("wspace workspaces and check flatten nested sub-workspace trees", asyn
       join(dir, "child-ws", "nested-ws", "workspace.json"),
       JSON.stringify({
         repositories: [
-          { name: "deep-repo", url: "u", path: "../../../deep-repo" },
+          { name: "deep-repo", url: "u", path: "../../deep-repo" },
         ],
       }),
     );
