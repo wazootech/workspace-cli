@@ -7,8 +7,8 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
 
 ## Conventions
 
-- Deno 2, TypeScript, strict mode. No external runtime dependencies; `@std`
-  packages only for tests.
+- Deno 2, TypeScript, strict mode. `@std` packages are the only allowed
+  dependencies (runtime included); nothing outside `@std`.
 - TypeScript source in `src/`, tests in `tests/`. `tests/integration_test.ts`
   exercises real local git repositories under a temp dir.
 - Machine-readable git: use `--porcelain` output formats and `GitRunner` (an

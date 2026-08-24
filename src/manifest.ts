@@ -1,4 +1,6 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
+import { parse as parseJsonc } from "@std/jsonc";
+import { parse as parseYaml } from "@std/yaml";
 import type {
   RepositoryEntry,
   ResolvedWorkspace,
@@ -11,10 +13,13 @@ import { isWorkspaceReference } from "./types.ts";
 export const CURRENT_SCHEMA_VERSION = 3;
 
 export const DEFAULT_MANIFEST_FILENAMES = [
-  "workspace.json",
-  "wspace.json",
-  "repos.json",
+  "workspace",
+  "wspace",
+  "repos",
 ];
+
+/** Supported manifest formats by file extension, in discovery priority order. */
+export const MANIFEST_EXTENSIONS = [".json", ".jsonc", ".yaml", ".yml"];
 
 export interface ManifestPaths {
   root: string;
@@ -26,13 +31,35 @@ export interface ManifestPaths {
 export async function findDefaultManifestPath(
   cwd: string = Deno.cwd(),
 ): Promise<string> {
-  for (const filename of DEFAULT_MANIFEST_FILENAMES) {
-    const candidate = resolve(cwd, filename);
-    if (await exists(candidate)) {
-      return candidate;
+  for (const basename of DEFAULT_MANIFEST_FILENAMES) {
+    for (const extension of MANIFEST_EXTENSIONS) {
+      const candidate = resolve(cwd, basename + extension);
+      if (await exists(candidate)) {
+        return candidate;
+      }
     }
   }
-  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0]);
+  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
+}
+
+function parseManifestText(manifestPath: string, raw: string): unknown {
+  const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
+    .toLowerCase();
+  switch (extension) {
+    case ".json":
+      return JSON.parse(raw);
+    case ".jsonc":
+      return parseJsonc(raw);
+    case ".yaml":
+    case ".yml":
+      return parseYaml(raw);
+    default:
+      throw new Error(
+        `Unsupported manifest format "${extension}" in ${manifestPath} (supported: ${
+          MANIFEST_EXTENSIONS.join(", ")
+        })`,
+      );
+  }
 }
 
 export function validateSafeName(name: string, contextName = "Name"): void {
@@ -170,8 +197,11 @@ export function manifestPaths(
 export async function loadManifest(
   manifestPath: string,
 ): Promise<WorkspaceManifest> {
-  const raw = JSON.parse(await Deno.readTextFile(manifestPath));
-  validateManifest(raw);
+  const raw = parseManifestText(
+    manifestPath,
+    await Deno.readTextFile(manifestPath),
+  );
+  validateManifest(raw as WorkspaceManifest);
   return raw as WorkspaceManifest;
 }
 

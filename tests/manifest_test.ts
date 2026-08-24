@@ -102,6 +102,91 @@ Deno.test("validateManifest treats an empty manifest path as missing", () => {
   );
 });
 
+// --- JSONC and YAML manifests ---
+
+Deno.test("loadManifest parses jsonc manifests with comments", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "workspace.jsonc");
+    await Deno.writeTextFile(
+      manifestPath,
+      `{
+        // Cluster manifest for the umbra wikis.
+        "schemaVersion": 3,
+        "repositories": [
+          { "name": "a", "url": "https://example.com/a.git", }, // trailing comma
+        ],
+      }`,
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(manifest.repositories.length, 1);
+    assertEquals(manifest.repositories[0].name, "a");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest parses yaml manifests", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.yaml");
+    await Deno.writeTextFile(
+      manifestPath,
+      `schemaVersion: 3
+repositories:
+  - name: a
+    url: https://example.com/a.git
+`,
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(manifest.repositories.length, 1);
+    assertEquals(manifest.repositories[0].url, "https://example.com/a.git");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest rejects unsupported manifest extensions", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "workspace.toml");
+    await Deno.writeTextFile(manifestPath, "repositories = []");
+    const { loadManifest } = await import("../src/manifest.ts");
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      "Unsupported manifest format",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("findDefaultManifestPath discovers jsonc and yaml manifests", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    // Discovery is name-first (workspace > wspace > repos), then extension
+    // (.json > .jsonc > .yaml > .yml).
+    const jsoncPath = join(tempDir, "wspace.jsonc");
+    await Deno.writeTextFile(jsoncPath, "{}\n");
+    assertEquals(await findDefaultManifestPath(tempDir), jsoncPath);
+
+    const yamlPath = join(tempDir, "workspace.yaml");
+    await Deno.writeTextFile(yamlPath, "repositories: []\n");
+    assertEquals(await findDefaultManifestPath(tempDir), yamlPath);
+
+    const jsonPath = join(tempDir, "workspace.json");
+    await Deno.writeTextFile(jsonPath, "{}\n");
+    assertEquals(await findDefaultManifestPath(tempDir), jsonPath);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("validateManifest accepts schema version 3", () => {
   validateManifest({ schemaVersion: 3, repositories: [] });
 });

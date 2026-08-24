@@ -61,6 +61,10 @@ Design principles:
 
 ## Sub-workspaces
 
+The manifest can be `workspace.json`, `wspace.json`, or `repos.json` in `.json`,
+`.jsonc`, or `.yaml`/`.yml` format (JSONC allows comments and trailing commas).
+Discovery is name-first, then extension.
+
 A manifest can delegate a cluster of repositories to a child manifest that lives
 inside another repository. `wspace` resolves the whole tree recursively,
 flattens it with workspace attribution, and errors on circular references,
