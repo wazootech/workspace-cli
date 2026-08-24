@@ -18,6 +18,7 @@ import {
 import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
+import { isWorkspaceReference } from "./types.ts";
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -287,6 +288,11 @@ async function cloneMissing(
       }
       continue;
     }
+    if (!repository.url) {
+      throw new Error(
+        `Repository "${repository.name}" is missing its clone url`,
+      );
+    }
     const result = await clone(g, repository.url, repoPath);
     rows.push(
       result.code === 0 ? { name: repository.name, state: "CLONED" } : {
@@ -405,10 +411,16 @@ export async function run(args: string[]): Promise<number> {
     : await findDefaultManifestPath();
   const manifest = await loadManifest(manifestPath);
 
-  // Resolve the workspace tree if sub-workspaces are declared.
+  // Resolve the workspace tree if sub-workspaces are declared, either as
+  // inline references in repositories (schema v3+) or in a workspaces array
+  // (schema v2 style).
+  const hasInlineReferences = manifest.repositories.some(isWorkspaceReference);
   let resolvedManifest = manifest;
   let resolvedTree: ResolvedWorkspace | undefined;
-  if (manifest.workspaces && manifest.workspaces.length > 0) {
+  if (
+    hasInlineReferences ||
+    (manifest.workspaces && manifest.workspaces.length > 0)
+  ) {
     const resolved = await resolveWorkspaceTree(manifest, manifestPath);
     resolvedTree = resolved;
 

@@ -8,7 +8,7 @@ import {
   resolveWorkspaceTree,
   validateManifest,
 } from "../src/manifest.ts";
-import type { WorkspaceManifest } from "../src/types.ts";
+import type { RepositoryEntry, WorkspaceManifest } from "../src/types.ts";
 
 Deno.test("validateManifest accepts a valid manifest", () => {
   const manifest: WorkspaceManifest = {
@@ -37,6 +37,103 @@ Deno.test("validateManifest rejects a repository without a url", () => {
 Deno.test("validateManifest rejects a newer schema version", () => {
   const manifest: WorkspaceManifest = { schemaVersion: 99, repositories: [] };
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
+});
+
+// --- Schema v3: unified sub-workspace references in repositories ---
+
+Deno.test("validateManifest accepts an inline sub-workspace reference", () => {
+  const manifest: WorkspaceManifest = {
+    schemaVersion: 3,
+    repositories: [
+      { name: "a", url: "https://example.com/a.git" },
+      { name: "worlds", manifest: "../worlds/workspace.json" },
+    ],
+  };
+  validateManifest(manifest);
+});
+
+Deno.test("validateManifest rejects a reference combined with url", () => {
+  const manifest = {
+    repositories: [
+      {
+        name: "worlds",
+        url: "https://example.com/worlds.git",
+        manifest: "../worlds/workspace.json",
+      },
+    ],
+  } as unknown as WorkspaceManifest;
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "cannot combine",
+  );
+});
+
+Deno.test("validateManifest rejects a reference with leaf-only fields", () => {
+  const refs = [
+    { name: "worlds", manifest: "../w.json", path: "." },
+    { name: "worlds", manifest: "../w.json", groups: ["beta"] },
+    { name: "worlds", manifest: "../w.json", localFiles: [".env"] },
+  ] as unknown as RepositoryEntry[];
+  for (const ref of refs) {
+    assertThrows(
+      () => validateManifest({ repositories: [ref] }),
+      Error,
+      "cannot combine",
+    );
+  }
+});
+
+Deno.test("validateManifest rejects an entry with neither url nor manifest", () => {
+  const manifest = {
+    repositories: [{ name: "a" }],
+  } as WorkspaceManifest;
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "require name and url, or name and manifest",
+  );
+});
+
+Deno.test("validateManifest treats an empty manifest path as missing", () => {
+  const manifest = {
+    repositories: [{ name: "a", manifest: "" }],
+  } as unknown as WorkspaceManifest;
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "require name and url, or name and manifest",
+  );
+});
+
+Deno.test("validateManifest accepts schema version 3", () => {
+  validateManifest({ schemaVersion: 3, repositories: [] });
+});
+
+Deno.test("validateManifest rejects schema version 4", () => {
+  const manifest: WorkspaceManifest = { schemaVersion: 4, repositories: [] };
+  assertThrows(() => validateManifest(manifest), Error, "newer than supported");
+});
+
+Deno.test("validateManifest rejects duplicate names across kinds", () => {
+  const manifest = {
+    repositories: [
+      { name: "a", url: "https://example.com/a.git" },
+      { name: "a", manifest: "../a-ws/workspace.json" },
+    ],
+  } as unknown as WorkspaceManifest;
+  assertThrows(() => validateManifest(manifest), Error, "Duplicate");
+});
+
+Deno.test("validateManifest rejects an inline reference without a name", () => {
+  const manifest = {
+    repositories: [{ manifest: "../child.json" }],
+  } as unknown as WorkspaceManifest;
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "Repository entries require",
+  );
 });
 
 Deno.test("manifestPaths applies defaults under the manifest directory", () => {
@@ -435,6 +532,131 @@ Deno.test("resolveWorkspaceTree throws when child manifest missing", async () =>
       () => resolveWorkspaceTree(manifest, parentManifestPath),
       Error,
       'Sub-workspace "missing" manifest not found',
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// --- Schema v3: inline sub-workspace references in resolveWorkspaceTree ---
+
+Deno.test("resolveWorkspaceTree flattens repos declared through inline references", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    const childManifestPath = join(tempDir, "child", "workspace.json");
+    await Deno.mkdir(join(tempDir, "child"), { recursive: true });
+
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        schemaVersion: 3,
+        repositories: [
+          { name: "parent-repo", url: "https://example.com/parent.git" },
+          { name: "child-ws", manifest: "child/workspace.json" },
+        ],
+      }),
+    );
+    await Deno.writeTextFile(
+      childManifestPath,
+      JSON.stringify({
+        repositoriesDirectory: ".",
+        repositories: [
+          { name: "child-repo", url: "https://example.com/child.git" },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
+
+    assertEquals(resolved.repositories.length, 2);
+    assertEquals(resolved.repositories[0].name, "parent-repo");
+    assertEquals(resolved.repositories[0].workspace, undefined);
+    assertEquals(resolved.repositories[1].name, "child-repo");
+    assertEquals(resolved.repositories[1].workspace, "child-ws");
+    assertEquals(resolved.children.size, 1);
+    assertEquals(resolved.children.has("child-ws"), true);
+    // Child repo resolves against the CHILD workspace root.
+    const childRepo = resolved.repositories[1];
+    assertEquals(childRepo.resolvedPath, join(tempDir, "child", "child-repo"));
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree merges inline references and legacy workspaces", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    for (const name of ["inline-ws", "legacy-ws"]) {
+      await Deno.mkdir(join(tempDir, name), { recursive: true });
+      await Deno.writeTextFile(
+        join(tempDir, name, "workspace.json"),
+        JSON.stringify({
+          repositories: [
+            { name: `${name}-repo`, url: `https://example.com/${name}.git` },
+          ],
+        }),
+      );
+    }
+
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        schemaVersion: 3,
+        repositories: [
+          { name: "inline-ws", manifest: "inline-ws/workspace.json" },
+        ],
+        workspaces: [
+          { name: "legacy-ws", path: "legacy-ws/workspace.json" },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
+
+    assertEquals(resolved.children.size, 2);
+    assertEquals(resolved.children.has("inline-ws"), true);
+    assertEquals(resolved.children.has("legacy-ws"), true);
+    assertEquals(resolved.repositories.length, 2);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree rejects duplicate workspace names across forms", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    await Deno.mkdir(join(tempDir, "dupe"), { recursive: true });
+    await Deno.writeTextFile(
+      join(tempDir, "dupe", "workspace.json"),
+      JSON.stringify({
+        repositories: [],
+      }),
+    );
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          { name: "dupe", manifest: "dupe/workspace.json" },
+        ],
+        workspaces: [
+          { name: "dupe", path: "dupe/workspace.json" },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    await assertRejects(
+      () => resolveWorkspaceTree(manifest, parentManifestPath),
+      Error,
+      "Duplicate workspace name",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

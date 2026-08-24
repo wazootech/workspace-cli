@@ -55,6 +55,50 @@ Design principles:
   vault into checkouts and worktrees.
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
+- `wspace workspaces [--json]` — list discovered sub-workspaces with repo
+  counts. `check`, `init`/`sync`, `update`, and `worktree list` accept
+  `--workspace <name>` to scope the command to one sub-workspace.
+
+## Sub-workspaces
+
+A manifest can delegate a cluster of repositories to a child manifest that lives
+inside another repository. `wspace` resolves the whole tree recursively,
+flattens it with workspace attribution, and errors on circular references,
+duplicate sub-workspace names, or duplicate repository claims across workspaces.
+
+Schema v3 declares sub-workspaces inline in `repositories`: an entry with
+`manifest` instead of `url` points at a child manifest file, relative to the
+declaring manifest's directory.
+
+```json
+{
+  "schemaVersion": 3,
+  "repositories": [
+    {
+      "name": "shared-reference",
+      "url": "https://github.com/acme/shared-reference.git"
+    },
+    { "name": "umbra-suite", "manifest": "repos/umbra-wiki/workspace.json" }
+  ]
+}
+```
+
+Schema v2 style — a separate `workspaces` array — remains supported; both forms
+can be mixed in one manifest.
+
+```json
+{
+  "repositories": [],
+  "workspaces": [
+    { "name": "umbra-suite", "path": "repos/umbra-wiki/workspace.json" }
+  ]
+}
+```
+
+Each child manifest is a standard manifest: its repositories resolve against its
+own root (defaulting to the directory containing the child manifest), and it may
+declare further sub-workspaces. A repository claimed by a sub-workspace must not
+also appear in the parent's `repositories`.
 
 ## Agent skills
 

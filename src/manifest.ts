@@ -6,8 +6,9 @@ import type {
   WorkspaceEntry,
   WorkspaceManifest,
 } from "./types.ts";
+import { isWorkspaceReference } from "./types.ts";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export const DEFAULT_MANIFEST_FILENAMES = [
   "workspace.json",
@@ -51,6 +52,24 @@ export function validateSafeName(name: string, contextName = "Name"): void {
   }
 }
 
+function requiredEntryMessage(repository: RepositoryEntry): string {
+  return `Repository entries require name and url, or name and manifest: ${
+    JSON.stringify(repository)
+  }`;
+}
+
+function registerName(
+  seen: Set<string>,
+  name: string,
+  contextName: string,
+): void {
+  validateSafeName(name, contextName);
+  if (seen.has(name)) {
+    throw new Error(`Duplicate ${contextName.toLowerCase()}: ${name}`);
+  }
+  seen.add(name);
+}
+
 export function validateManifest(manifest: WorkspaceManifest): void {
   if (
     manifest.schemaVersion !== undefined &&
@@ -62,18 +81,24 @@ export function validateManifest(manifest: WorkspaceManifest): void {
   }
   const seen = new Set<string>();
   for (const repository of manifest.repositories) {
-    if (!repository.name || !repository.url) {
-      throw new Error(
-        `Repository entries require name and url: ${
-          JSON.stringify(repository)
-        }`,
-      );
+    if (isWorkspaceReference(repository)) {
+      if (
+        repository.url !== undefined || repository.path !== undefined ||
+        repository.groups !== undefined || repository.localFiles !== undefined
+      ) {
+        throw new Error(
+          `Sub-workspace reference cannot combine manifest with url, path, groups, or localFiles: ${
+            JSON.stringify(repository)
+          }`,
+        );
+      }
+    } else if (!repository.name || !repository.url) {
+      throw new Error(requiredEntryMessage(repository));
     }
-    validateSafeName(repository.name, "Repository name");
-    if (seen.has(repository.name)) {
-      throw new Error(`Duplicate repository name: ${repository.name}`);
+    if (!repository.name) {
+      throw new Error(requiredEntryMessage(repository));
     }
-    seen.add(repository.name);
+    registerName(seen, repository.name, "Repository name");
   }
   if (manifest.workspaces) {
     const seenWorkspaces = new Set<string>();
@@ -83,11 +108,7 @@ export function validateManifest(manifest: WorkspaceManifest): void {
           `Workspace entries require name and path: ${JSON.stringify(ws)}`,
         );
       }
-      validateSafeName(ws.name, "Workspace name");
-      if (seenWorkspaces.has(ws.name)) {
-        throw new Error(`Duplicate workspace name: ${ws.name}`);
-      }
-      seenWorkspaces.add(ws.name);
+      registerName(seenWorkspaces, ws.name, "Workspace name");
     }
   }
 }
@@ -207,7 +228,15 @@ export async function resolveWorkspaceTree(
     visitedManifestDirs.add(manifestDir);
 
     const wsPaths = manifestPaths(wsManifest, wsManifestPath);
+    // Schema v3+: sub-workspace references live inline in repositories;
+    // schema v2 style declares them in a separate workspaces array. Both
+    // forms are honored, inline first.
+    const workspaceRefs: WorkspaceEntry[] = [];
     for (const repo of wsManifest.repositories) {
+      if (isWorkspaceReference(repo)) {
+        workspaceRefs.push({ name: repo.name, path: repo.manifest });
+        continue;
+      }
       allRepos.push({
         ...repo,
         workspace: workspaceName,
@@ -215,7 +244,12 @@ export async function resolveWorkspaceTree(
       });
     }
 
-    for (const wsEntry of wsManifest.workspaces ?? []) {
+    for (
+      const wsEntry of [
+        ...workspaceRefs,
+        ...(wsManifest.workspaces ?? []),
+      ]
+    ) {
       if (children.has(wsEntry.name)) {
         throw new Error(`Duplicate workspace name: ${wsEntry.name}`);
       }

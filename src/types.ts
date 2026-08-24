@@ -1,6 +1,13 @@
 export interface RepositoryEntry {
   name: string;
-  url: string;
+  /** Clone URL. Required for leaf repositories; forbidden on sub-workspace references. */
+  url?: string;
+  /**
+   * Path to a child workspace manifest, relative to the declaring manifest's
+   * directory (schema v3+). Marks this entry as a sub-workspace reference;
+   * forbidden together with url, path, groups, and localFiles.
+   */
+  manifest?: string;
   /** Optional path relative to the workspace root of the manifest declaring it. "." maps to that root itself. */
   path?: string;
   /** Absolute path resolved from the owning workspace's root (set in the resolved view). */
@@ -11,6 +18,13 @@ export interface RepositoryEntry {
   localFiles?: string[];
   /** Name of the sub-workspace this repo belongs to (set in resolved view). */
   workspace?: string;
+}
+
+/** Type guard: true when the entry is an inline sub-workspace reference. */
+export function isWorkspaceReference(
+  entry: RepositoryEntry,
+): entry is RepositoryEntry & { manifest: string } {
+  return entry.manifest !== undefined && entry.manifest !== "";
 }
 
 /** Entry in the `workspaces` array pointing to a child manifest. */
