@@ -55,6 +55,11 @@ export interface ResolvedWorkspace {
   children: Map<string, WorkspaceManifest>;
   /** Flattened repository list with workspace attribution. */
   repositories: RepositoryEntry[];
+  /**
+   * Sub-workspace references from every manifest in the tree, with checkout
+   * paths resolved. References carrying a url are clone targets for init.
+   */
+  references: RepositoryEntry[];
 }
 
 export interface WorkspaceConflict {

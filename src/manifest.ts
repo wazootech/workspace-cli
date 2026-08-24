@@ -83,11 +83,11 @@ export function validateManifest(manifest: WorkspaceManifest): void {
   for (const repository of manifest.repositories) {
     if (isWorkspaceReference(repository)) {
       if (
-        repository.url !== undefined || repository.path !== undefined ||
-        repository.groups !== undefined || repository.localFiles !== undefined
+        repository.path !== undefined || repository.groups !== undefined ||
+        repository.localFiles !== undefined
       ) {
         throw new Error(
-          `Sub-workspace reference cannot combine manifest with url, path, groups, or localFiles: ${
+          `Sub-workspace reference cannot combine manifest with path, groups, or localFiles: ${
             JSON.stringify(repository)
           }`,
         );
@@ -206,6 +206,7 @@ export async function resolveWorkspaceTree(
 ): Promise<ResolvedWorkspace> {
   const children = new Map<string, WorkspaceManifest>();
   const allRepos: RepositoryEntry[] = [];
+  const allReferences: RepositoryEntry[] = [];
   const visitedManifestDirs = new Set<string>();
 
   await collectWorkspace(manifest, manifestPath, undefined);
@@ -214,6 +215,7 @@ export async function resolveWorkspaceTree(
     root: manifest,
     children,
     repositories: allRepos,
+    references: allReferences,
   };
 
   async function collectWorkspace(
@@ -235,6 +237,13 @@ export async function resolveWorkspaceTree(
     for (const repo of wsManifest.repositories) {
       if (isWorkspaceReference(repo)) {
         workspaceRefs.push({ name: repo.name, path: repo.manifest });
+        allReferences.push({
+          ...repo,
+          workspace: workspaceName,
+          // References have no path override; they clone to the default
+          // <repositoriesDirectory>/<name> location.
+          resolvedPath: resolveRepositoryPath(repo, wsPaths),
+        });
         continue;
       }
       allRepos.push({
@@ -271,7 +280,8 @@ export function detectConflicts(
   resolved: ResolvedWorkspace,
 ): WorkspaceConflict[] {
   const claims = new Map<string, string[]>();
-  for (const repo of resolved.repositories) {
+  const claimed = [...(resolved.references ?? []), ...resolved.repositories];
+  for (const repo of claimed) {
     const wsName = repo.workspace ?? "(root)";
     const existing = claims.get(repo.name) ?? [];
     existing.push(wsName);

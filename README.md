@@ -100,6 +100,21 @@ own root (defaulting to the directory containing the child manifest), and it may
 declare further sub-workspaces. A repository claimed by a sub-workspace must not
 also appear in the parent's `repositories`.
 
+A reference may also carry a `url`. The reference then behaves as a full
+repository entry: `wspace init` clones it (to `<repositoriesDirectory>/<name>`)
+before reading its child manifest, so fresh checkouts bootstrap without manual
+steps, and `check`, `update`, and worktree commands manage it like any other
+repository. References without a `url` stay pure delegation pointers and must
+exist on disk already.
+
+```json
+{
+  "name": "umbra-suite",
+  "url": "https://github.com/acme/umbra-wiki.git",
+  "manifest": "repos/umbra-wiki/workspace.json"
+}
+```
+
 ## Agent skills
 
 The [`wspace` agent skill](skills/wspace/SKILL.md) packages the same workspace

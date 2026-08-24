@@ -52,8 +52,8 @@ Deno.test("validateManifest accepts an inline sub-workspace reference", () => {
   validateManifest(manifest);
 });
 
-Deno.test("validateManifest rejects a reference combined with url", () => {
-  const manifest = {
+Deno.test("validateManifest accepts a reference with an optional url", () => {
+  const manifest: WorkspaceManifest = {
     repositories: [
       {
         name: "worlds",
@@ -61,12 +61,8 @@ Deno.test("validateManifest rejects a reference combined with url", () => {
         manifest: "../worlds/workspace.json",
       },
     ],
-  } as unknown as WorkspaceManifest;
-  assertThrows(
-    () => validateManifest(manifest),
-    Error,
-    "cannot combine",
-  );
+  };
+  validateManifest(manifest);
 });
 
 Deno.test("validateManifest rejects a reference with leaf-only fields", () => {
@@ -663,10 +659,69 @@ Deno.test("resolveWorkspaceTree rejects duplicate workspace names across forms",
   }
 });
 
+// --- Optional url on references (bootstrap cloning) ---
+
+Deno.test("resolveWorkspaceTree exposes references with checkout paths", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const parentManifestPath = join(tempDir, "workspace.json");
+    const childDir = join(tempDir, "umbrella");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(childDir, "workspace.json"),
+      JSON.stringify({ repositoriesDirectory: ".", repositories: [] }),
+    );
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        repositories: [
+          {
+            name: "umbra-suite",
+            url: "https://example.com/umbra.git",
+            manifest: "umbrella/workspace.json",
+          },
+        ],
+      }),
+    );
+
+    const { loadManifest } = await import("../src/manifest.ts");
+    const manifest = await loadManifest(parentManifestPath);
+    const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
+
+    assertEquals(resolved.repositories.length, 0);
+    assertEquals(resolved.references.length, 1);
+    const ref = resolved.references[0];
+    assertEquals(ref.name, "umbra-suite");
+    assertEquals(ref.url, "https://example.com/umbra.git");
+    assertEquals(ref.resolvedPath, join(tempDir, "repos", "umbra-suite"));
+    // References are attributed to their declaring workspace.
+    assertEquals(ref.workspace, undefined);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("detectConflicts flags reference names claimed elsewhere", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    children: new Map(),
+    references: [
+      { name: "shared", url: "u", manifest: "../x.json", workspace: undefined },
+    ],
+    repositories: [
+      { name: "shared", url: "u2", workspace: "child-a" },
+    ],
+  };
+  const conflicts = detectConflicts(resolved);
+  assertEquals(conflicts.length, 1);
+  assertEquals(conflicts[0].claimedBy, ["(root)", "child-a"]);
+});
+
 Deno.test("detectConflicts finds duplicate repo names across workspaces", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     children: new Map(),
+    references: [],
     repositories: [
       { name: "shared", url: "u", workspace: undefined },
       { name: "shared", url: "u2", workspace: "child-a" },
@@ -683,6 +738,7 @@ Deno.test("detectConflicts returns empty when no conflicts", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     children: new Map(),
+    references: [],
     repositories: [
       { name: "a", url: "u", workspace: undefined },
       { name: "b", url: "u2", workspace: "child" },
@@ -697,6 +753,7 @@ Deno.test("listWorkspaces returns root and children with repo counts", () => {
     children: new Map([
       ["child-ws", { repositories: [] } as WorkspaceManifest],
     ]),
+    references: [],
     repositories: [
       { name: "a", url: "u", workspace: undefined },
       { name: "b", url: "u2", workspace: undefined },
@@ -715,6 +772,7 @@ Deno.test("listWorkspaces omits root when all repos are in children", () => {
     children: new Map([
       ["child", { repositories: [] } as WorkspaceManifest],
     ]),
+    references: [],
     repositories: [
       { name: "a", url: "u", workspace: "child" },
     ],

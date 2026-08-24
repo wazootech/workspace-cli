@@ -745,6 +745,67 @@ Deno.test("wspace check --json resolves an inline sub-workspace reference end to
   }
 });
 
+Deno.test("wspace init bootstraps missing sub-workspace containers carrying a url", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Seed a bare origin whose default branch contains the child manifest.
+    const origin = join(dir, "umbra.git");
+    const seed = join(dir, "umbra-seed");
+    assert((await g.run(["init", "--bare", origin])).code === 0);
+    assert((await g.run(["init", seed])).code === 0);
+    await configure(seed);
+    assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
+    await Deno.writeTextFile(
+      join(seed, "workspace.json"),
+      JSON.stringify({
+        repositoriesDirectory: ".",
+        repositories: [],
+      }),
+    );
+    await g.run(["add", "."], seed);
+    assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
+    assert((await g.run(["push", origin, "main"], seed)).code === 0);
+    assert(
+      (await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin))
+        .code === 0,
+    );
+
+    // Fresh workspace: the container repo does not exist locally yet.
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        schemaVersion: 3,
+        repositoriesDirectory: "repos",
+        repositories: [
+          {
+            name: "umbra",
+            url: origin,
+            manifest: "repos/umbra/workspace.json",
+          },
+        ],
+      }),
+    );
+
+    const { code } = await captureStdout(() =>
+      run(["init", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(code, 0);
+
+    // After bootstrap the tree resolves and the container checks clean.
+    const { code: checkCode, output } = await captureStdout(() =>
+      run(["check", "--json", "--manifest", parentManifestPath])
+    );
+    assertEquals(checkCode, 0);
+    const rows = JSON.parse(output) as Array<{ name: string; state: string }>;
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0].name, "umbra");
+    assertEquals(rows[0].state, "CLEAN");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
 Deno.test("wspace workspaces --json lists discovered sub-workspaces with repo counts", async () => {
   const dir = await Deno.makeTempDir();
   try {

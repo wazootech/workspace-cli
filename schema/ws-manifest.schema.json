@@ -23,7 +23,7 @@
           "manifest": {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference."
+            "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference. An optional url turns the reference into a managed repository: init clones it before reading the child manifest."
           },
           "path": { "type": "string" },
           "groups": { "type": "array", "items": { "type": "string" } },
@@ -33,7 +33,6 @@
         "then": {
           "not": {
             "anyOf": [
-              { "required": ["url"] },
               { "required": ["path"] },
               { "required": ["groups"] },
               { "required": ["localFiles"] }
