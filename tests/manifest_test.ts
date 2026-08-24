@@ -4,6 +4,7 @@ import {
   detectConflicts,
   findDefaultManifestPath,
   listWorkspaces,
+  loadManifest,
   manifestPaths,
   resolveWorkspaceTree,
   validateManifest,
@@ -102,6 +103,17 @@ Deno.test("validateManifest treats an empty manifest path as missing", () => {
   );
 });
 
+Deno.test("validateManifest rejects an empty url on a reference", () => {
+  const manifest = {
+    repositories: [{ name: "a", url: "", manifest: "../x.json" }],
+  } as unknown as WorkspaceManifest;
+  assertThrows(
+    () => validateManifest(manifest),
+    Error,
+    "require name and url, or name and manifest",
+  );
+});
+
 // --- JSONC and YAML manifests ---
 
 Deno.test("loadManifest parses jsonc manifests with comments", async () => {
@@ -119,7 +131,6 @@ Deno.test("loadManifest parses jsonc manifests with comments", async () => {
       }`,
     );
 
-    const { loadManifest } = await import("../src/manifest.ts");
     const manifest = await loadManifest(manifestPath);
     assertEquals(manifest.repositories.length, 1);
     assertEquals(manifest.repositories[0].name, "a");
@@ -141,7 +152,6 @@ repositories:
 `,
     );
 
-    const { loadManifest } = await import("../src/manifest.ts");
     const manifest = await loadManifest(manifestPath);
     assertEquals(manifest.repositories.length, 1);
     assertEquals(manifest.repositories[0].url, "https://example.com/a.git");
@@ -155,11 +165,25 @@ Deno.test("loadManifest rejects unsupported manifest extensions", async () => {
   try {
     const manifestPath = join(tempDir, "workspace.toml");
     await Deno.writeTextFile(manifestPath, "repositories = []");
-    const { loadManifest } = await import("../src/manifest.ts");
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
       "Unsupported manifest format",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest rejects yaml documents without a repositories array", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.yaml");
+    await Deno.writeTextFile(manifestPath, "repositories: 3\n");
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      "must be an object with a repositories array",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

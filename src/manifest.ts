@@ -28,6 +28,19 @@ export interface ManifestPaths {
   vaultDirectory: string;
 }
 
+/** A declared sub-workspace manifest file does not exist on disk. */
+export class MissingManifestError extends Error {
+  constructor(
+    readonly workspaceName: string,
+    readonly manifestPath: string,
+  ) {
+    super(
+      `Sub-workspace "${workspaceName}" manifest not found: ${manifestPath}`,
+    );
+    this.name = "MissingManifestError";
+  }
+}
+
 export async function findDefaultManifestPath(
   cwd: string = Deno.cwd(),
 ): Promise<string> {
@@ -45,21 +58,39 @@ export async function findDefaultManifestPath(
 function parseManifestText(manifestPath: string, raw: string): unknown {
   const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
     .toLowerCase();
-  switch (extension) {
-    case ".json":
-      return JSON.parse(raw);
-    case ".jsonc":
-      return parseJsonc(raw);
-    case ".yaml":
-    case ".yml":
-      return parseYaml(raw);
-    default:
-      throw new Error(
-        `Unsupported manifest format "${extension}" in ${manifestPath} (supported: ${
-          MANIFEST_EXTENSIONS.join(", ")
-        })`,
-      );
+  let parsed: unknown;
+  try {
+    switch (extension) {
+      case ".json":
+        parsed = JSON.parse(raw);
+        break;
+      case ".jsonc":
+        parsed = parseJsonc(raw);
+        break;
+      case ".yaml":
+      case ".yml":
+        parsed = parseYaml(raw);
+        break;
+      default:
+        throw new Error(
+          `Unsupported manifest format "${extension}" (supported: ${
+            MANIFEST_EXTENSIONS.join(", ")
+          })`,
+        );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse manifest ${manifestPath}: ${message}`);
   }
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !Array.isArray((parsed as { repositories?: unknown }).repositories)
+  ) {
+    throw new Error(
+      `Manifest ${manifestPath} must be an object with a repositories array`,
+    );
+  }
+  return parsed;
 }
 
 export function validateSafeName(name: string, contextName = "Name"): void {
@@ -118,6 +149,9 @@ export function validateManifest(manifest: WorkspaceManifest): void {
             JSON.stringify(repository)
           }`,
         );
+      }
+      if (repository.url === "") {
+        throw new Error(requiredEntryMessage(repository));
       }
     } else if (!repository.name || !repository.url) {
       throw new Error(requiredEntryMessage(repository));
@@ -215,9 +249,7 @@ export async function loadChildManifest(
   const parentDir = dirname(resolve(parentManifestPath));
   const childPath = normalize(resolve(parentDir, entry.path));
   if (!(await exists(childPath))) {
-    throw new Error(
-      `Sub-workspace "${entry.name}" manifest not found: ${childPath}`,
-    );
+    throw new MissingManifestError(entry.name, childPath);
   }
   const manifest = await loadManifest(childPath);
   return { manifest, manifestPath: childPath };
@@ -310,7 +342,7 @@ export function detectConflicts(
   resolved: ResolvedWorkspace,
 ): WorkspaceConflict[] {
   const claims = new Map<string, string[]>();
-  const claimed = [...(resolved.references ?? []), ...resolved.repositories];
+  const claimed = [...resolved.references, ...resolved.repositories];
   for (const repo of claimed) {
     const wsName = repo.workspace ?? "(root)";
     const existing = claims.get(repo.name) ?? [];

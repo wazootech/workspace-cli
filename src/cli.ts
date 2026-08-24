@@ -18,7 +18,13 @@ import {
 import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
+import type { RepositoryEntry } from "./types.ts";
 import { isWorkspaceReference } from "./types.ts";
+import { MissingManifestError } from "./manifest.ts";
+
+function clonableReference(entry: RepositoryEntry): boolean {
+  return isWorkspaceReference(entry) && Boolean(entry.url);
+}
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -429,27 +435,36 @@ export async function run(args: string[]): Promise<number> {
       // Bootstrap: init may clone reference repositories that carry a url,
       // making the child manifests readable on a fresh checkout. Retry once
       // after cloning; every other command gets an actionable hint.
-      const clonable = manifest.repositories.some(
-        (r) => isWorkspaceReference(r) && r.url,
-      );
-      if (!isInitCommand || !clonable) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (message.includes("manifest not found") && clonable) {
-          throw new Error(`${message}\nRun 'wspace init' to clone it.`);
+      const isMissingManifest = error instanceof MissingManifestError;
+      if (!isInitCommand || !isMissingManifest) {
+        if (
+          isMissingManifest && manifest.repositories.some(clonableReference)
+        ) {
+          throw new Error(
+            `${error.message}\nRun 'wspace init' to clone it.`,
+          );
         }
         throw error;
       }
+      const targets = opts.subcommand
+        ? [opts.subcommand, ...opts.positional]
+        : [];
+      const bootstrapRefs = manifest.repositories.filter((r) =>
+        clonableReference(r) &&
+        (targets.length === 0 || targets.includes(r.name))
+      );
+      if (bootstrapRefs.length === 0) throw error;
       const bootstrapPaths = manifestPaths(manifest, manifestPath);
-      await cloneMissing(
+      const bootstrapRows = await cloneMissing(
         new SystemGit(),
-        {
-          ...manifest,
-          repositories: manifest.repositories.filter((r) =>
-            isWorkspaceReference(r) && r.url
-          ),
-        },
+        { ...manifest, repositories: bootstrapRefs },
         bootstrapPaths,
       );
+      if (opts.json) {
+        console.log(JSON.stringify(bootstrapRows, null, 2));
+      } else {
+        console.table(bootstrapRows);
+      }
       resolved = await resolveWorkspaceTree(manifest, manifestPath);
     }
     resolvedTree = resolved;

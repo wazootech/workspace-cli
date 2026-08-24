@@ -1,6 +1,10 @@
 export interface RepositoryEntry {
   name: string;
-  /** Clone URL. Required for leaf repositories; forbidden on sub-workspace references. */
+  /**
+   * Clone URL. Required on leaf repositories. Optional on sub-workspace
+   * references, where it promotes the reference to a managed repository:
+   * init clones it before reading the child manifest.
+   */
   url?: string;
   /**
    * Path to a child workspace manifest, relative to the declaring manifest's
