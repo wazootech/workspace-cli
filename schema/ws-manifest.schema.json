@@ -15,20 +15,36 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "url"],
+        "required": ["name"],
         "additionalProperties": false,
         "properties": {
           "name": { "type": "string" },
           "url": { "type": "string", "format": "uri" },
+          "manifest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference. An optional url turns the reference into a managed repository: init clones it before reading the child manifest."
+          },
           "path": { "type": "string" },
           "groups": { "type": "array", "items": { "type": "string" } },
           "localFiles": { "type": "array", "items": { "type": "string" } }
-        }
+        },
+        "if": { "required": ["manifest"] },
+        "then": {
+          "not": {
+            "anyOf": [
+              { "required": ["path"] },
+              { "required": ["groups"] },
+              { "required": ["localFiles"] }
+            ]
+          }
+        },
+        "else": { "required": ["url"] }
       }
     },
     "workspaces": {
       "type": "array",
-      "description": "Child workspace manifests (schema v2+). Each entry points to a nested workspace.json.",
+      "description": "Child workspace manifests (schema v2 style; superseded by inline manifest references in repositories but still supported). Each entry points to a nested workspace.json.",
       "items": {
         "type": "object",
         "required": ["name", "path"],

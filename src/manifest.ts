@@ -1,4 +1,6 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
+import { parse as parseJsonc } from "@std/jsonc";
+import { parse as parseYaml } from "@std/yaml";
 import type {
   RepositoryEntry,
   ResolvedWorkspace,
@@ -6,14 +8,18 @@ import type {
   WorkspaceEntry,
   WorkspaceManifest,
 } from "./types.ts";
+import { isWorkspaceReference } from "./types.ts";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export const DEFAULT_MANIFEST_FILENAMES = [
-  "workspace.json",
-  "wspace.json",
-  "repos.json",
+  "workspace",
+  "wspace",
+  "repos",
 ];
+
+/** Supported manifest formats by file extension, in discovery priority order. */
+export const MANIFEST_EXTENSIONS = [".json", ".jsonc", ".yaml", ".yml"];
 
 export interface ManifestPaths {
   root: string;
@@ -22,16 +28,69 @@ export interface ManifestPaths {
   vaultDirectory: string;
 }
 
+/** A declared sub-workspace manifest file does not exist on disk. */
+export class MissingManifestError extends Error {
+  constructor(
+    readonly workspaceName: string,
+    readonly manifestPath: string,
+  ) {
+    super(
+      `Sub-workspace "${workspaceName}" manifest not found: ${manifestPath}`,
+    );
+    this.name = "MissingManifestError";
+  }
+}
+
 export async function findDefaultManifestPath(
   cwd: string = Deno.cwd(),
 ): Promise<string> {
-  for (const filename of DEFAULT_MANIFEST_FILENAMES) {
-    const candidate = resolve(cwd, filename);
-    if (await exists(candidate)) {
-      return candidate;
+  for (const basename of DEFAULT_MANIFEST_FILENAMES) {
+    for (const extension of MANIFEST_EXTENSIONS) {
+      const candidate = resolve(cwd, basename + extension);
+      if (await exists(candidate)) {
+        return candidate;
+      }
     }
   }
-  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0]);
+  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
+}
+
+function parseManifestText(manifestPath: string, raw: string): unknown {
+  const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
+    .toLowerCase();
+  let parsed: unknown;
+  try {
+    switch (extension) {
+      case ".json":
+        parsed = JSON.parse(raw);
+        break;
+      case ".jsonc":
+        parsed = parseJsonc(raw);
+        break;
+      case ".yaml":
+      case ".yml":
+        parsed = parseYaml(raw);
+        break;
+      default:
+        throw new Error(
+          `Unsupported manifest format "${extension}" (supported: ${
+            MANIFEST_EXTENSIONS.join(", ")
+          })`,
+        );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse manifest ${manifestPath}: ${message}`);
+  }
+  if (
+    typeof parsed !== "object" || parsed === null ||
+    !Array.isArray((parsed as { repositories?: unknown }).repositories)
+  ) {
+    throw new Error(
+      `Manifest ${manifestPath} must be an object with a repositories array`,
+    );
+  }
+  return parsed;
 }
 
 export function validateSafeName(name: string, contextName = "Name"): void {
@@ -51,6 +110,24 @@ export function validateSafeName(name: string, contextName = "Name"): void {
   }
 }
 
+function requiredEntryMessage(repository: RepositoryEntry): string {
+  return `Repository entries require name and url, or name and manifest: ${
+    JSON.stringify(repository)
+  }`;
+}
+
+function registerName(
+  seen: Set<string>,
+  name: string,
+  contextName: string,
+): void {
+  validateSafeName(name, contextName);
+  if (seen.has(name)) {
+    throw new Error(`Duplicate ${contextName.toLowerCase()}: ${name}`);
+  }
+  seen.add(name);
+}
+
 export function validateManifest(manifest: WorkspaceManifest): void {
   if (
     manifest.schemaVersion !== undefined &&
@@ -62,18 +139,27 @@ export function validateManifest(manifest: WorkspaceManifest): void {
   }
   const seen = new Set<string>();
   for (const repository of manifest.repositories) {
-    if (!repository.name || !repository.url) {
-      throw new Error(
-        `Repository entries require name and url: ${
-          JSON.stringify(repository)
-        }`,
-      );
+    if (isWorkspaceReference(repository)) {
+      if (
+        repository.path !== undefined || repository.groups !== undefined ||
+        repository.localFiles !== undefined
+      ) {
+        throw new Error(
+          `Sub-workspace reference cannot combine manifest with path, groups, or localFiles: ${
+            JSON.stringify(repository)
+          }`,
+        );
+      }
+      if (repository.url === "") {
+        throw new Error(requiredEntryMessage(repository));
+      }
+    } else if (!repository.name || !repository.url) {
+      throw new Error(requiredEntryMessage(repository));
     }
-    validateSafeName(repository.name, "Repository name");
-    if (seen.has(repository.name)) {
-      throw new Error(`Duplicate repository name: ${repository.name}`);
+    if (!repository.name) {
+      throw new Error(requiredEntryMessage(repository));
     }
-    seen.add(repository.name);
+    registerName(seen, repository.name, "Repository name");
   }
   if (manifest.workspaces) {
     const seenWorkspaces = new Set<string>();
@@ -83,11 +169,7 @@ export function validateManifest(manifest: WorkspaceManifest): void {
           `Workspace entries require name and path: ${JSON.stringify(ws)}`,
         );
       }
-      validateSafeName(ws.name, "Workspace name");
-      if (seenWorkspaces.has(ws.name)) {
-        throw new Error(`Duplicate workspace name: ${ws.name}`);
-      }
-      seenWorkspaces.add(ws.name);
+      registerName(seenWorkspaces, ws.name, "Workspace name");
     }
   }
 }
@@ -149,8 +231,11 @@ export function manifestPaths(
 export async function loadManifest(
   manifestPath: string,
 ): Promise<WorkspaceManifest> {
-  const raw = JSON.parse(await Deno.readTextFile(manifestPath));
-  validateManifest(raw);
+  const raw = parseManifestText(
+    manifestPath,
+    await Deno.readTextFile(manifestPath),
+  );
+  validateManifest(raw as WorkspaceManifest);
   return raw as WorkspaceManifest;
 }
 
@@ -164,9 +249,7 @@ export async function loadChildManifest(
   const parentDir = dirname(resolve(parentManifestPath));
   const childPath = normalize(resolve(parentDir, entry.path));
   if (!(await exists(childPath))) {
-    throw new Error(
-      `Sub-workspace "${entry.name}" manifest not found: ${childPath}`,
-    );
+    throw new MissingManifestError(entry.name, childPath);
   }
   const manifest = await loadManifest(childPath);
   return { manifest, manifestPath: childPath };
@@ -185,6 +268,7 @@ export async function resolveWorkspaceTree(
 ): Promise<ResolvedWorkspace> {
   const children = new Map<string, WorkspaceManifest>();
   const allRepos: RepositoryEntry[] = [];
+  const allReferences: RepositoryEntry[] = [];
   const visitedManifestDirs = new Set<string>();
 
   await collectWorkspace(manifest, manifestPath, undefined);
@@ -193,6 +277,7 @@ export async function resolveWorkspaceTree(
     root: manifest,
     children,
     repositories: allRepos,
+    references: allReferences,
   };
 
   async function collectWorkspace(
@@ -207,7 +292,22 @@ export async function resolveWorkspaceTree(
     visitedManifestDirs.add(manifestDir);
 
     const wsPaths = manifestPaths(wsManifest, wsManifestPath);
+    // Schema v3+: sub-workspace references live inline in repositories;
+    // schema v2 style declares them in a separate workspaces array. Both
+    // forms are honored, inline first.
+    const workspaceRefs: WorkspaceEntry[] = [];
     for (const repo of wsManifest.repositories) {
+      if (isWorkspaceReference(repo)) {
+        workspaceRefs.push({ name: repo.name, path: repo.manifest });
+        allReferences.push({
+          ...repo,
+          workspace: workspaceName,
+          // References have no path override; they clone to the default
+          // <repositoriesDirectory>/<name> location.
+          resolvedPath: resolveRepositoryPath(repo, wsPaths),
+        });
+        continue;
+      }
       allRepos.push({
         ...repo,
         workspace: workspaceName,
@@ -215,7 +315,12 @@ export async function resolveWorkspaceTree(
       });
     }
 
-    for (const wsEntry of wsManifest.workspaces ?? []) {
+    for (
+      const wsEntry of [
+        ...workspaceRefs,
+        ...(wsManifest.workspaces ?? []),
+      ]
+    ) {
       if (children.has(wsEntry.name)) {
         throw new Error(`Duplicate workspace name: ${wsEntry.name}`);
       }
@@ -237,7 +342,8 @@ export function detectConflicts(
   resolved: ResolvedWorkspace,
 ): WorkspaceConflict[] {
   const claims = new Map<string, string[]>();
-  for (const repo of resolved.repositories) {
+  const claimed = [...resolved.references, ...resolved.repositories];
+  for (const repo of claimed) {
     const wsName = repo.workspace ?? "(root)";
     const existing = claims.get(repo.name) ?? [];
     existing.push(wsName);

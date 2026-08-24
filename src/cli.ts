@@ -18,6 +18,13 @@ import {
 import type { ManifestPaths } from "./manifest.ts";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
+import type { RepositoryEntry } from "./types.ts";
+import { isWorkspaceReference } from "./types.ts";
+import { MissingManifestError } from "./manifest.ts";
+
+function clonableReference(entry: RepositoryEntry): boolean {
+  return isWorkspaceReference(entry) && Boolean(entry.url);
+}
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -287,6 +294,11 @@ async function cloneMissing(
       }
       continue;
     }
+    if (!repository.url) {
+      throw new Error(
+        `Repository "${repository.name}" is missing its clone url`,
+      );
+    }
     const result = await clone(g, repository.url, repoPath);
     rows.push(
       result.code === 0 ? { name: repository.name, state: "CLONED" } : {
@@ -405,11 +417,56 @@ export async function run(args: string[]): Promise<number> {
     : await findDefaultManifestPath();
   const manifest = await loadManifest(manifestPath);
 
-  // Resolve the workspace tree if sub-workspaces are declared.
+  // Resolve the workspace tree if sub-workspaces are declared, either as
+  // inline references in repositories (schema v3+) or in a workspaces array
+  // (schema v2 style).
+  const hasInlineReferences = manifest.repositories.some(isWorkspaceReference);
+  const isInitCommand = opts.command === "init" || opts.command === "sync";
   let resolvedManifest = manifest;
   let resolvedTree: ResolvedWorkspace | undefined;
-  if (manifest.workspaces && manifest.workspaces.length > 0) {
-    const resolved = await resolveWorkspaceTree(manifest, manifestPath);
+  if (
+    hasInlineReferences ||
+    (manifest.workspaces && manifest.workspaces.length > 0)
+  ) {
+    let resolved: ResolvedWorkspace;
+    try {
+      resolved = await resolveWorkspaceTree(manifest, manifestPath);
+    } catch (error) {
+      // Bootstrap: init may clone reference repositories that carry a url,
+      // making the child manifests readable on a fresh checkout. Retry once
+      // after cloning; every other command gets an actionable hint.
+      const isMissingManifest = error instanceof MissingManifestError;
+      if (!isInitCommand || !isMissingManifest) {
+        if (
+          isMissingManifest && manifest.repositories.some(clonableReference)
+        ) {
+          throw new Error(
+            `${error.message}\nRun 'wspace init' to clone it.`,
+          );
+        }
+        throw error;
+      }
+      const targets = opts.subcommand
+        ? [opts.subcommand, ...opts.positional]
+        : [];
+      const bootstrapRefs = manifest.repositories.filter((r) =>
+        clonableReference(r) &&
+        (targets.length === 0 || targets.includes(r.name))
+      );
+      if (bootstrapRefs.length === 0) throw error;
+      const bootstrapPaths = manifestPaths(manifest, manifestPath);
+      const bootstrapRows = await cloneMissing(
+        new SystemGit(),
+        { ...manifest, repositories: bootstrapRefs },
+        bootstrapPaths,
+      );
+      if (opts.json) {
+        console.log(JSON.stringify(bootstrapRows, null, 2));
+      } else {
+        console.table(bootstrapRows);
+      }
+      resolved = await resolveWorkspaceTree(manifest, manifestPath);
+    }
     resolvedTree = resolved;
 
     // Detect conflicts.
@@ -424,10 +481,16 @@ export async function run(args: string[]): Promise<number> {
       return 2;
     }
 
-    // Build a merged manifest from the resolved tree.
+    // Build a merged manifest from the resolved tree. References carrying a
+    // url are repository entries like any other (clone target for init,
+    // status/update/worktree subject elsewhere); url-less references stay
+    // pure delegation pointers.
     resolvedManifest = {
       ...manifest,
-      repositories: resolved.repositories,
+      repositories: [
+        ...resolved.repositories,
+        ...resolved.references.filter((r) => r.url),
+      ],
     };
   }
 
@@ -437,6 +500,7 @@ export async function run(args: string[]): Promise<number> {
       root: manifest,
       children: new Map<string, WorkspaceManifest>(),
       repositories: manifest.repositories,
+      references: [],
     };
     const workspaces = listWorkspaces(wsResolved);
     if (opts.json) {
