@@ -100,8 +100,10 @@ const EVICTED_ENTRY_KEYS = [
 
 /**
  * Normalize a parsed manifest document into a WorkspaceManifest. Expands
- * bare-string repository entries against the manifest's owner, and rejects
- * keys removed in schema v4 with pointed migration messages.
+ * shorthand repository entries — bare strings, "owner/name" strings, and
+ * { name, owner } objects — against the manifest's host (default
+ * github.com), and rejects keys removed in schema v4 with pointed migration
+ * messages.
  */
 export function normalizeManifest(
   parsed: unknown,
@@ -124,30 +126,87 @@ export function normalizeManifest(
       `Manifest ${manifestPath}: "owner" must be a non-empty string when present.`,
     );
   }
+  const host = doc.host ?? "github.com";
+  if (
+    typeof host !== "string" || host === "" || host.includes("://") ||
+    host.includes("/")
+  ) {
+    throw new Error(
+      `Manifest ${manifestPath}: "host" must be a bare hostname such as "github.com" (no protocol, no slashes).`,
+    );
+  }
+
   const repositories = (doc.repositories as unknown[]).map((entry, index) => {
+    const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
-      if (typeof owner !== "string") {
-        throw new Error(
-          `Manifest ${manifestPath}: repositories[${index}] ("${entry}") is a bare string, which requires "owner" so it can expand to https://github.com/<owner>/${entry}.`,
-        );
-      }
-      return {
-        name: entry,
-        url: `https://github.com/${owner}/${entry}.git`,
-        autoCompose: true,
-      } satisfies RepositoryEntry;
+      return expandShorthand(at, entry, owner, host);
     }
     const record = entry as Record<string, unknown>;
     for (const key of EVICTED_ENTRY_KEYS) {
       if (record[key] !== undefined) {
         throw new Error(
-          `Manifest ${manifestPath}: repositories[${index}] sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }; sub-workspaces compose automatically when a repository contains its own manifest.`,
+          `${at} sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }; sub-workspaces compose automatically when a repository contains its own manifest.`,
         );
       }
     }
-    return entry as RepositoryEntry;
+    if (record.owner === undefined) {
+      return entry as RepositoryEntry;
+    }
+    if (record.url !== undefined && record.url !== "") {
+      throw new Error(
+        `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
+      );
+    }
+    const entryOwner = record.owner;
+    if (typeof entryOwner !== "string" || entryOwner === "") {
+      throw new Error(`${at}: "owner" must be a non-empty string.`);
+    }
+    return expandShorthand(
+      at,
+      typeof record.name === "string" ? record.name : "",
+      typeof entryOwner === "string" ? entryOwner : undefined,
+      host,
+    );
   });
   return { ...(doc as Partial<WorkspaceManifest>), repositories };
+}
+
+/** Expand a shorthand ("name" or "owner/name") to a full repository entry. */
+function expandShorthand(
+  at: string,
+  rawName: string,
+  fallbackOwner: string | undefined,
+  host: string,
+): RepositoryEntry {
+  let name = rawName;
+  let entryOwner = fallbackOwner;
+  const slashCount = (rawName.match(/\//g) ?? []).length;
+  if (slashCount > 1) {
+    throw new Error(
+      `${at} ("${rawName}") contains multiple slashes; use exactly "owner/name".`,
+    );
+  }
+  if (slashCount === 1) {
+    const [inlineOwner, ...rest] = rawName.split("/");
+    name = rest.join("/");
+    if (!inlineOwner || !name) {
+      throw new Error(
+        `${at} ("${rawName}") must be "owner/name" with both halves non-empty.`,
+      );
+    }
+    entryOwner = inlineOwner;
+  }
+  if (!entryOwner) {
+    throw new Error(
+      `${at} ("${rawName}") is a shorthand, which requires "owner" so it can expand to https://${host}/<owner>/${name}.`,
+    );
+  }
+  validateSafeName(name, "Repository name");
+  return {
+    name,
+    url: `https://${host}/${entryOwner}/${name}.git`,
+    autoCompose: true,
+  };
 }
 
 export function validateSafeName(name: string, contextName = "Name"): void {

@@ -13,8 +13,9 @@ Pass `--manifest <path>` to point at a manifest elsewhere.
 - **Thin over custom.** Prefer plain `git` porcelain/plumbing and well-known
   directory conventions over bespoke state files.
 - **Provider-agnostic.** Manifest URLs are passed directly to `git clone`; any
-  Git host works (GitHub, GitLab, Bitbucket, SourceHut, Gitea, SSH remotes). The
-  only GitHub-specific convenience is bare-string expansion against `owner`.
+  Git host works (GitHub, GitLab, Bitbucket, SourceHut, Gitea, SSH remotes).
+  Shorthand expansion defaults to `github.com` and is retargetable via the
+  `host` key.
 - **Conservative mutation.** Commands that write state (`update`, `worktree`,
   `env`) refuse dirty repositories, feature branches, missing repos, and
   unmanaged checkouts. `update` only fetches and fast-forwards clean default
@@ -28,11 +29,13 @@ Pass `--manifest <path>` to point at a manifest elsewhere.
 
 Schema version 4 keeps one `repositories[]` array with exactly two entry forms:
 
-1. **Bare string** `"repo"` — expands against the manifest's `owner` to
-   `https://github.com/<owner>/repo.git`. After cloning, if the checkout
-   contains a workspace manifest, it composes automatically as a sub-workspace.
+1. **Shorthand** `"repo"`, `"owner/repo"`, or `{ "name", "owner" }` — expands
+   against the manifest's `host` (default `github.com`) and top-level/default
+   `owner` to `https://<host>/<owner>/<name>.git`. After cloning, if the
+   checkout contains a workspace manifest, it composes automatically as a
+   sub-workspace.
 2. **Object** `{ "name", "url" }` — a plain repository for any Git host; never
-   auto-composes.
+   auto-composes. `url` and `owner` are mutually exclusive on object entries.
 
 Legacy keys removed in v4 produce migration errors: `workspaces[]` (composition
 is now automatic through detection), entry fields `path`, `groups`,

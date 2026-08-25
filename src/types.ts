@@ -1,6 +1,6 @@
 export interface RepositoryEntry {
   name: string;
-  /** Clone URL. Any Git host; bare-string entries expand to GitHub HTTPS. */
+  /** Clone URL. Any Git host; shorthand entries expand to GitHub-style HTTPS. */
   url: string;
   /**
    * Set when this entry was written as a bare string in schema v4. Such
@@ -18,10 +18,16 @@ export interface RepositoryEntry {
 export interface WorkspaceManifest {
   schemaVersion?: number;
   /**
-   * GitHub owner for bare-string repository entries. A string entry "repo"
-   * expands to https://github.com/<owner>/repo. Objects never consult owner.
+   * GitHub-compatible owner for shorthand repository entries (bare strings,
+   * "owner/name" strings, and { name, owner } objects). A shorthand expands
+   * to https://<host>/<owner>/<name>.
    */
   owner?: string;
+  /**
+   * Host for shorthand expansion, hostname only (schema v4+). Defaults to
+   * github.com.
+   */
+  host?: string;
   /** Optional override of the manifest directory as the workspace root. */
   workspaceRoot?: string;
   repositoriesDirectory?: string;

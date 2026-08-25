@@ -67,9 +67,11 @@ Discovery is name-first, then extension.
 
 Schema v4 keeps one `repositories` array with exactly two entry forms:
 
-1. **Bare string** — `"repo"` expands against the manifest's `owner` to
-   `https://github.com/<owner>/repo.git`. After cloning, if the checkout
-   contains a workspace manifest, it composes automatically as a sub-workspace.
+1. **Shorthand** — `"repo"`, `"owner/repo"`, or
+   `{ "name": "...", "owner": "..." }` expands against the manifest's `host`
+   (default `github.com`) to `https://<host>/<owner>/<name>.git`. After cloning,
+   if the checkout contains a workspace manifest, it composes automatically as a
+   sub-workspace.
 2. **Object** — `{ "name": "...", "url": "..." }` is a plain repository for any
    Git host; it never auto-composes, even when a manifest exists inside its
    checkout.
@@ -77,13 +79,19 @@ Schema v4 keeps one `repositories` array with exactly two entry forms:
 ```json
 {
   "schemaVersion": 4,
+  "host": "github.com",
   "owner": "acme",
   "repositories": [
     "shared-reference",
+    "other-owner/forked-repo",
     { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" }
   ]
 }
 ```
+
+Shorthand rules: `owner/name` overrides the top-level `owner` per entry; exactly
+one slash is allowed; `url` and `owner` are mutually exclusive on object
+entries.
 
 `wspace init` converges in one invocation: each pass clones what is missing,
 re-resolves the tree (newly cloned containers may reveal detected

@@ -970,22 +970,22 @@ Deno.test("legacy flat manifests continue to work", async () => {
 });
 
 /**
- * Rewrites https://github.com/<owner>/... to local bare origins for the
- * duration of fn via GIT_CONFIG_GLOBAL, so owner-shorthand entries can be
- * exercised against seeded repositories without touching github.com.
+ * Rewrites https://<host>/<owner>/... prefixes to local bare origins for the
+ * duration of fn via GIT_CONFIG_GLOBAL, so shorthand entries can be exercised
+ * against seeded repositories without touching real remotes.
  */
 async function withOwnerRewrite(
   dir: string,
-  owner: string,
+  rules: { host: string; owner: string }[],
   fn: () => Promise<void>,
 ): Promise<void> {
   const cfgPath = join(dir, "git-config-global");
   // Git config values treat backslashes as escapes; use forward slashes.
   const base = dir.replaceAll("\\", "/");
-  await Deno.writeTextFile(
-    cfgPath,
-    `[url "${base}/"]\n\tinsteadOf = https://github.com/${owner}/\n`,
-  );
+  const sections = rules.map((r) =>
+    `[url "${base}/"]\n\tinsteadOf = https://${r.host}/${r.owner}/\n`
+  ).join("");
+  await Deno.writeTextFile(cfgPath, sections);
   const prior = Deno.env.get("GIT_CONFIG_GLOBAL");
   Deno.env.set("GIT_CONFIG_GLOBAL", cfgPath);
   try {
@@ -1053,7 +1053,100 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
       }),
     );
 
-    await withOwnerRewrite(dir, "acme", async () => {
+    await withOwnerRewrite(
+      dir,
+      [{ host: "github.com", owner: "acme" }],
+      async () => {
+        const { code } = await captureStdout(() =>
+          run(["init", "--json", "--manifest", parentManifestPath])
+        );
+        assertEquals(code, 0);
+
+        const check = await captureStdout(() =>
+          run(["check", "--json", "--manifest", parentManifestPath])
+        );
+        assertEquals(check.code, 0);
+        const rows = JSON.parse(check.output) as Array<{
+          name: string;
+          state: string;
+        }>;
+        assertEquals(rows.length, 2, "container + detected inner expected");
+        assertEquals(rows.find((r) => r.name === "container")?.state, "CLEAN");
+        assertEquals(rows.find((r) => r.name === "inner")?.state, "CLEAN");
+
+        const listing = await captureStdout(() =>
+          run(["workspaces", "--json", "--manifest", parentManifestPath])
+        );
+        const parsed = JSON.parse(listing.output) as Array<
+          { name: string; child: boolean }
+        >;
+        assert(
+          parsed.some((ws) => ws.name === "container" && ws.child),
+          "detected container should be listed as a sub-workspace",
+        );
+      },
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace init converges slash-shorthand on a custom host in one invocation", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const seedBare = async (
+      name: string,
+      manifest?: Record<string, unknown>,
+    ): Promise<string> => {
+      const origin = join(dir, `${name}.git`);
+      const seed = join(dir, `${name}-seed`);
+      assert((await g.run(["init", "--bare", origin])).code === 0);
+      assert((await g.run(["init", seed])).code === 0);
+      await configure(seed);
+      assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
+      await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+      if (manifest) {
+        // Child manifests are self-contained: shorthand entries resolve
+        // against THIS manifest's host and owner, never the parent's.
+        await Deno.writeTextFile(
+          join(seed, "repos.json"),
+          JSON.stringify(manifest),
+        );
+        // Ignore nested repos/ so composed checkouts keep this repo clean.
+        await Deno.writeTextFile(join(seed, ".gitignore"), "repos/\n");
+      }
+      await g.run(["add", "."], seed);
+      assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
+      assert((await g.run(["push", origin, "main"], seed)).code === 0);
+      assert(
+        (await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin))
+          .code === 0,
+      );
+      return origin;
+    };
+
+    await seedBare("inner");
+    await seedBare("container", {
+      host: "gitlab.com",
+      repositories: [{ name: "inner", owner: "acme" }],
+    });
+
+    // Custom host + slash-shorthand with an inline owner: both entries expand
+    // against gitlab.com and converge through detection.
+    const parentManifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      parentManifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        host: "gitlab.com",
+        repositories: ["wazootech/container"],
+      }),
+    );
+
+    await withOwnerRewrite(dir, [
+      { host: "gitlab.com", owner: "wazootech" },
+      { host: "gitlab.com", owner: "acme" },
+    ], async () => {
       const { code } = await captureStdout(() =>
         run(["init", "--json", "--manifest", parentManifestPath])
       );
@@ -1062,25 +1155,14 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
       const check = await captureStdout(() =>
         run(["check", "--json", "--manifest", parentManifestPath])
       );
-      assertEquals(check.code, 0);
+      assertEquals(check.code, 0, check.output);
       const rows = JSON.parse(check.output) as Array<{
         name: string;
         state: string;
       }>;
-      assertEquals(rows.length, 2, "container + detected inner expected");
+      assertEquals(rows.length, 2);
       assertEquals(rows.find((r) => r.name === "container")?.state, "CLEAN");
       assertEquals(rows.find((r) => r.name === "inner")?.state, "CLEAN");
-
-      const listing = await captureStdout(() =>
-        run(["workspaces", "--json", "--manifest", parentManifestPath])
-      );
-      const parsed = JSON.parse(listing.output) as Array<
-        { name: string; child: boolean }
-      >;
-      assert(
-        parsed.some((ws) => ws.name === "container" && ws.child),
-        "detected container should be listed as a sub-workspace",
-      );
     });
   } finally {
     await removeTempDir(dir);

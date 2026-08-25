@@ -7,10 +7,15 @@
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "type": "integer", "minimum": 1 },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hostname for shorthand expansion (schema v4+), hostname only - no protocol or slashes. Defaults to github.com."
+    },
     "owner": {
       "type": "string",
       "minLength": 1,
-      "description": "GitHub owner for bare-string repository entries (schema v4+). A string entry \"repo\" expands to https://github.com/<owner>/repo and auto-composes as a sub-workspace when its checkout contains a workspace manifest."
+      "description": "Default owner for shorthand repository entries (schema v4+). A string entry \"repo\" or \"owner/repo\" expands to https://<host>/<owner>/<name> and auto-composes as a sub-workspace when its checkout contains a workspace manifest."
     },
     "workspaceRoot": { "type": "string" },
     "repositoriesDirectory": { "type": "string" },
@@ -26,20 +31,29 @@
           {
             "type": "string",
             "minLength": 1,
-            "description": "Bare repository name; expands against the manifest's owner to https://github.com/<owner>/<name>.git (schema v4+)."
+            "description": "Shorthand repository name: either \"repo\" (expands against the manifest's owner) or \"owner/repo\" (expands against the manifest's host with an inline owner). The result auto-composes when the checkout contains a workspace manifest (schema v4+)."
           },
           {
             "type": "object",
-            "required": ["name", "url"],
+            "required": ["name"],
             "additionalProperties": false,
             "properties": {
               "name": { "type": "string" },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Expand this entry against the manifest's host instead of providing a url: https://<host>/<owner>/<name>. Mutually exclusive with url. The result auto-composes like bare strings."
+              },
               "url": {
                 "type": "string",
                 "format": "uri",
-                "description": "Clone URL. Any Git host; bare-string expansion targets GitHub HTTPS."
+                "description": "Clone URL for any Git host. Mutually exclusive with owner. Entries carrying an explicit url never auto-compose."
               }
-            }
+            },
+            "anyOf": [
+              { "required": ["url"] },
+              { "required": ["owner"] }
+            ]
           }
         ]
       }

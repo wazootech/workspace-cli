@@ -306,6 +306,140 @@ Deno.test("loadManifest keeps object entries untouched by owner", async () => {
   }
 });
 
+Deno.test("loadManifest expands owner/name slash strings without top-level owner", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({ repositories: ["wazootech/memsdk"] }),
+    );
+
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(manifest.repositories[0].name, "memsdk");
+    assertEquals(
+      manifest.repositories[0].url,
+      "https://github.com/wazootech/memsdk.git",
+    );
+    assertEquals(manifest.repositories[0].autoCompose, true);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest lets inline owner override the top-level owner", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        owner: "ethanthatonekid",
+        repositories: ["wazootech/memsdk", "etok.me"],
+      }),
+    );
+
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(
+      manifest.repositories[0].url,
+      "https://github.com/wazootech/memsdk.git",
+    );
+    assertEquals(
+      manifest.repositories[1].url,
+      "https://github.com/ethanthatonekid/etok.me.git",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest rejects shorthand strings with multiple slashes", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({ repositories: ["a/b/c"] }),
+    );
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      'exactly "owner/name"',
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest expands { name, owner } object shorthands against host", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        host: "gitlab.com",
+        repositories: [{ name: "memsdk", owner: "wazootech" }],
+      }),
+    );
+
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(manifest.repositories[0].name, "memsdk");
+    assertEquals(
+      manifest.repositories[0].url,
+      "https://gitlab.com/wazootech/memsdk.git",
+    );
+    assertEquals(manifest.repositories[0].autoCompose, true);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest rejects entries setting both url and owner", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        repositories: [{
+          name: "a",
+          url: "https://example.com/a.git",
+          owner: "acme",
+        }],
+      }),
+    );
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      "mutually exclusive",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("loadManifest rejects a non-hostname host value", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "repos.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        host: "https://github.com",
+        repositories: [],
+      }),
+    );
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      "must be a bare hostname",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("loadManifest rejects entries carrying removed fields", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
