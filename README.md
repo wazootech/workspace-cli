@@ -93,6 +93,27 @@ Shorthand rules: `owner/name` overrides the top-level `owner` per entry; exactly
 one slash is allowed; `url` and `owner` are mutually exclusive on object
 entries.
 
+## Local names and collisions
+
+A repository's local checkout directory is always
+`<repositoriesDirectory>/<name>`, where `name` is the post-expansion label:
+ownership and hosts live in URLs, never in paths. Names therefore cannot contain
+slashes, backslashes, or path traversal, and two entries resolving to the same
+label are rejected — including a shorthand colliding with another entry's
+expanded name.
+
+To check out a repository under a different label than its shorthand name, write
+the explicit form with your chosen label as `name`:
+
+```json
+{
+  "name": "wazootech__memsdk",
+  "url": "https://github.com/wazootech/memsdk.git"
+}
+```
+
+The aliased copy is an ordinary explicit-url entry: it never auto-composes.
+
 `wspace init` converges in one invocation: each pass clones what is missing,
 re-resolves the tree (newly cloned containers may reveal detected
 sub-workspaces), and repeats until nothing new appears. Every other command
@@ -104,7 +125,8 @@ manifest), and it may compose further sub-workspaces through its own bare
 strings. Resolution errors on circular references and duplicate repository
 claims across workspaces; a detected manifest that was already visited (for
 example a repository hosting its own root manifest) degrades silently to a plain
-repository row.
+repository row. Child manifests are self-contained: their own `host` and `owner`
+apply, and nothing is inherited from the parent.
 
 Schema v4 migration notes: the separate `workspaces` array was removed — child
 workspaces now compose automatically through detection. Entry fields `path`,

@@ -38,7 +38,10 @@
             "required": ["name"],
             "additionalProperties": false,
             "properties": {
-              "name": { "type": "string" },
+              "name": {
+                "type": "string",
+                "description": "Local checkout label (a single path segment under repositoriesDirectory): no slashes or path traversal; must be unique across the composed tree."
+              },
               "owner": {
                 "type": "string",
                 "minLength": 1,

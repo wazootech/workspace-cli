@@ -42,6 +42,16 @@ is now automatic through detection), entry fields `path`, `groups`,
 `localFiles`, and `manifest`, and `vaultDirectory` (renamed to
 `secretsDirectory`).
 
+## Local names
+
+A repository checks out at `<repositoriesDirectory>/<name>`, where `name` is the
+post-expansion label: ownership lives in URLs, never in paths. Names reject
+slashes, backslashes, and traversal; duplicates - within a manifest or across
+the composed tree - are errors. To use a different local label than the
+shorthand name, write the explicit form with your chosen `name` plus a full
+`url`; explicit-url entries never auto-compose. Child manifests are
+self-contained: their own `host` and `owner` apply.
+
 Recursion conventions: child manifests re-root their own directory defaults;
 worktrees always land under the root workspace's `worktrees/`; `env sync` always
 reads the root `secrets/<repoName>/`.
