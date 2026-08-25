@@ -1,6 +1,6 @@
 ---
 name: wspace
-description: Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any wspace command, or pushing a goal to completion.
+description: 'Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any wspace command, or pushing a goal to completion.'
 ---
 
 # `wspace` workspace skill
