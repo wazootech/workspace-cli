@@ -15,7 +15,8 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
   interface over `git`/`gh`/filesystem) so logic stays testable.
 - Commands never mutate user work: update fast-forwards clean default branches
   only; worktree and env operations refuse dirty or feature-branch checkouts.
-- `wspace init` (alias `wspace sync`) clones missing repositories from the
+- `wspace init` scaffolds a new workspace manifest and standard directories in
+  an empty location; `wspace install` clones missing repositories from the
   manifest; `wspace check` exits 0 on clean, 1 on any non-clean repo.
 
 ## Verification

@@ -329,7 +329,7 @@ Deno.test("update skips when default branch is checked out in a worktree", async
   }
 });
 
-Deno.test("wspace init clones missing repositories", async () => {
+Deno.test("wspace install clones missing repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
@@ -346,7 +346,7 @@ Deno.test("wspace init clones missing repositories", async () => {
       }),
     );
     // Fresh workspace: neither default-location checkout exists yet.
-    const code = await run(["init", "--manifest", manifestPath]);
+    const code = await run(["install", "--manifest", manifestPath]);
     assertEquals(code, 0);
     assertEquals(
       await exists(join(dir, "repos", "b", ".git")),
@@ -368,7 +368,7 @@ Deno.test("wspace init clones missing repositories", async () => {
   }
 });
 
-Deno.test("wspace init clones only specified subset of repositories", async () => {
+Deno.test("wspace install clones only specified subset of repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
@@ -386,7 +386,7 @@ Deno.test("wspace init clones only specified subset of repositories", async () =
         ],
       }),
     );
-    const code = await run(["init", "b", "--manifest", manifestPath]);
+    const code = await run(["install", "b", "--manifest", manifestPath]);
     assertEquals(code, 0);
     assertEquals(
       await exists(join(dir, "repos", "b", ".git")),
@@ -547,7 +547,7 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
   }
 });
 
-Deno.test("wspace init fails when destination exists but is not a Git repo", async () => {
+Deno.test("wspace install fails when destination exists but is not a Git repo", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const nonGitPath = join(dir, "repos", "blocked");
@@ -560,11 +560,163 @@ Deno.test("wspace init fails when destination exists but is not a Git repo", asy
         repositories: [{ name: "blocked", url: "u" }],
       }),
     );
-    const code = await run(["init", "--manifest", manifestPath]);
+    const code = await run(["install", "--manifest", manifestPath]);
     assertEquals(
       code,
       1,
-      "wspace init should exit non-zero when path is blocked",
+      "wspace install should exit non-zero when path is blocked",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace init scaffolds a manifest and standard directories", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.json");
+    const code = await run([
+      "init",
+      "--host",
+      "github.com",
+      "--owner",
+      "acme",
+      "api",
+      "other/tool",
+      "--manifest",
+      manifestPath,
+    ]);
+    assertEquals(code, 0);
+    const doc = JSON.parse(await Deno.readTextFile(manifestPath)) as {
+      schemaVersion: number;
+      host?: string;
+      owner?: string;
+      repositories: string[];
+    };
+    assertEquals(doc.schemaVersion, 4);
+    assertEquals(doc.host, "github.com");
+    assertEquals(doc.owner, "acme");
+    assertEquals(doc.repositories, ["api", "other/tool"]);
+    assert(await exists(join(dir, "repos")), "repos/ should be created");
+    assert(
+      await exists(join(dir, "worktrees")),
+      "worktrees/ should be created",
+    );
+    assert(await exists(join(dir, "secrets")), "secrets/ should be created");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace init refuses when a manifest already exists", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.json");
+    const original = JSON.stringify({
+      repositories: [{ name: "a", url: "u" }],
+    });
+    await Deno.writeTextFile(manifestPath, original);
+    const code = await run([
+      "init",
+      "--owner",
+      "acme",
+      "b",
+      "--manifest",
+      manifestPath,
+    ]);
+    assertEquals(code, 2);
+    assertEquals(
+      await Deno.readTextFile(manifestPath),
+      original,
+      "existing manifest must remain untouched",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace init fails closed on invalid seeds without writing anything", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const missingOwner = await run([
+      "init",
+      "--manifest",
+      join(dir, "workspace.json"),
+      "orphan",
+    ]);
+    assertEquals(missingOwner, 2, "shorthand without owner must fail");
+    assertEquals(
+      await exists(join(dir, "workspace.json")),
+      false,
+      "failed scaffold must not write a manifest",
+    );
+
+    const dup = await run([
+      "init",
+      "--owner",
+      "acme",
+      "a",
+      "a",
+      "--manifest",
+      join(dir, "repos.json"),
+    ]);
+    assertEquals(dup, 2, "duplicate seeded names must fail");
+    assertEquals(
+      await exists(join(dir, "repos.json")),
+      false,
+      "failed scaffold must not write a manifest",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Local bare origin standing in for github.com/acme/api.
+    const origin = join(dir, "api.git");
+    const seed = join(dir, "api-seed");
+    assert((await g.run(["init", "--bare", origin])).code === 0);
+    assert((await g.run(["init", seed])).code === 0);
+    await configure(seed);
+    assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
+    await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+    await g.run(["add", "."], seed);
+    assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
+    assert((await g.run(["push", origin, "main"], seed)).code === 0);
+    assert(
+      (await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin))
+        .code === 0,
+    );
+
+    const manifestPath = join(dir, "workspace.json");
+    await withOwnerRewrite(
+      dir,
+      [{ host: "github.com", owner: "acme" }],
+      async () => {
+        assertEquals(
+          await run([
+            "init",
+            "--owner",
+            "acme",
+            "api",
+            "--manifest",
+            manifestPath,
+          ]),
+          0,
+          "scaffold should succeed in an empty directory",
+        );
+        assertEquals(
+          await run(["install", "--manifest", manifestPath]),
+          0,
+          "install should clone from the scaffolded shorthand entry",
+        );
+      },
+    );
+    assert(
+      await exists(join(dir, "repos", "api", ".git")),
+      "scaffolded shorthand should install from the rewritten remote",
     );
   } finally {
     await removeTempDir(dir);
@@ -999,7 +1151,7 @@ async function withOwnerRewrite(
   }
 }
 
-Deno.test("wspace init converges string-shorthand detection in one invocation", async () => {
+Deno.test("wspace install converges string-shorthand detection in one invocation", async () => {
   const dir = await Deno.makeTempDir();
   try {
     // Local bare origins standing in for github.com/acme/{container,inner}.
@@ -1041,7 +1193,7 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
 
     // Fresh workspace: one bare-string entry. Detection must discover the
     // container's repos.json after cloning and pull in "inner" within this
-    // single init invocation.
+    // single install invocation.
     const parentManifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       parentManifestPath,
@@ -1058,7 +1210,7 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
       [{ host: "github.com", owner: "acme" }],
       async () => {
         const { code } = await captureStdout(() =>
-          run(["init", "--json", "--manifest", parentManifestPath])
+          run(["install", "--json", "--manifest", parentManifestPath])
         );
         assertEquals(code, 0);
 
@@ -1091,7 +1243,7 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
   }
 });
 
-Deno.test("wspace init converges slash-shorthand on a custom host in one invocation", async () => {
+Deno.test("wspace install converges slash-shorthand on a custom host in one invocation", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const seedBare = async (
@@ -1148,7 +1300,7 @@ Deno.test("wspace init converges slash-shorthand on a custom host in one invocat
       { host: "gitlab.com", owner: "acme" },
     ], async () => {
       const { code } = await captureStdout(() =>
-        run(["init", "--json", "--manifest", parentManifestPath])
+        run(["install", "--json", "--manifest", parentManifestPath])
       );
       assertEquals(code, 0);
 
