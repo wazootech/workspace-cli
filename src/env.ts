@@ -1,6 +1,7 @@
 import { join } from "@std/path";
+import { exists } from "@std/fs";
 import type { GitRunner } from "./git.ts";
-import { exists, resolveRepositoryPath } from "./manifest.ts";
+import { resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";
@@ -61,12 +62,12 @@ export async function syncEnv(
   options: SyncEnvOptions = {},
 ): Promise<SyncEnvResult[]> {
   const synced: SyncEnvResult[] = [];
-  if (!(await exists(paths.vaultDirectory))) {
+  if (!(await exists(paths.secretsDirectory))) {
     return synced;
   }
 
   for (const repository of manifest.repositories) {
-    const vaultRepoDir = join(paths.vaultDirectory, repository.name);
+    const vaultRepoDir = join(paths.secretsDirectory, repository.name);
     if (!(await exists(vaultRepoDir))) {
       continue;
     }
@@ -79,12 +80,11 @@ export async function syncEnv(
       }
     }
 
-    const patterns = repository.localFiles ?? [];
     for await (const fileEntry of Deno.readDir(vaultRepoDir)) {
       if (!fileEntry.isFile) {
         continue;
       }
-      if (!isLocalConfigFile(fileEntry.name, patterns)) {
+      if (!isLocalConfigFile(fileEntry.name)) {
         continue;
       }
       const source = join(vaultRepoDir, fileEntry.name);

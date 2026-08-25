@@ -6,7 +6,6 @@ import type { GitRunner } from "./git.ts";
 import { SystemGit } from "./git.ts";
 import {
   detectConflicts,
-  exists,
   findDefaultManifestPath,
   listWorkspaces,
   loadManifest,
@@ -16,15 +15,12 @@ import {
   validateManifest,
 } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
+import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
-import type { RepositoryEntry } from "./types.ts";
-import { isWorkspaceReference } from "./types.ts";
-import { MissingManifestError } from "./manifest.ts";
 
-function clonableReference(entry: RepositoryEntry): boolean {
-  return isWorkspaceReference(entry) && Boolean(entry.url);
-}
+/** Defensive cap on init convergence passes; cycle detection fires first. */
+const MAX_INIT_PASSES = 16;
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -333,36 +329,12 @@ async function runCommand(
     }
     case "sync":
     case "init": {
-      const targets = opts.subcommand
-        ? [opts.subcommand, ...opts.positional]
-        : [];
-      const repos = opts.workspace
-        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
-        : manifest.repositories;
-      const scopedManifest = { ...manifest, repositories: repos };
-      const rows = await cloneMissing(g, scopedManifest, paths, targets);
-      if (opts.json) {
-        console.log(JSON.stringify(rows, null, 2));
-      } else {
-        console.table(rows);
-      }
-      const failed = rows.some(
-        (r) =>
-          r.state === "CLONE_FAILED" ||
-          r.state === "PATH_BLOCKED" ||
-          r.state === "INVALID" ||
-          r.state === "UNKNOWN_REPO",
+      // Init runs through the converging fixpoint in runInitConverging
+      // before runCommand is reached; this case only handles misuse.
+      console.error(
+        "Usage: wspace init [<repo...>] [--json] [--workspace <name>]",
       );
-      if (opts.command === "init" && !failed) {
-        console.error(
-          `NOTE: Fresh clones do not contain files listed in .gitignore.
-Required setup steps may include:
-  - Running npm install / deno install / pip install etc. in each repo
-  - Copying .env files from secrets/ (run: wspace env sync)
-  - Any repo-specific setup documented in each repo's README`,
-        );
-      }
-      return failed ? 1 : 0;
+      return 2;
     }
     case "update": {
       const repos = opts.workspace
@@ -410,109 +382,129 @@ Required setup steps may include:
   }
 }
 
+type InitRow = { name: string; state: string; detail?: string };
+
+function isBadInitRow(row: InitRow): boolean {
+  return (
+    row.state === "CLONE_FAILED" ||
+    row.state === "PATH_BLOCKED" ||
+    row.state === "INVALID" ||
+    row.state === "UNKNOWN_REPO"
+  );
+}
+
+function printRows(rows: unknown[], json: boolean): void {
+  if (json) {
+    console.log(JSON.stringify(rows, null, 2));
+  } else {
+    console.table(rows);
+  }
+}
+
+/**
+ * Flatten a resolved tree into the manifest shape commands consume.
+ */
+function flattenResolved(
+  resolved: ResolvedWorkspace,
+  root: WorkspaceManifest,
+): WorkspaceManifest {
+  return { ...root, repositories: resolved.repositories };
+}
+
+/**
+ * Drive init to convergence: resolve the tree (detecting sub-workspaces that
+ * only became readable after this pass's clones), clone what is missing, and
+ * repeat until a pass clones nothing new. Scoped targets stay single-pass.
+ */
+async function runInitConverging(
+  opts: CliOptions,
+  manifest: WorkspaceManifest,
+  manifestPath: string,
+  g: GitRunner,
+): Promise<number> {
+  const targets = opts.subcommand ? [opts.subcommand, ...opts.positional] : [];
+  const paths = manifestPaths(manifest, manifestPath);
+  const latest = new Map<string, InitRow>();
+  let failed = false;
+
+  for (let pass = 0; pass < MAX_INIT_PASSES; pass++) {
+    const resolved = await resolveWorkspaceTree(manifest, manifestPath);
+    const flat = flattenResolved(resolved, manifest);
+
+    const scoped = opts.workspace
+      ? {
+        ...flat,
+        repositories: flat.repositories.filter(
+          (r) => r.workspace === opts.workspace,
+        ),
+      }
+      : flat;
+    const passRows = await cloneMissing(g, scoped, paths, targets);
+    const fresh = passRows.filter(
+      (r) => latest.get(r.name)?.state !== r.state,
+    );
+    printRows(fresh, opts.json);
+    for (const row of passRows) latest.set(row.name, row);
+
+    if (passRows.some(isBadInitRow)) {
+      failed = true;
+      break;
+    }
+    const clonedNow = passRows.some((r) => r.state === "CLONED");
+    if (!clonedNow || targets.length > 0) break;
+  }
+
+  if (!failed) {
+    console.error(
+      `NOTE: Fresh clones do not contain files listed in .gitignore.
+Required setup steps may include:
+  - Running npm install / deno install / pip install etc. in each repo
+  - Copying .env files from secrets/ (run: wspace env sync)
+  - Any repo-specific setup documented in each repo's README`,
+    );
+  }
+  return failed ? 1 : 0;
+}
+
 export async function run(args: string[]): Promise<number> {
   const opts = parseCliArgs(args);
   const manifestPath = opts.manifestPath
     ? resolve(Deno.cwd(), opts.manifestPath)
     : await findDefaultManifestPath();
   const manifest = await loadManifest(manifestPath);
+  const g = new SystemGit();
 
-  // Resolve the workspace tree if sub-workspaces are declared, either as
-  // inline references in repositories (schema v3+) or in a workspaces array
-  // (schema v2 style).
-  const hasInlineReferences = manifest.repositories.some(isWorkspaceReference);
-  const isInitCommand = opts.command === "init" || opts.command === "sync";
-  let resolvedManifest = manifest;
-  let resolvedTree: ResolvedWorkspace | undefined;
-  if (
-    hasInlineReferences ||
-    (manifest.workspaces && manifest.workspaces.length > 0)
-  ) {
-    let resolved: ResolvedWorkspace;
-    try {
-      resolved = await resolveWorkspaceTree(manifest, manifestPath);
-    } catch (error) {
-      // Bootstrap: init may clone reference repositories that carry a url,
-      // making the child manifests readable on a fresh checkout. Retry once
-      // after cloning; every other command gets an actionable hint.
-      const isMissingManifest = error instanceof MissingManifestError;
-      if (!isInitCommand || !isMissingManifest) {
-        if (
-          isMissingManifest && manifest.repositories.some(clonableReference)
-        ) {
-          throw new Error(
-            `${error.message}\nRun 'wspace init' to clone it.`,
-          );
-        }
-        throw error;
-      }
-      const targets = opts.subcommand
-        ? [opts.subcommand, ...opts.positional]
-        : [];
-      const bootstrapRefs = manifest.repositories.filter((r) =>
-        clonableReference(r) &&
-        (targets.length === 0 || targets.includes(r.name))
-      );
-      if (bootstrapRefs.length === 0) throw error;
-      const bootstrapPaths = manifestPaths(manifest, manifestPath);
-      const bootstrapRows = await cloneMissing(
-        new SystemGit(),
-        { ...manifest, repositories: bootstrapRefs },
-        bootstrapPaths,
-      );
-      if (opts.json) {
-        console.log(JSON.stringify(bootstrapRows, null, 2));
-      } else {
-        console.table(bootstrapRows);
-      }
-      resolved = await resolveWorkspaceTree(manifest, manifestPath);
-    }
-    resolvedTree = resolved;
-
-    // Detect conflicts.
-    const conflicts = detectConflicts(resolved);
-    if (conflicts.length > 0) {
-      console.error("ERROR: Duplicate repository names across workspaces:");
-      for (const c of conflicts) {
-        console.error(
-          `  "${c.repoName}" claimed by: ${c.claimedBy.join(", ")}`,
-        );
-      }
-      return 2;
-    }
-
-    // Build a merged manifest from the resolved tree. References carrying a
-    // url are repository entries like any other (clone target for init,
-    // status/update/worktree subject elsewhere); url-less references stay
-    // pure delegation pointers.
-    resolvedManifest = {
-      ...manifest,
-      repositories: [
-        ...resolved.repositories,
-        ...resolved.references.filter((r) => r.url),
-      ],
-    };
+  if (opts.command === "init" || opts.command === "sync") {
+    return await runInitConverging(opts, manifest, manifestPath, g);
   }
+
+  // Every other command resolves once; detected sub-workspaces reflect
+  // whatever is currently on disk.
+  const resolvedTree = await resolveWorkspaceTree(manifest, manifestPath);
+
+  // Detect conflicts.
+  const conflicts = detectConflicts(resolvedTree);
+  if (conflicts.length > 0) {
+    console.error("ERROR: Duplicate repository names across workspaces:");
+    for (const c of conflicts) {
+      console.error(
+        `  "${c.repoName}" claimed by: ${c.claimedBy.join(", ")}`,
+      );
+    }
+    return 2;
+  }
+
+  const resolvedManifest = flattenResolved(resolvedTree, manifest);
 
   // Handle the workspaces command with resolved data.
   if (opts.command === "workspaces") {
-    const wsResolved = resolvedTree ?? {
-      root: manifest,
-      children: new Map<string, WorkspaceManifest>(),
-      repositories: manifest.repositories,
-      references: [],
-    };
-    const workspaces = listWorkspaces(wsResolved);
-    if (opts.json) {
-      console.log(JSON.stringify(workspaces, null, 2));
-    } else {
-      console.table(workspaces);
-    }
+    const workspaces = listWorkspaces(resolvedTree);
+    printRows(workspaces, opts.json);
     return 0;
   }
 
   const paths = manifestPaths(manifest, manifestPath);
-  return await runCommand(opts, resolvedManifest, paths, new SystemGit());
+  return await runCommand(opts, resolvedManifest, paths, g);
 }
 
 export async function main(): Promise<number> {

@@ -52,7 +52,7 @@ Design principles:
 - `wspace worktree remove <repo> <feature>` — remove a worktree, then prune and
   tidy the now-empty `worktrees/<repo>/` directory.
 - `wspace env sync` — copy local environment files from a gitignored `secrets/`
-  vault into checkouts and worktrees.
+  directory into checkouts and worktrees.
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
@@ -65,59 +65,74 @@ The manifest can be `workspace.json`, `wspace.json`, or `repos.json` in `.json`,
 `.jsonc`, or `.yaml`/`.yml` format (JSONC allows comments and trailing commas).
 Discovery is name-first, then extension.
 
-A manifest can delegate a cluster of repositories to a child manifest that lives
-inside another repository. `wspace` resolves the whole tree recursively,
-flattens it with workspace attribution, and errors on circular references,
-duplicate sub-workspace names, or duplicate repository claims across workspaces.
+Schema v4 keeps one `repositories` array with exactly two entry forms:
 
-Schema v3 declares sub-workspaces inline in `repositories`: an entry with
-`manifest` instead of `url` points at a child manifest file, relative to the
-declaring manifest's directory.
+1. **Shorthand** — `"repo"`, `"owner/repo"`, or
+   `{ "name": "...", "owner": "..." }` expands against the manifest's `host`
+   (default `github.com`) to `https://<host>/<owner>/<name>.git`. After cloning,
+   if the checkout contains a workspace manifest, it composes automatically as a
+   sub-workspace.
+2. **Object** — `{ "name": "...", "url": "..." }` is a plain repository for any
+   Git host; it never auto-composes, even when a manifest exists inside its
+   checkout.
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
+  "host": "github.com",
+  "owner": "acme",
   "repositories": [
-    {
-      "name": "shared-reference",
-      "url": "https://github.com/acme/shared-reference.git"
-    },
-    { "name": "umbra-suite", "manifest": "repos/umbra-wiki/workspace.json" }
+    "shared-reference",
+    "other-owner/forked-repo",
+    { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" }
   ]
 }
 ```
 
-Schema v2 style — a separate `workspaces` array — remains supported; both forms
-can be mixed in one manifest.
+Shorthand rules: `owner/name` overrides the top-level `owner` per entry; exactly
+one slash is allowed; `url` and `owner` are mutually exclusive on object
+entries.
+
+## Local names and collisions
+
+A repository's local checkout directory is always
+`<repositoriesDirectory>/<name>`, where `name` is the post-expansion label:
+ownership and hosts live in URLs, never in paths. Names therefore cannot contain
+slashes, backslashes, or path traversal, and two entries resolving to the same
+label are rejected — including a shorthand colliding with another entry's
+expanded name.
+
+To check out a repository under a different label than its shorthand name, write
+the explicit form with your chosen label as `name`:
 
 ```json
 {
-  "repositories": [],
-  "workspaces": [
-    { "name": "umbra-suite", "path": "repos/umbra-wiki/workspace.json" }
-  ]
+  "name": "wazootech__memsdk",
+  "url": "https://github.com/wazootech/memsdk.git"
 }
 ```
+
+The aliased copy is an ordinary explicit-url entry: it never auto-composes.
+
+`wspace init` converges in one invocation: each pass clones what is missing,
+re-resolves the tree (newly cloned containers may reveal detected
+sub-workspaces), and repeats until nothing new appears. Every other command
+resolves once against whatever is currently on disk.
 
 Each child manifest is a standard manifest: its repositories resolve against its
-own root (defaulting to the directory containing the child manifest), and it may
-declare further sub-workspaces. A repository claimed by a sub-workspace must not
-also appear in the parent's `repositories`.
+own root (defaulting to `repos/` under the directory containing the child
+manifest), and it may compose further sub-workspaces through its own bare
+strings. Resolution errors on circular references and duplicate repository
+claims across workspaces; a detected manifest that was already visited (for
+example a repository hosting its own root manifest) degrades silently to a plain
+repository row. Child manifests are self-contained: their own `host` and `owner`
+apply, and nothing is inherited from the parent.
 
-A reference may also carry a `url`. The reference then behaves as a full
-repository entry: `wspace init` clones it (to `<repositoriesDirectory>/<name>`)
-before reading its child manifest, so fresh checkouts bootstrap without manual
-steps, and `check`, `update`, and worktree commands manage it like any other
-repository. References without a `url` stay pure delegation pointers and must
-exist on disk already.
-
-```json
-{
-  "name": "umbra-suite",
-  "url": "https://github.com/acme/umbra-wiki.git",
-  "manifest": "repos/umbra-wiki/workspace.json"
-}
-```
+Schema v4 migration notes: the separate `workspaces` array was removed — child
+workspaces now compose automatically through detection. Entry fields `path`,
+`groups`, `localFiles`, and `manifest` were removed; entries are bare strings or
+`{ "name", "url" }`. `vaultDirectory` was renamed to `secretsDirectory`. All
+removals produce pointed errors instead of silent misbehavior.
 
 ## Agent skills
 

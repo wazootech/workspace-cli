@@ -8,7 +8,8 @@ import {
   hasRef,
   isDirty,
 } from "./git.ts";
-import { exists, resolveRepositoryPath } from "./manifest.ts";
+import { exists } from "@std/fs";
+import { resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";

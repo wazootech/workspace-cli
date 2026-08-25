@@ -1,57 +1,42 @@
 export interface RepositoryEntry {
   name: string;
+  /** Clone URL. Any Git host; shorthand entries expand to GitHub-style HTTPS. */
+  url: string;
   /**
-   * Clone URL. Required on leaf repositories. Optional on sub-workspace
-   * references, where it promotes the reference to a managed repository:
-   * init clones it before reading the child manifest.
+   * Set when this entry was written as a bare string in schema v4. Such
+   * entries auto-compose as a detected sub-workspace when their checkout
+   * contains a workspace manifest. Internal marker; never authored by hand.
    */
-  url?: string;
-  /**
-   * Path to a child workspace manifest, relative to the declaring manifest's
-   * directory (schema v3+). Marks this entry as a sub-workspace reference;
-   * forbidden together with url, path, groups, and localFiles.
-   */
-  manifest?: string;
-  /** Optional path relative to the workspace root of the manifest declaring it. "." maps to that root itself. */
-  path?: string;
+  autoCompose?: boolean;
   /** Absolute path resolved from the owning workspace's root (set in the resolved view). */
   resolvedPath?: string;
-  /** Optional slices, e.g. ["beta"]. Unused by v1 commands except as manifest metadata. */
-  groups?: string[];
-  /** Optional extra local-config filename patterns to sync from the vault. */
-  localFiles?: string[];
   /** Name of the sub-workspace this repo belongs to (set in resolved view). */
   workspace?: string;
 }
 
-/** Type guard: true when the entry is an inline sub-workspace reference. */
-export function isWorkspaceReference(
-  entry: RepositoryEntry,
-): entry is RepositoryEntry & { manifest: string } {
-  return entry.manifest !== undefined && entry.manifest !== "";
-}
-
-/** Entry in the `workspaces` array pointing to a child manifest. */
-export interface WorkspaceEntry {
-  /** Human-readable name for this sub-workspace. */
-  name: string;
-  /** Path to the child workspace.json, relative to this manifest's directory. */
-  path: string;
-}
-
+/** A workspace manifest: the config document the wspace CLI reads. */
 export interface WorkspaceManifest {
   schemaVersion?: number;
+  /**
+   * GitHub-compatible owner for shorthand repository entries (bare strings,
+   * "owner/name" strings, and { name, owner } objects). A shorthand expands
+   * to https://<host>/<owner>/<name>.
+   */
+  owner?: string;
+  /**
+   * Host for shorthand expansion, hostname only (schema v4+). Defaults to
+   * github.com.
+   */
+  host?: string;
   /** Optional override of the manifest directory as the workspace root. */
   workspaceRoot?: string;
   repositoriesDirectory?: string;
   worktreesDirectory?: string;
-  vaultDirectory?: string;
+  secretsDirectory?: string;
   repositories: RepositoryEntry[];
-  /** Child workspace manifests (schema v2+). Each entry points to a nested workspace.json. */
-  workspaces?: WorkspaceEntry[];
 }
 
-/** Flattened view combining parent + all child workspace repositories. */
+/** Flattened view combining parent + all detected/declared child manifests. */
 export interface ResolvedWorkspace {
   /** The root (parent) manifest. */
   root: WorkspaceManifest;
@@ -59,11 +44,6 @@ export interface ResolvedWorkspace {
   children: Map<string, WorkspaceManifest>;
   /** Flattened repository list with workspace attribution. */
   repositories: RepositoryEntry[];
-  /**
-   * Sub-workspace references from every manifest in the tree, with checkout
-   * paths resolved. References carrying a url are clone targets for init.
-   */
-  references: RepositoryEntry[];
 }
 
 export interface WorkspaceConflict {
