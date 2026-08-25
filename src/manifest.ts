@@ -2,8 +2,6 @@ import { dirname, isAbsolute, normalize, resolve } from "@std/path";
 import { parse as parseJsonc } from "@std/jsonc";
 import { parse as parseYaml } from "@std/yaml";
 import { exists } from "@std/fs";
-
-export { exists };
 import type {
   RepositoryEntry,
   ResolvedWorkspace,

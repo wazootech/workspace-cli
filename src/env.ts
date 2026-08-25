@@ -1,6 +1,7 @@
 import { join } from "@std/path";
+import { exists } from "@std/fs";
 import type { GitRunner } from "./git.ts";
-import { exists, resolveRepositoryPath } from "./manifest.ts";
+import { resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";

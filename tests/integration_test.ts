@@ -1,4 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
+import { exists } from "@std/fs";
 import { join } from "@std/path";
 import {
   branchAb,
@@ -8,7 +9,6 @@ import {
   SystemGit,
 } from "../src/git.ts";
 import type { ManifestPaths } from "../src/manifest.ts";
-import { exists } from "../src/manifest.ts";
 import { run } from "../src/cli.ts";
 import { collectStatus } from "../src/status.ts";
 import { runUpdate } from "../src/update.ts";

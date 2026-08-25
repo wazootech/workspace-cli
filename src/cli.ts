@@ -6,7 +6,6 @@ import type { GitRunner } from "./git.ts";
 import { SystemGit } from "./git.ts";
 import {
   detectConflicts,
-  exists,
   findDefaultManifestPath,
   listWorkspaces,
   loadManifest,
@@ -16,6 +15,7 @@ import {
   validateManifest,
 } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
+import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
 import type { RepositoryEntry } from "./types.ts";
