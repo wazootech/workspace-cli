@@ -8,7 +8,7 @@ import {
   isDirty,
   SystemGit,
 } from "../src/git.ts";
-import type { ManifestPaths } from "../src/manifest.ts";
+import { loadManifest, type ManifestPaths } from "../src/manifest.ts";
 import { run } from "../src/cli.ts";
 import { collectStatus } from "../src/status.ts";
 import { runUpdate } from "../src/update.ts";
@@ -718,6 +718,202 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
       await exists(join(dir, "repos", "api", ".git")),
       "scaffolded shorthand should install from the rewritten remote",
     );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace add appends shorthand entries without touching remotes", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        host: "gitlab.com",
+        owner: "acme",
+        repositories: [{ name: "existing", url: "https://x/existing.git" }],
+      }),
+    );
+    assertEquals(
+      await run(["add", "acme/api", "--manifest", manifestPath]),
+      0,
+      "shorthand with inline owner should skip remote checks",
+    );
+    assertEquals(
+      await run(["add", "tool", "--manifest", manifestPath]),
+      0,
+      "bare shorthand should expand against host without remote checks",
+    );
+    const { repositories } = await loadManifest(manifestPath);
+    assertEquals(
+      repositories.map((r) => r.name),
+      ["existing", "api", "tool"],
+    );
+    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool.git");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace add --url derives the name from the URL basename", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({ schemaVersion: 4, repositories: [] }),
+    );
+    assertEquals(
+      await run([
+        "add",
+        "--url",
+        "https://gitlab.com/acme/memsdk.git",
+        "--manifest",
+        manifestPath,
+      ]),
+      0,
+    );
+    let { repositories } = await loadManifest(manifestPath);
+    assertEquals(repositories[0].name, "memsdk");
+
+    assertEquals(
+      await run([
+        "add",
+        "aliased",
+        "--url",
+        "https://gitlab.com/acme/memsdk.git",
+        "--manifest",
+        manifestPath,
+      ]),
+      0,
+      "positional name should override the derived basename",
+    );
+    ({ repositories } = await loadManifest(manifestPath));
+    assertEquals(repositories[1].name, "aliased");
+    assertEquals(repositories[1].autoCompose, undefined);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace add rejects duplicates and missing manifests fail closed", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const missing = join(dir, "workspace.json");
+    assertEquals(
+      await run(["add", "api", "--manifest", missing]),
+      2,
+      "adding against a missing manifest should exit 2",
+    );
+
+    const manifestPath = join(dir, "workspace.json");
+    const original = JSON.stringify({
+      schemaVersion: 4,
+      host: "gitlab.com",
+      repositories: ["api"],
+    });
+    await Deno.writeTextFile(manifestPath, original);
+    assertEquals(
+      await run(["add", "other/api", "--manifest", manifestPath]),
+      2,
+      "duplicate local name should exit 2",
+    );
+    assertEquals(
+      await Deno.readTextFile(manifestPath),
+      original,
+      "failed add must not touch the manifest",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace remove deletes the entry but keeps the checkout on disk", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: dir,
+        repositoriesDirectory: ".",
+        repositories: [{ name: "a", url: join(dir, "a.git") }],
+      }),
+    );
+    assertEquals(
+      await run(["remove", "a", "--manifest", manifestPath]),
+      0,
+    );
+    const { repositories } = await loadManifest(manifestPath);
+    assertEquals(repositories.length, 0);
+    assertEquals(
+      await exists(join(dir, "a")),
+      true,
+      "local checkout must remain on disk after remove",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace remove fails on unknown names and dry-run writes nothing", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.json");
+    const original = JSON.stringify({
+      schemaVersion: 4,
+      host: "gitlab.com",
+      owner: "acme",
+      repositories: ["api"],
+    });
+    await Deno.writeTextFile(manifestPath, original);
+
+    assertEquals(
+      await run(["remove", "nope", "--manifest", manifestPath]),
+      2,
+      "unknown repository should exit 2",
+    );
+    assertEquals(
+      await Deno.readTextFile(manifestPath),
+      original,
+    );
+
+    assertEquals(
+      await run(["remove", "api", "--dry-run", "--manifest", manifestPath]),
+      0,
+      "dry-run should succeed",
+    );
+    assertEquals(
+      await Deno.readTextFile(manifestPath),
+      original,
+      "dry-run must not write the manifest",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace add preserves JSONC comments through a CLI edit", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(dir, "workspace.jsonc");
+    await Deno.writeTextFile(
+      manifestPath,
+      `{\n  // team workspace\n  "schemaVersion": 4,\n  "host": "gitlab.com",\n  "owner": "acme",\n  "repositories": [\n    /* core */\n    "api",\n  ],\n}\n`,
+    );
+    assertEquals(
+      await run(["add", "tool", "--manifest", manifestPath]),
+      0,
+    );
+    const raw = await Deno.readTextFile(manifestPath);
+    assert(raw.includes("// team workspace"), "line comment must survive");
+    assert(raw.includes("/* core */"), "block comment must survive");
+    assert(raw.includes('"tool"'), "new entry must be present");
+    const { repositories } = await loadManifest(manifestPath);
+    assertEquals(repositories.map((r) => r.name), ["api", "tool"]);
   } finally {
     await removeTempDir(dir);
   }

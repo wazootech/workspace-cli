@@ -46,6 +46,16 @@ Design principles:
 - `wspace install [<repo...>]` — clone missing repositories from the manifest
   (or only a specified subset of repos). Prints a warning that fresh clones lack
   gitignored files and repo-specific setup.
+- `wspace add [<name>] [--url <url>] [--name <n>] [--create]
+  [--visibility <public|private>]`
+  — append an entry to the manifest: a bare or `owner/name` shorthand string, or
+  an object entry via `--url` (name defaults to the URL basename, overridable
+  with `--name` or a positional name). Edits are surgical: comments in
+  `.jsonc`/`.yaml` manifests survive. GitHub shorthand entries are probed with
+  `gh`; pass `--create` to create a missing repository first (default private).
+  Nothing is cloned; run `wspace install <name>` afterwards.
+- `wspace remove <repo>` — delete the entry whose effective name matches.
+  Surgical edit; local checkouts are never deleted.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
 - `wspace worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
   under `worktrees/<repo>/<feature>/`, branching from the repo's default-branch

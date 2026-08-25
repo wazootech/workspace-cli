@@ -8,6 +8,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_MANIFEST_FILENAMES,
   detectConflicts,
+  expandShorthand,
   findDefaultManifestPath,
   findExistingManifest,
   listWorkspaces,
@@ -18,8 +19,21 @@ import {
   resolveRepositoryPath,
   resolveWorkspaceTree,
   validateManifest,
+  validateManifestText,
+  validateSafeName,
 } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
+import {
+  addEntryJsonc,
+  addEntryYaml,
+  formatEntryJsonc,
+  formatEntryYaml,
+  ManifestEditError,
+  removeEntryJsonc,
+  removeEntryYaml,
+} from "./manifest-edit.ts";
+import type { NewEntry } from "./manifest-edit.ts";
+import { createGitHubRepo, probeGitHubRepo } from "./remote.ts";
 import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
@@ -40,6 +54,8 @@ const COMMANDS = [
   "check",
   "init",
   "install",
+  "add",
+  "remove",
   "update",
   "worktree",
   "workspaces",
@@ -55,6 +71,10 @@ interface CliOptions {
   manifestPath?: string;
   host?: string;
   owner?: string;
+  url?: string;
+  name?: string;
+  visibility?: string;
+  create: boolean;
   json: boolean;
   stale: boolean;
   dryRun: boolean;
@@ -69,6 +89,8 @@ Usage:
   wspace check [--json] [--workspace <name>]
   wspace init [--host <host>] [--owner <owner>] [<repo...>]
   wspace install [<repo...>] [--json] [--workspace <name>]
+  wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
+  wspace remove <repo>
   wspace update [--json] [--workspace <name>]
   wspace worktree add <repo> <feature> [<commit-ish>]
   wspace worktree list [--stale] [--json] [--workspace <name>]
@@ -81,6 +103,10 @@ Options:
   --manifest <path>   Manifest path (default: workspace.json / wspace.json / repos.json)
   --host <host>       init: hostname for shorthand expansion (default: github.com)
   --owner <owner>     init: owner for shorthand entries
+  --url <url>         add: explicit clone URL (writes an object entry)
+  --name <n>          add: local name when using --url (defaults to URL basename)
+  --create            add: create a missing GitHub repository before adding
+  --visibility <v>    add: visibility used with --create (private|public; default private)
   --json              Machine-readable output
   --stale             Filter worktrees fully merged into origin/<default> (or missing branch)
   --dry-run           Preview environment sync operations without modifying files
@@ -98,8 +124,16 @@ Sub-workspaces:
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
-    boolean: ["help", "json", "stale", "dry-run"],
-    string: ["manifest", "workspace", "host", "owner"],
+    boolean: ["help", "json", "stale", "dry-run", "create"],
+    string: [
+      "manifest",
+      "workspace",
+      "host",
+      "owner",
+      "url",
+      "name",
+      "visibility",
+    ],
     alias: { h: "help" },
   });
   if (parsed.help) {
@@ -119,6 +153,10 @@ function parseCliArgs(args: string[]): CliOptions {
     manifestPath: parsed.manifest,
     host: parsed.host,
     owner: parsed.owner,
+    url: parsed.url,
+    name: parsed.name,
+    visibility: parsed.visibility,
+    create: parsed.create ?? false,
     json: parsed.json ?? false,
     stale: parsed.stale ?? false,
     dryRun: parsed["dry-run"] ?? false,
@@ -535,6 +573,319 @@ async function runInitScaffold(opts: CliOptions): Promise<number> {
   return 0;
 }
 
+interface EditRow {
+  name: string;
+  action: "ADDED" | "REMOVED" | "REMOTE_CREATED";
+  detail?: string;
+}
+
+function manifestExtension(manifestPath: string): string {
+  return manifestPath.slice(manifestPath.lastIndexOf(".")).toLowerCase();
+}
+
+function isJsonLike(extension: string): boolean {
+  return extension === ".json" || extension === ".jsonc";
+}
+
+function isYamlLike(extension: string): boolean {
+  return extension === ".yaml" || extension === ".yml";
+}
+
+/**
+ * Curate the repositories array of an existing manifest: `add` appends a
+ * shorthand or explicit-url entry (optionally creating a missing GitHub
+ * repository first), `remove` deletes an entry by effective name. Both edit
+ * surgically, re-validate the rewritten document before writing, and never
+ * touch local checkouts.
+ */
+async function runManifestEdit(
+  opts: CliOptions,
+  manifestPath: string,
+): Promise<number> {
+  if (!(await exists(manifestPath))) {
+    console.error(
+      `No manifest found at ${manifestPath}; run \`wspace init\` first`,
+    );
+    return 2;
+  }
+  const extension = manifestExtension(manifestPath);
+  if (!isJsonLike(extension) && !isYamlLike(extension)) {
+    console.error(
+      `Unsupported manifest format "${extension}" for editing (supported: .json, .jsonc, .yaml, .yml)`,
+    );
+    return 2;
+  }
+  let manifest: WorkspaceManifest;
+  try {
+    manifest = await loadManifest(manifestPath);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+  return opts.command === "add"
+    ? await runAdd(opts, manifest, manifestPath)
+    : await runRemove(opts, manifest, manifestPath);
+}
+
+async function runAdd(
+  opts: CliOptions,
+  manifest: WorkspaceManifest,
+  manifestPath: string,
+): Promise<number> {
+  if (opts.positional.length > 1 && opts.name !== undefined) {
+    console.error("Pass either a positional name or --name, not both");
+    return 2;
+  }
+  const extra = opts.positional.slice(1);
+  if (extra.length > 0) {
+    console.error(`Unexpected arguments: ${extra.join(" ")}`);
+    return 2;
+  }
+
+  let entry: NewEntry;
+  let entryName: string;
+  const rows: EditRow[] = [];
+
+  if (opts.url !== undefined) {
+    if (opts.create) {
+      console.error(
+        "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
+      );
+      return 2;
+    }
+    const explicit = opts.name ?? opts.positional[0];
+    if (explicit !== undefined) {
+      entryName = explicit;
+    } else {
+      try {
+        entryName = deriveNameFromUrl(opts.url);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        return 2;
+      }
+    }
+    try {
+      validateSafeName(entryName, "Repository name");
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      return 2;
+    }
+    entry = { kind: "object", name: entryName, url: opts.url };
+  } else {
+    const shorthand = opts.positional[0];
+    if (!shorthand) {
+      console.error("Usage: wspace add [<name>] [--url <url>] [--name <n>]");
+      return 2;
+    }
+    const host = manifest.host ?? "github.com";
+    let expanded;
+    try {
+      expanded = expandShorthand("manifest", shorthand, manifest.owner, host);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      return 2;
+    }
+    entryName = expanded.name;
+
+    if (host === "github.com") {
+      const slug = expanded.url
+        .replace(/^https:\/\/github\.com\//, "")
+        .replace(/\.git$/, "");
+      const ghOutcome = await ensureGitHubRepo(ghRunner(), slug, opts);
+      if (typeof ghOutcome === "string") {
+        console.error(ghOutcome);
+        return 1;
+      }
+      if (ghOutcome === "created") {
+        rows.push({ name: entryName, action: "REMOTE_CREATED" });
+      }
+    }
+    entry = { kind: "shorthand", raw: shorthand };
+  }
+
+  const duplicate = manifest.repositories.find((r) => r.name === entryName);
+  if (duplicate) {
+    console.error(`Duplicate repository name: ${entryName}`);
+    return 2;
+  }
+
+  const raw = await Deno.readTextFile(manifestPath);
+  const newText = applyEntryEdit(
+    raw,
+    manifestExtension(manifestPath),
+    "add",
+    entry,
+    entryName,
+    manifest,
+  );
+  if (newText === undefined) return 2;
+
+  try {
+    validateManifestText(newText, manifestPath);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+
+  rows.push({ name: entryName, action: "ADDED" });
+  printRows(rows, opts.json);
+  if (!opts.dryRun) {
+    await Deno.writeTextFile(manifestPath, newText);
+    console.log(`Next: run \`wspace install ${entryName}\` to clone it.`);
+  }
+  return 0;
+}
+
+async function runRemove(
+  opts: CliOptions,
+  manifest: WorkspaceManifest,
+  manifestPath: string,
+): Promise<number> {
+  if (
+    opts.url !== undefined || opts.name !== undefined ||
+    opts.visibility !== undefined || opts.create
+  ) {
+    console.error("remove takes only a repository name");
+    return 2;
+  }
+  const target = opts.positional[0];
+  if (!target || opts.positional.length > 1) {
+    console.error("Usage: wspace remove <repo>");
+    return 2;
+  }
+  const existing = manifest.repositories.find((r) => r.name === target);
+  if (!existing) {
+    console.error(`Repository "${target}" not found in manifest`);
+    return 2;
+  }
+
+  const raw = await Deno.readTextFile(manifestPath);
+  const newText = applyEntryEdit(
+    raw,
+    manifestExtension(manifestPath),
+    "remove",
+    undefined,
+    target,
+    manifest,
+  );
+  if (newText === undefined) return 2;
+
+  try {
+    validateManifestText(newText, manifestPath);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+
+  const paths = manifestPaths(manifest, manifestPath);
+  const repoPath = resolveRepositoryPath(existing, paths);
+  const checkoutRemains = await exists(repoPath);
+
+  if (!opts.dryRun) {
+    await Deno.writeTextFile(manifestPath, newText);
+  }
+  printRows([{ name: target, action: "REMOVED" }], opts.json);
+  if (checkoutRemains) {
+    console.error(
+      `NOTE: local checkout remains on disk at ${repoPath}; remove it manually if desired`,
+    );
+  }
+  return 0;
+}
+
+function applyEntryEdit(
+  raw: string,
+  extension: string,
+  mode: "add" | "remove",
+  entry: NewEntry | undefined,
+  targetName: string,
+  manifest: WorkspaceManifest,
+): string | undefined {
+  const owner = manifest.owner;
+  const host = manifest.host ?? "github.com";
+  try {
+    if (isJsonLike(extension)) {
+      return mode === "add"
+        ? addEntryJsonc(raw, formatEntryJsonc(entry!))
+        : removeEntryJsonc(raw, targetName, owner, host);
+    }
+    return mode === "add"
+      ? addEntryYaml(raw, formatEntryYaml(entry!))
+      : removeEntryYaml(raw, targetName, owner, host);
+  } catch (error) {
+    if (error instanceof ManifestEditError) {
+      console.error(error.message);
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+let cachedGh: SystemGit | undefined;
+
+function ghRunner(): SystemGit {
+  cachedGh ??= new SystemGit("gh");
+  return cachedGh;
+}
+
+/**
+ * Probe (and optionally create) the GitHub repository for a shorthand entry.
+ * Returns "found", "created", or an error message string.
+ */
+async function ensureGitHubRepo(
+  gh: SystemGit,
+  slug: string,
+  opts: CliOptions,
+): Promise<"found" | "created" | string> {
+  let visibility: "public" | "private" | undefined;
+  if (opts.visibility !== undefined) {
+    if (!opts.create) {
+      return "--visibility is only valid together with --create";
+    }
+    if (opts.visibility !== "public" && opts.visibility !== "private") {
+      return `--visibility must be "public" or "private", got "${opts.visibility}"`;
+    }
+    visibility = opts.visibility;
+  }
+  let probe: Awaited<ReturnType<typeof probeGitHubRepo>>;
+  try {
+    probe = await probeGitHubRepo(gh, slug);
+  } catch {
+    return `gh CLI is not available; install it or add "${slug}" manually with --url`;
+  }
+  if (probe.status === "found") return "found";
+  if (probe.status === "missing") {
+    if (!opts.create) {
+      return `not found: ${slug} does not exist on GitHub; rerun with --create to create it`;
+    }
+    try {
+      const created = await createGitHubRepo(gh, slug, visibility ?? "private");
+      if (!created.ok) {
+        return `failed to create ${slug}: ${created.stderr ?? ""}`.trimEnd();
+      }
+      return "created";
+    } catch {
+      return `gh CLI is not available; cannot create ${slug}`;
+    }
+  }
+  return `could not check ${slug}: ${probe.stderr ?? ""}`.trimEnd();
+}
+
+function deriveNameFromUrl(url: string): string {
+  let path = url;
+  if (path.includes("://")) path = path.slice(path.indexOf("://") + 3);
+  const segments = path.split("/").filter((s) => s !== "");
+  const lastSegment = segments[segments.length - 1];
+  if (!lastSegment) {
+    throw new Error(`Cannot derive a repository name from "${url}"`);
+  }
+  const derived = decodeURIComponent(lastSegment).replace(/\.git$/, "");
+  if (!derived) {
+    throw new Error(`Cannot derive a repository name from "${url}"`);
+  }
+  return derived;
+}
+
 export async function run(args: string[]): Promise<number> {
   const opts = parseCliArgs(args);
 
@@ -542,6 +893,16 @@ export async function run(args: string[]): Promise<number> {
   // manifest, so it short-circuits before manifest loading.
   if (opts.command === "init") {
     return await runInitScaffold(opts);
+  }
+
+  // add/remove edit the manifest file itself and produce their own friendly
+  // errors when it is missing or malformed, so they also skip the shared
+  // load below.
+  if (opts.command === "add" || opts.command === "remove") {
+    const path = opts.manifestPath
+      ? resolve(Deno.cwd(), opts.manifestPath)
+      : await findDefaultManifestPath();
+    return await runManifestEdit(opts, path);
   }
 
   const manifestPath = opts.manifestPath
