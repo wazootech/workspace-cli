@@ -61,12 +61,12 @@ export async function syncEnv(
   options: SyncEnvOptions = {},
 ): Promise<SyncEnvResult[]> {
   const synced: SyncEnvResult[] = [];
-  if (!(await exists(paths.vaultDirectory))) {
+  if (!(await exists(paths.secretsDirectory))) {
     return synced;
   }
 
   for (const repository of manifest.repositories) {
-    const vaultRepoDir = join(paths.vaultDirectory, repository.name);
+    const vaultRepoDir = join(paths.secretsDirectory, repository.name);
     if (!(await exists(vaultRepoDir))) {
       continue;
     }

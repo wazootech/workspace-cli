@@ -19,7 +19,7 @@
   "tasks": {
     "build": "deno compile --allow-read --allow-write --allow-run=git --output wspace src/cli.ts",
     "ci": "deno fmt --check && deno lint && deno check src/ tests/ && deno task test",
-    "test": "deno test --allow-read --allow-write --allow-run"
+    "test": "deno test --allow-read --allow-write --allow-run --allow-env"
   },
   "publish": {
     "include": ["src/", "schema/", "skills/", "LICENSE", "README.md"]

@@ -52,7 +52,7 @@ Design principles:
 - `wspace worktree remove <repo> <feature>` — remove a worktree, then prune and
   tidy the now-empty `worktrees/<repo>/` directory.
 - `wspace env sync` — copy local environment files from a gitignored `secrets/`
-  vault into checkouts and worktrees.
+  directory into checkouts and worktrees.
 - `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
@@ -65,59 +65,53 @@ The manifest can be `workspace.json`, `wspace.json`, or `repos.json` in `.json`,
 `.jsonc`, or `.yaml`/`.yml` format (JSONC allows comments and trailing commas).
 Discovery is name-first, then extension.
 
-A manifest can delegate a cluster of repositories to a child manifest that lives
-inside another repository. `wspace` resolves the whole tree recursively,
-flattens it with workspace attribution, and errors on circular references,
-duplicate sub-workspace names, or duplicate repository claims across workspaces.
+Schema v4 keeps one `repositories` array with three entry forms:
 
-Schema v3 declares sub-workspaces inline in `repositories`: an entry with
-`manifest` instead of `url` points at a child manifest file, relative to the
-declaring manifest's directory.
+1. **Bare string** — `"repo"` expands against the manifest's `owner` to
+   `https://github.com/<owner>/repo.git`. After cloning, if the checkout
+   contains a workspace manifest, it composes automatically as a sub-workspace.
+2. **Object leaf** — `{ "name": "...", "url": "..." }` is a plain repository; it
+   never auto-composes, even when a manifest exists inside it. Use object form
+   for non-GitHub remotes or to opt out of composition.
+3. **Object reference** — `{ "name": "...", "manifest": "path/to/manifest" }`
+   delegates to a child manifest relative to the declaring manifest's directory.
+   With an optional `url`, the container becomes a managed repository that init
+   clones before reading its child manifest, so fresh checkouts bootstrap
+   without manual steps.
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
+  "owner": "acme",
   "repositories": [
+    "shared-reference",
+    { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" },
     {
-      "name": "shared-reference",
-      "url": "https://github.com/acme/shared-reference.git"
-    },
-    { "name": "umbra-suite", "manifest": "repos/umbra-wiki/workspace.json" }
+      "name": "umbra-suite",
+      "url": "https://github.com/acme/umbra-wiki.git",
+      "manifest": "repos/umbra-wiki/workspace.json"
+    }
   ]
 }
 ```
 
-Schema v2 style — a separate `workspaces` array — remains supported; both forms
-can be mixed in one manifest.
-
-```json
-{
-  "repositories": [],
-  "workspaces": [
-    { "name": "umbra-suite", "path": "repos/umbra-wiki/workspace.json" }
-  ]
-}
-```
+`wspace init` converges in one invocation: each pass clones what is missing,
+re-resolves the tree (newly cloned containers may reveal detected
+sub-workspaces), and repeats until nothing new appears. Every other command
+resolves once against whatever is currently on disk.
 
 Each child manifest is a standard manifest: its repositories resolve against its
 own root (defaulting to the directory containing the child manifest), and it may
-declare further sub-workspaces. A repository claimed by a sub-workspace must not
-also appear in the parent's `repositories`.
+declare further sub-workspaces. Resolution errors on circular references,
+duplicate sub-workspace names, and duplicate repository claims across
+workspaces; a detected manifest that was already visited (for example a
+repository hosting its own root manifest) degrades silently to a plain
+repository row.
 
-A reference may also carry a `url`. The reference then behaves as a full
-repository entry: `wspace init` clones it (to `<repositoriesDirectory>/<name>`)
-before reading its child manifest, so fresh checkouts bootstrap without manual
-steps, and `check`, `update`, and worktree commands manage it like any other
-repository. References without a `url` stay pure delegation pointers and must
-exist on disk already.
-
-```json
-{
-  "name": "umbra-suite",
-  "url": "https://github.com/acme/umbra-wiki.git",
-  "manifest": "repos/umbra-wiki/workspace.json"
-}
-```
+Schema v2/v3 notes: the separate `workspaces` array was removed in v4 — move
+each entry into `repositories` as `{ "name": "...", "manifest": "<path>" }`.
+`vaultDirectory` was renamed to `secretsDirectory`; both removals produce
+pointed migration errors instead of silent misbehavior.
 
 ## Agent skills
 

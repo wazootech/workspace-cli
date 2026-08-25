@@ -7,58 +7,60 @@
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "type": "integer", "minimum": 1 },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "GitHub owner for bare-string repository entries (schema v4+). A string entry \"repo\" expands to https://github.com/<owner>/repo and auto-composes as a sub-workspace when its checkout contains a workspace manifest."
+    },
     "workspaceRoot": { "type": "string" },
     "repositoriesDirectory": { "type": "string" },
     "worktreesDirectory": { "type": "string" },
-    "vaultDirectory": { "type": "string" },
+    "secretsDirectory": {
+      "type": "string",
+      "description": "Gitignored directory holding per-repository local config files synced by `wspace env sync` (renamed from vaultDirectory in schema v4; default \"secrets\")."
+    },
     "repositories": {
       "type": "array",
       "items": {
-        "type": "object",
-        "required": ["name"],
-        "additionalProperties": false,
-        "properties": {
-          "name": { "type": "string" },
-          "url": { "type": "string", "format": "uri" },
-          "manifest": {
+        "anyOf": [
+          {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference. An optional url turns the reference into a managed repository: init clones it before reading the child manifest."
+            "description": "Bare repository name; expands against the manifest's owner to https://github.com/<owner>/<name>.git (schema v4+)."
           },
-          "path": { "type": "string" },
-          "groups": { "type": "array", "items": { "type": "string" } },
-          "localFiles": { "type": "array", "items": { "type": "string" } }
-        },
-        "if": { "required": ["manifest"] },
-        "then": {
-          "not": {
-            "anyOf": [
-              { "required": ["path"] },
-              { "required": ["groups"] },
-              { "required": ["localFiles"] }
-            ]
+          {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Clone URL. Required on leaf repositories. Optional on sub-workspace references, where it promotes the reference to a managed repository: init clones it before reading the child manifest."
+              },
+              "manifest": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference. An optional url turns the reference into a managed repository: init clones it before reading the child manifest."
+              },
+              "path": { "type": "string" },
+              "groups": { "type": "array", "items": { "type": "string" } },
+              "localFiles": { "type": "array", "items": { "type": "string" } }
+            },
+            "if": { "required": ["manifest"] },
+            "then": {
+              "not": {
+                "anyOf": [
+                  { "required": ["path"] },
+                  { "required": ["groups"] },
+                  { "required": ["localFiles"] }
+                ]
+              }
+            },
+            "else": { "required": ["url"] }
           }
-        },
-        "else": { "required": ["url"] }
-      }
-    },
-    "workspaces": {
-      "type": "array",
-      "description": "Child workspace manifests (schema v2 style; superseded by inline manifest references in repositories but still supported). Each entry points to a nested workspace.json.",
-      "items": {
-        "type": "object",
-        "required": ["name", "path"],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Human-readable name for this sub-workspace."
-          },
-          "path": {
-            "type": "string",
-            "description": "Path to the child workspace.json, relative to this manifest's directory."
-          }
-        }
+        ]
       }
     }
   }
