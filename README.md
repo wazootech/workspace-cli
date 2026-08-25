@@ -38,8 +38,13 @@ Design principles:
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
-- `wspace init [<repo...>]` — clone missing repositories from the manifest (or
-  only a specified subset of repos). Prints a warning that fresh clones lack
+- `wspace init [--host <host>] [--owner <owner>] [<repo...>]` — one-time
+  scaffold for an empty directory: writes a fresh `workspace.json` (schema v4)
+  with optional host/owner and seeded shorthand entries, and creates the
+  standard `repos/`, `worktrees/`, and `secrets/` directories. Fails closed if
+  any manifest already exists.
+- `wspace install [<repo...>]` — clone missing repositories from the manifest
+  (or only a specified subset of repos). Prints a warning that fresh clones lack
   gitignored files and repo-specific setup.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
 - `wspace worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
@@ -53,10 +58,9 @@ Design principles:
   tidy the now-empty `worktrees/<repo>/` directory.
 - `wspace env sync` — copy local environment files from a gitignored `secrets/`
   directory into checkouts and worktrees.
-- `wspace sync` — alias for `wspace init`.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
-  counts. `check`, `init`/`sync`, `update`, and `worktree list` accept
+  counts. `check`, `install`, `update`, and `worktree list` accept
   `--workspace <name>` to scope the command to one sub-workspace.
 
 ## Sub-workspaces
@@ -114,7 +118,7 @@ the explicit form with your chosen label as `name`:
 
 The aliased copy is an ordinary explicit-url entry: it never auto-composes.
 
-`wspace init` converges in one invocation: each pass clones what is missing,
+`wspace install` converges in one invocation: each pass clones what is missing,
 re-resolves the tree (newly cloned containers may reveal detected
 sub-workspaces), and repeats until nothing new appears. Every other command
 resolves once against whatever is currently on disk.
@@ -243,10 +247,10 @@ package managers optimize dependency caching across worktrees:
 
 ### Troubleshooting & Common Pitfalls
 
-- **`PATH_BLOCKED` or `INVALID` during `init`**: An existing directory or file
-  occupies the expected repository path but is not a valid Git repository.
-  `wspace init` fails closed without touching or overwriting the path. Remove or
-  relocate the blocking path manually.
+- **`PATH_BLOCKED` or `INVALID` during `install`**: An existing directory or
+  file occupies the expected repository path but is not a valid Git repository.
+  `wspace install` fails closed without touching or overwriting the path. Remove
+  or relocate the blocking path manually.
 - **`SKIP_FEATURE` / `FEATURE_CLEAN`**: Indicates that `repos/<repo>` is checked
   out on a feature branch instead of the default branch. `wspace update` skips
   updating feature branches to protect user work.

@@ -28,7 +28,7 @@ export interface ManifestPaths {
 }
 
 /** Find an existing workspace manifest inside a directory, honoring the default name/extension discovery order. */
-async function discoverManifest(
+export async function findExistingManifest(
   dir: string,
 ): Promise<string | undefined> {
   for (const basename of DEFAULT_MANIFEST_FILENAMES) {
@@ -45,7 +45,7 @@ async function discoverManifest(
 export async function findDefaultManifestPath(
   cwd: string = Deno.cwd(),
 ): Promise<string> {
-  return (await discoverManifest(cwd)) ??
+  return (await findExistingManifest(cwd)) ??
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
@@ -361,7 +361,7 @@ export async function resolveWorkspaceTree(
       // Detection happens at the entry's checkout root and only after the
       // container exists on disk; objects never compose implicitly.
       if (repo.autoCompose) {
-        const detectedPath = await discoverManifest(
+        const detectedPath = await findExistingManifest(
           resolvedRow.resolvedPath!,
         );
         if (detectedPath === undefined) continue;
