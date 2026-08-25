@@ -172,7 +172,7 @@ export function normalizeManifest(
 }
 
 /** Expand a shorthand ("name" or "owner/name") to a full repository entry. */
-function expandShorthand(
+export function expandShorthand(
   at: string,
   rawName: string,
   fallbackOwner: string | undefined,
@@ -260,6 +260,21 @@ export function validateManifest(manifest: WorkspaceManifest): void {
     }
     registerName(seen, repository.name, "Repository name");
   }
+}
+
+/**
+ * Parse, normalize, and validate raw manifest text without touching the
+ * filesystem. Used by manifest-editing commands to prove a rewritten
+ * document is valid before it is written back.
+ */
+export function validateManifestText(
+  raw: string,
+  manifestPath: string,
+): WorkspaceManifest {
+  const parsed = parseManifestText(manifestPath, raw);
+  const normalized = normalizeManifest(parsed, manifestPath);
+  validateManifest(normalized);
+  return normalized;
 }
 
 export function resolveRepositoryPath(

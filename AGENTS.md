@@ -17,7 +17,9 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
   only; worktree and env operations refuse dirty or feature-branch checkouts.
 - `wspace init` scaffolds a new workspace manifest and standard directories in
   an empty location; `wspace install` clones missing repositories from the
-  manifest; `wspace check` exits 0 on clean, 1 on any non-clean repo.
+  manifest; `wspace add`/`remove` curate manifest entries surgically (comments
+  preserved; remove never deletes checkouts); `wspace check` exits 0 on clean, 1
+  on any non-clean repo.
 
 ## Verification
 
