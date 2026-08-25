@@ -1,6 +1,9 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
 import { parse as parseJsonc } from "@std/jsonc";
 import { parse as parseYaml } from "@std/yaml";
+import { exists } from "@std/fs";
+
+export { exists };
 import type {
   RepositoryEntry,
   ResolvedWorkspace,
@@ -40,18 +43,26 @@ export class MissingManifestError extends Error {
   }
 }
 
-export async function findDefaultManifestPath(
-  cwd: string = Deno.cwd(),
-): Promise<string> {
+/** Find an existing workspace manifest inside a directory, honoring the default name/extension discovery order. */
+async function discoverManifest(
+  dir: string,
+): Promise<string | undefined> {
   for (const basename of DEFAULT_MANIFEST_FILENAMES) {
     for (const extension of MANIFEST_EXTENSIONS) {
-      const candidate = resolve(cwd, basename + extension);
+      const candidate = resolve(dir, basename + extension);
       if (await exists(candidate)) {
         return candidate;
       }
     }
   }
-  return resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
+  return undefined;
+}
+
+export async function findDefaultManifestPath(
+  cwd: string = Deno.cwd(),
+): Promise<string> {
+  return (await discoverManifest(cwd)) ??
+    resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
 function parseManifestText(manifestPath: string, raw: string): unknown {
@@ -186,6 +197,10 @@ export function validateManifest(manifest: WorkspaceManifest): void {
   }
   const seen = new Set<string>();
   for (const repository of manifest.repositories) {
+    if (!repository.name) {
+      throw new Error(requiredEntryMessage(repository));
+    }
+    registerName(seen, repository.name, "Repository name");
     if (isWorkspaceReference(repository)) {
       if (
         repository.path !== undefined || repository.groups !== undefined ||
@@ -200,17 +215,13 @@ export function validateManifest(manifest: WorkspaceManifest): void {
       if (repository.url === "") {
         throw new Error(requiredEntryMessage(repository));
       }
-    } else if (!repository.name || !repository.url) {
-      // An empty manifest string is a malformed reference, not a leaf.
-      if (repository.name && repository.manifest === undefined) {
-        throw new Error(leafUrlMessage(repository));
-      }
-      throw new Error(requiredEntryMessage(repository));
+      continue;
     }
-    if (!repository.name) {
-      throw new Error(requiredEntryMessage(repository));
+    if (!repository.url) {
+      throw repository.manifest === undefined
+        ? new Error(leafUrlMessage(repository))
+        : new Error(requiredEntryMessage(repository));
     }
-    registerName(seen, repository.name, "Repository name");
   }
 }
 
@@ -242,29 +253,20 @@ export function manifestPaths(
     ? normalize(resolve(rawRoot))
     : normalize(resolve(manifestDir, rawRoot));
 
-  const repositoriesDirectory = manifest.repositoriesDirectory
-    ? isAbsolute(manifest.repositoriesDirectory)
-      ? normalize(resolve(manifest.repositoriesDirectory))
-      : normalize(resolve(root, manifest.repositoriesDirectory))
-    : normalize(resolve(root, "repos"));
-
-  const worktreesDirectory = manifest.worktreesDirectory
-    ? isAbsolute(manifest.worktreesDirectory)
-      ? normalize(resolve(manifest.worktreesDirectory))
-      : normalize(resolve(root, manifest.worktreesDirectory))
-    : normalize(resolve(root, "worktrees"));
-
-  const secretsDirectory = manifest.secretsDirectory
-    ? isAbsolute(manifest.secretsDirectory)
-      ? normalize(resolve(manifest.secretsDirectory))
-      : normalize(resolve(root, manifest.secretsDirectory))
-    : normalize(resolve(root, "secrets"));
+  // Resolve a configured directory against the workspace root, falling back
+  // to a conventional default.
+  const dirOption = (value: string | undefined, fallback: string): string => {
+    if (!value) return normalize(resolve(root, fallback));
+    return isAbsolute(value)
+      ? normalize(resolve(value))
+      : normalize(resolve(root, value));
+  };
 
   return {
     root,
-    repositoriesDirectory,
-    worktreesDirectory,
-    secretsDirectory,
+    repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
+    worktreesDirectory: dirOption(manifest.worktreesDirectory, "worktrees"),
+    secretsDirectory: dirOption(manifest.secretsDirectory, "secrets"),
   };
 }
 
@@ -293,24 +295,6 @@ export async function loadChildManifestAt(
   }
   const manifest = await loadManifest(childPath);
   return { manifest, manifestPath: childPath };
-}
-
-/**
- * Find a workspace manifest inside a directory, honoring the default
- * name/extension discovery order. Returns undefined when none exists.
- */
-export async function detectWorkspaceManifest(
-  dir: string,
-): Promise<string | undefined> {
-  for (const basename of DEFAULT_MANIFEST_FILENAMES) {
-    for (const extension of MANIFEST_EXTENSIONS) {
-      const candidate = resolve(dir, basename + extension);
-      if (await exists(candidate)) {
-        return candidate;
-      }
-    }
-  }
-  return undefined;
 }
 
 /**
@@ -379,7 +363,7 @@ export async function resolveWorkspaceTree(
       // Detection happens at the entry's checkout root and only after the
       // container exists on disk; objects never compose implicitly.
       if (repo.autoCompose && resolvedRow.resolvedPath !== undefined) {
-        const detectedPath = await detectWorkspaceManifest(
+        const detectedPath = await discoverManifest(
           resolvedRow.resolvedPath,
         );
         if (detectedPath === undefined) continue;
@@ -453,16 +437,4 @@ export function listWorkspaces(
   }
 
   return result;
-}
-
-export async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return false;
-    }
-    throw error;
-  }
 }
