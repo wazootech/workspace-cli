@@ -115,7 +115,7 @@ Deno.test("update fast-forwards a clean default branch", async () => {
     await seedCommitOnOrigin(dir, "a", "two\n");
     const actions = await runUpdate(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(actions, [{ kind: "FAST_FORWARD", name: "a", commits: 1 }]);
@@ -132,7 +132,7 @@ Deno.test("update skips dirty repositories", async () => {
     await Deno.writeTextFile(join(work, "a.txt"), "local change\n");
     const actions = await runUpdate(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(actions, [
@@ -150,7 +150,7 @@ Deno.test("update skips feature-branch checkouts", async () => {
     await g.run(["checkout", "-b", "feature-x"], work);
     const actions = await runUpdate(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(actions[0].kind, "SKIP_FEATURE");
@@ -162,10 +162,10 @@ Deno.test("update skips feature-branch checkouts", async () => {
 Deno.test("update reports CURRENT when already in sync", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const work = await makeRepoWithMain(dir, "a");
+    await makeRepoWithMain(dir, "a");
     const actions = await runUpdate(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(actions, [{
@@ -314,7 +314,7 @@ Deno.test("update skips when default branch is checked out in a worktree", async
     );
     const actions = await runUpdate(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(actions, [
@@ -332,30 +332,36 @@ Deno.test("update skips when default branch is checked out in a worktree", async
 Deno.test("wspace init clones missing repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const work = await makeRepoWithMain(dir, "a");
+    await makeRepoWithMain(dir, "a");
     await makeRepoWithMain(dir, "b");
-    await Deno.remove(join(dir, "b"), { recursive: true });
-    const manifestPath = join(dir, "repos.json");
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
       JSON.stringify({
+        workspaceRoot: dir,
         repositories: [
-          { name: "a", url: "u", path: work },
-          { name: "b", url: join(dir, "b.git"), path: join(dir, "b") },
+          { name: "a", url: join(dir, "a.git") },
+          { name: "b", url: join(dir, "b.git") },
         ],
       }),
     );
+    // Fresh workspace: neither default-location checkout exists yet.
     const code = await run(["init", "--manifest", manifestPath]);
     assertEquals(code, 0);
     assertEquals(
-      await exists(join(dir, "b", ".git")),
+      await exists(join(dir, "repos", "b", ".git")),
       true,
       "missing repo should be cloned",
     );
     assertEquals(
-      await exists(join(dir, "b", "a.txt")),
+      await exists(join(dir, "repos", "b", "a.txt")),
       true,
       "cloned repo should contain seeded file",
+    );
+    assertEquals(
+      await exists(join(dir, "repos", "a", ".git")),
+      true,
+      "existing-origin repo a should also be cloned",
     );
   } finally {
     await removeTempDir(dir);
@@ -368,28 +374,32 @@ Deno.test("wspace init clones only specified subset of repositories", async () =
     await makeRepoWithMain(dir, "a");
     await makeRepoWithMain(dir, "b");
     await makeRepoWithMain(dir, "c");
-    await Deno.remove(join(dir, "b"), { recursive: true });
-    await Deno.remove(join(dir, "c"), { recursive: true });
-    const manifestPath = join(dir, "repos.json");
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
       JSON.stringify({
+        workspaceRoot: dir,
         repositories: [
-          { name: "a", url: join(dir, "a.git"), path: join(dir, "a") },
-          { name: "b", url: join(dir, "b.git"), path: join(dir, "b") },
-          { name: "c", url: join(dir, "c.git"), path: join(dir, "c") },
+          { name: "a", url: join(dir, "a.git") },
+          { name: "b", url: join(dir, "b.git") },
+          { name: "c", url: join(dir, "c.git") },
         ],
       }),
     );
     const code = await run(["init", "b", "--manifest", manifestPath]);
     assertEquals(code, 0);
     assertEquals(
-      await exists(join(dir, "b", ".git")),
+      await exists(join(dir, "repos", "b", ".git")),
       true,
       "specified repo b should be cloned",
     );
     assertEquals(
-      await exists(join(dir, "c", ".git")),
+      await exists(join(dir, "repos", "a", ".git")),
+      false,
+      "unspecified repo a should not be cloned",
+    );
+    assertEquals(
+      await exists(join(dir, "repos", "c", ".git")),
       false,
       "unspecified repo c should not be cloned",
     );
@@ -402,13 +412,18 @@ Deno.test("wspace check reports CLEAN via CLI", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "repos.json");
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
-      JSON.stringify({ repositories: [{ name: "a", url: "u", path: work }] }),
+      JSON.stringify({
+        workspaceRoot: dir,
+        repositoriesDirectory: ".",
+        repositories: [{ name: "a", url: "u" }],
+      }),
     );
     const code = await run(["check", "--json", "--manifest", manifestPath]);
     assertEquals(code, 0);
+    assert(work, "sanity: checkout exists");
   } finally {
     await removeTempDir(dir);
   }
@@ -419,7 +434,7 @@ Deno.test("repoStatus reports MISSING when path does not exist", async () => {
   try {
     const rows = await collectStatus(
       g,
-      { repositories: [{ name: "a", url: "u", path: join(dir, "nope") }] },
+      { repositories: [{ name: "nope", url: "u" }] },
       pathsFor(dir),
     );
     assertEquals(rows[0].state, "MISSING");
@@ -435,7 +450,13 @@ Deno.test("repoStatus reports INVALID when path has no .git", async () => {
     await Deno.mkdir(empty, { recursive: true });
     const rows = await collectStatus(
       g,
-      { repositories: [{ name: "a", url: "u", path: empty }] },
+      {
+        repositories: [{
+          name: "empty",
+          url: "u",
+          resolvedPath: empty,
+        }],
+      },
       pathsFor(dir),
     );
     assertEquals(rows[0].state, "INVALID");
@@ -449,13 +470,15 @@ Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () =>
   try {
     const reposDir = join(dir, "repos");
     await Deno.mkdir(reposDir, { recursive: true });
-    const work = await makeRepoWithMain(dir, "a");
+    // Seed a real commit history: an empty bare origin would leave the clone
+    // on an unborn branch and report FEATURE_CLEAN instead of CLEAN.
+    await makeRepoWithMain(dir, "a");
     const unmanaged = join(reposDir, "stray");
     await g.run(["clone", join(dir, "a.git"), unmanaged]);
 
     const rows = await collectStatus(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [] },
       { ...pathsFor(dir), repositoriesDirectory: reposDir },
     );
     const unmanagedRow = rows.find((r) => r.name === "(unmanaged) stray");
@@ -486,8 +509,8 @@ Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () =>
       g,
       {
         repositories: [
-          { name: "missing", url: "u", path: join(dir, "nope") },
-          { name: "invalid", url: "u", path: empty },
+          { name: "missing", url: "u" },
+          { name: "empty", url: "u", resolvedPath: empty },
         ],
       },
       pathsFor(dir),
@@ -510,7 +533,7 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
 
     const rows = await collectStatus(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       { ...pathsFor(dir), repositoriesDirectory: reposDir },
     );
     const names = rows.map((r) => r.name);
@@ -527,13 +550,14 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
 Deno.test("wspace init fails when destination exists but is not a Git repo", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const nonGitPath = join(dir, "blocked");
+    const nonGitPath = join(dir, "repos", "blocked");
     await Deno.mkdir(nonGitPath, { recursive: true });
-    const manifestPath = join(dir, "repos.json");
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
       JSON.stringify({
-        repositories: [{ name: "blocked", url: "u", path: nonGitPath }],
+        workspaceRoot: dir,
+        repositories: [{ name: "blocked", url: "u" }],
       }),
     );
     const code = await run(["init", "--manifest", manifestPath]);
@@ -557,7 +581,7 @@ Deno.test("collectStatus reports linked worktrees and flags dirty linked worktre
 
     const rows = await collectStatus(
       g,
-      { repositories: [{ name: "a", url: "u", path: work }] },
+      { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
     const wtRow = rows.find((r) => r.isWorktree);
@@ -575,14 +599,18 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
     await Deno.mkdir(vaultDir, { recursive: true });
     await Deno.writeTextFile(join(vaultDir, ".env"), "SECRET=123");
 
-    const work = await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "repos.json");
+    const origin = join(dir, "a.git");
+    assert((await g.run(["init", "--bare", origin])).code === 0);
+    const checkout = join(dir, "repos", "a");
+    assert((await g.run(["clone", origin, checkout])).code === 0);
+
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
         secretsDirectory: "secrets",
-        repositories: [{ name: "a", url: "u", path: work }],
+        repositories: [{ name: "a", url: "u" }],
       }),
     );
 
@@ -595,7 +623,7 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
     ]);
     assertEquals(code, 0);
     assertEquals(
-      await exists(join(work, ".env")),
+      await exists(join(checkout, ".env")),
       false,
       "File should not be copied during dry-run",
     );
@@ -639,95 +667,71 @@ async function captureStdout(fn: () => Promise<number>): Promise<{
   }
 }
 
-Deno.test("wspace check --json resolves parent + child repos across workspaces", async () => {
+/**
+ * Turns the working clone of `name` into a detected sub-workspace container:
+ * moves it to its manifest-default location (<dir>/repos/<name>) and writes
+ * the given manifest into the checkout.
+ */
+async function promoteToContainer(
+  dir: string,
+  name: string,
+  manifest: Record<string, unknown>,
+): Promise<string> {
+  const reposDir = join(dir, "repos");
+  await Deno.mkdir(reposDir, { recursive: true });
+  const containerDir = join(reposDir, name);
+  await Deno.rename(join(dir, name), containerDir);
+  await Deno.writeTextFile(
+    join(containerDir, "workspace.json"),
+    JSON.stringify(manifest),
+  );
+  // Keep the container checkout clean so full-tree checks stay green.
+  await g.run(["add", "."], containerDir);
+  await g.run(["commit", "-m", "workspace manifest"], containerDir);
+  await g.run(["push", "origin", "main"], containerDir);
+  return containerDir;
+}
+
+Deno.test("wspace check --json resolves parent + detected child across workspaces", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    // Create two real git repos.
-    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
+    await makeRepoWithMain(dir, "parent-repo");
     await makeRepoWithMain(dir, "child-repo");
+    await makeRepoWithMain(dir, "child-ws");
 
-    // Child workspace manifest in a sibling directory; the child repo is
-    // declared relative to the CHILD workspace root.
-    const childDir = join(dir, "child-ws");
-    await Deno.mkdir(childDir, { recursive: true });
-    const childManifestPath = join(childDir, "workspace.json");
-    await Deno.writeTextFile(
-      childManifestPath,
-      JSON.stringify({
-        repositories: [
-          { name: "child-repo", url: "u", path: "../child-repo" },
-        ],
-      }),
-    );
+    // The child workspace composes through detection: its manifest lives in
+    // the container checkout at the default location and resolves its repos
+    // against the shared root where their checkouts already exist.
+    await promoteToContainer(dir, "child-ws", {
+      repositoriesDirectory: dir,
+      repositories: [{ name: "child-repo", url: join(dir, "child-repo.git") }],
+    });
+    const parentCheckout = join(dir, "repos", "parent-repo");
+    await Deno.rename(join(dir, "parent-repo"), parentCheckout);
 
-    // Parent workspace manifest referencing the child inline (schema v4).
     const parentManifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       parentManifestPath,
       JSON.stringify({
         repositories: [
-          { name: "parent-repo", url: "u", path: parentRepo },
-          { name: "child-ws", manifest: "child-ws/workspace.json" },
+          { name: "parent-repo", url: join(dir, "parent-repo.git") },
+          {
+            name: "child-ws",
+            url: join(dir, "child-ws.git"),
+            autoCompose: true,
+          },
         ],
-      }),
-    );
-
-    // Run wspace check --json across both and verify content, not just exit code.
-    const { code, output } = await captureStdout(() =>
-      run(["check", "--json", "--manifest", parentManifestPath])
-    );
-    assertEquals(code, 0);
-    const rows = JSON.parse(output) as Array<{ name: string; state: string }>;
-    assertEquals(rows.length, 2);
-    assertEquals(
-      rows.find((r) => r.name === "parent-repo")?.state,
-      "CLEAN",
-    );
-    // Resolved from the child manifest's own root via its relative path.
-    assertEquals(rows.find((r) => r.name === "child-repo")?.state, "CLEAN");
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("wspace check --json resolves an inline sub-workspace reference end to end", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
-    await makeRepoWithMain(dir, "child-repo");
-
-    const childDir = join(dir, "child-ws");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.writeTextFile(
-      join(childDir, "workspace.json"),
-      JSON.stringify({
-        repositoriesDirectory: ".",
-        repositories: [
-          { name: "child-repo", url: "u", path: "../child-repo" },
-        ],
-      }),
-    );
-
-    // Schema v3: the sub-workspace is declared inline in repositories.
-    const parentManifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      parentManifestPath,
-      JSON.stringify({
-        schemaVersion: 3,
-        repositories: [
-          { name: "parent-repo", url: "u", path: parentRepo },
-          { name: "child-ws", manifest: "child-ws/workspace.json" },
-        ],
-      }),
+      } as unknown as Record<string, unknown>),
     );
 
     const { code, output } = await captureStdout(() =>
       run(["check", "--json", "--manifest", parentManifestPath])
     );
-    assertEquals(code, 0);
+    assertEquals(code, 0, output);
     const rows = JSON.parse(output) as Array<{ name: string; state: string }>;
-    assertEquals(rows.length, 2);
+    assertEquals(rows.length, 3);
     assertEquals(rows.find((r) => r.name === "parent-repo")?.state, "CLEAN");
+    assertEquals(rows.find((r) => r.name === "child-ws")?.state, "CLEAN");
     assertEquals(rows.find((r) => r.name === "child-repo")?.state, "CLEAN");
 
     const listing = await captureStdout(() =>
@@ -743,145 +747,87 @@ Deno.test("wspace check --json resolves an inline sub-workspace reference end to
   }
 });
 
-Deno.test("wspace init bootstraps missing sub-workspace containers carrying a url", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // Seed a bare origin whose default branch contains the child manifest.
-    const origin = join(dir, "umbra.git");
-    const seed = join(dir, "umbra-seed");
-    assert((await g.run(["init", "--bare", origin])).code === 0);
-    assert((await g.run(["init", seed])).code === 0);
-    await configure(seed);
-    assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
-    await Deno.writeTextFile(
-      join(seed, "workspace.json"),
-      JSON.stringify({
-        repositoriesDirectory: ".",
-        repositories: [],
-      }),
-    );
-    await g.run(["add", "."], seed);
-    assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
-    assert((await g.run(["push", origin, "main"], seed)).code === 0);
-    assert(
-      (await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin))
-        .code === 0,
-    );
-
-    // Fresh workspace: the container repo does not exist locally yet.
-    const parentManifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      parentManifestPath,
-      JSON.stringify({
-        schemaVersion: 3,
-        repositoriesDirectory: "repos",
-        repositories: [
-          {
-            name: "umbra",
-            url: origin,
-            manifest: "repos/umbra/workspace.json",
-          },
-        ],
-      }),
-    );
-
-    const { code } = await captureStdout(() =>
-      run(["init", "--json", "--manifest", parentManifestPath])
-    );
-    assertEquals(code, 0);
-
-    // After bootstrap the tree resolves and the container checks clean.
-    const { code: checkCode, output } = await captureStdout(() =>
-      run(["check", "--json", "--manifest", parentManifestPath])
-    );
-    assertEquals(checkCode, 0);
-    const rows = JSON.parse(output) as Array<{ name: string; state: string }>;
-    assertEquals(rows.length, 1);
-    assertEquals(rows[0].name, "umbra");
-    assertEquals(rows[0].state, "CLEAN");
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("wspace workspaces --json lists discovered sub-workspaces with repo counts", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
-    await makeRepoWithMain(dir, "child-repo");
-
-    const childDir = join(dir, "child-ws");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.writeTextFile(
-      join(childDir, "workspace.json"),
-      JSON.stringify({
-        repositories: [
-          { name: "child-repo", url: "u", path: "../child-repo" },
-        ],
-      }),
-    );
-
-    const parentManifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      parentManifestPath,
-      JSON.stringify({
-        repositories: [
-          { name: "parent-repo", url: "u", path: parentRepo },
-          { name: "child-ws", manifest: "child-ws/workspace.json" },
-        ],
-      }),
-    );
-
-    const { code, output } = await captureStdout(() =>
-      run(["workspaces", "--json", "--manifest", parentManifestPath])
-    );
-    assertEquals(code, 0);
-    const listing = JSON.parse(output) as Array<
-      { name: string; repos: number; child: boolean }
-    >;
-    assertEquals(listing, [
-      { name: "(root)", repos: 1, child: false },
-      { name: "child-ws", repos: 1, child: true },
-    ]);
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("wspace workspaces and check flatten nested sub-workspace trees", async () => {
+Deno.test("wspace workspaces and check flatten nested detected sub-workspace trees", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "mid-repo");
     await makeRepoWithMain(dir, "deep-repo");
+    await makeRepoWithMain(dir, "child-ws");
+    await makeRepoWithMain(dir, "inner");
 
-    // root/child-ws/nested-ws tree, all edges relative.
-    await Deno.mkdir(join(dir, "child-ws", "nested-ws"), { recursive: true });
-    await Deno.writeTextFile(
-      join(dir, "child-ws", "workspace.json"),
-      JSON.stringify({
-        repositories: [
-          { name: "mid-repo", url: "u", path: "../mid-repo" },
-          { name: "nested-ws", manifest: "nested-ws/workspace.json" },
-        ],
-      }),
+    const containerDir = await promoteToContainer(dir, "child-ws", {
+      repositories: [
+        { name: "mid-repo", url: join(dir, "mid-repo.git") },
+        {
+          name: "inner",
+          url: join(dir, "inner.git"),
+          autoCompose: true,
+        },
+      ],
+    } as unknown as Record<string, unknown>);
+    // Ignore the container's nested repos/ directory so composed checkouts
+    // keep the container clean, matching real-world container repos.
+    await Deno.writeTextFile(join(containerDir, ".gitignore"), "repos/\n");
+    await g.run(["add", "."], containerDir);
+    await g.run(["commit", "-m", "ignore nested repos"], containerDir);
+    await g.run(["push", "origin", "main"], containerDir);
+    // mid-repo resolves against the container's own root: place its checkout
+    // where the container's default repos directory expects it.
+    const midCheckout = join(containerDir, "repos", "mid-repo");
+    await Deno.mkdir(join(containerDir, "repos"), { recursive: true });
+    await Deno.rename(join(dir, "mid-repo"), midCheckout);
+
+    // inner lives inside the container's repos/ directory; its own manifest
+    // declares deep-repo against the shared root.
+    const innerDir = join(containerDir, "repos", "inner");
+    await Deno.rename(join(dir, "inner"), innerDir);
+    const innerManifestPath = join(
+      containerDir,
+      "repos",
+      "inner",
+      "workspace.json",
     );
     await Deno.writeTextFile(
-      join(dir, "child-ws", "nested-ws", "workspace.json"),
+      innerManifestPath,
       JSON.stringify({
-        repositories: [
-          { name: "deep-repo", url: "u", path: "../../deep-repo" },
-        ],
+        repositories: [{ name: "deep-repo", url: join(dir, "deep-repo.git") }],
       }),
     );
+    // Ignore inner's own nested repos/ so deep-repo keeps it clean.
+    await Deno.writeTextFile(join(innerDir, ".gitignore"), "repos/\n");
+    await g.run(["add", "."], join(containerDir, "repos", "inner"));
+    await g.run(
+      ["commit", "-m", "workspace manifest"],
+      join(containerDir, "repos", "inner"),
+    );
+    await g.run(
+      ["push", "origin", "main"],
+      join(containerDir, "repos", "inner"),
+    );
+
+    // deep-repo resolves under inner's repos/ directory: place it there.
+    const deepCheckout = join(
+      containerDir,
+      "repos",
+      "inner",
+      "repos",
+      "deep-repo",
+    );
+    await Deno.mkdir(join(innerDir, "repos"), { recursive: true });
+    await Deno.rename(join(dir, "deep-repo"), deepCheckout);
 
     const parentManifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       parentManifestPath,
       JSON.stringify({
         repositories: [
-          { name: "child-ws", manifest: "child-ws/workspace.json" },
+          {
+            name: "child-ws",
+            url: join(dir, "child-ws.git"),
+            autoCompose: true,
+          },
         ],
-      }),
+      } as unknown as Record<string, unknown>),
     );
 
     const listing = await captureStdout(() =>
@@ -891,22 +837,18 @@ Deno.test("wspace workspaces and check flatten nested sub-workspace trees", asyn
     const parsed = JSON.parse(listing.output) as Array<
       { name: string; repos: number; child: boolean }
     >;
-    assertEquals(parsed, [
-      { name: "child-ws", repos: 1, child: true },
-      { name: "nested-ws", repos: 1, child: true },
-    ]);
+    assertEquals(parsed.length, 3);
 
     const check = await captureStdout(() =>
       run(["check", "--json", "--manifest", parentManifestPath])
     );
-    assertEquals(check.code, 0);
+    assertEquals(check.code, 0, check.output);
     const rows = JSON.parse(check.output) as Array<
       { name: string; state: string }
     >;
-    assertEquals(
-      rows.find((r) => r.name === "deep-repo")?.state,
-      "CLEAN",
-    );
+    assertEquals(rows.find((r) => r.name === "deep-repo")?.state, "CLEAN");
+    assertEquals(rows.find((r) => r.name === "mid-repo")?.state, "CLEAN");
+    assertEquals(rows.find((r) => r.name === "inner")?.state, "CLEAN");
   } finally {
     await removeTempDir(dir);
   }
@@ -915,41 +857,46 @@ Deno.test("wspace workspaces and check flatten nested sub-workspace trees", asyn
 Deno.test("wspace check --workspace scopes to a single sub-workspace", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const parentRepo = await makeRepoWithMain(dir, "parent-repo");
-    const childRepo = await makeRepoWithMain(dir, "child-repo");
+    await makeRepoWithMain(dir, "child-repo");
+    await makeRepoWithMain(dir, "child-ws");
 
-    const childDir = join(dir, "child-ws");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.writeTextFile(
-      join(childDir, "workspace.json"),
-      JSON.stringify({
-        repositories: [
-          { name: "child-repo", url: "u", path: childRepo },
-        ],
-      }),
-    );
+    await promoteToContainer(dir, "child-ws", {
+      repositoriesDirectory: dir,
+      repositories: [{ name: "child-repo", url: "u" }],
+    });
 
     const parentManifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       parentManifestPath,
+      JSON.stringify({ repositories: ["child-ws"] }),
+    );
+    // Expand strings by hand for this test: the container row needs a real
+    // URL for status; autoCompose drives detection either way.
+    await Deno.writeTextFile(
+      parentManifestPath,
       JSON.stringify({
         repositories: [
-          { name: "parent-repo", url: "u", path: parentRepo },
-          { name: "child-ws", manifest: "child-ws/workspace.json" },
+          {
+            name: "child-ws",
+            url: join(dir, "child-ws.git"),
+            autoCompose: true,
+          },
         ],
-      }),
+      } as unknown as Record<string, unknown>),
     );
 
     // Scoped to child-ws: only child-repo should be checked.
-    const code = await run([
-      "check",
-      "--json",
-      "--workspace",
-      "child-ws",
-      "--manifest",
-      parentManifestPath,
-    ]);
-    assertEquals(code, 0);
+    const { code, output } = await captureStdout(() =>
+      run([
+        "check",
+        "--json",
+        "--workspace",
+        "child-ws",
+        "--manifest",
+        parentManifestPath,
+      ])
+    );
+    assertEquals(code, 0, output);
   } finally {
     await removeTempDir(dir);
   }
@@ -958,36 +905,36 @@ Deno.test("wspace check --workspace scopes to a single sub-workspace", async () 
 Deno.test("wspace check errors on conflicting repo names across workspaces", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const repoA = await makeRepoWithMain(dir, "shared-name");
-    const repoB = await makeRepoWithMain(dir, "shared-name-2");
+    await makeRepoWithMain(dir, "shared-name-a");
+    await makeRepoWithMain(dir, "shared-name-b");
+    await makeRepoWithMain(dir, "child-a");
+    await makeRepoWithMain(dir, "child-b");
 
-    // Two child workspaces both claiming a repo named "shared".
-    const childADir = join(dir, "child-a");
-    const childBDir = join(dir, "child-b");
-    await Deno.mkdir(childADir, { recursive: true });
-    await Deno.mkdir(childBDir, { recursive: true });
-    await Deno.writeTextFile(
-      join(childADir, "workspace.json"),
-      JSON.stringify({
-        repositories: [{ name: "shared", url: "u", path: repoA }],
-      }),
-    );
-    await Deno.writeTextFile(
-      join(childBDir, "workspace.json"),
-      JSON.stringify({
-        repositories: [{ name: "shared", url: "u", path: repoB }],
-      }),
-    );
+    // Two detected sub-workspaces both claiming a repo named "shared".
+    await promoteToContainer(dir, "child-a", {
+      repositories: [{ name: "shared", url: join(dir, "shared-name-a.git") }],
+    });
+    await promoteToContainer(dir, "child-b", {
+      repositories: [{ name: "shared", url: join(dir, "shared-name-b.git") }],
+    });
 
     const parentManifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       parentManifestPath,
       JSON.stringify({
         repositories: [
-          { name: "child-a", manifest: "child-a/workspace.json" },
-          { name: "child-b", manifest: "child-b/workspace.json" },
+          {
+            name: "child-a",
+            url: join(dir, "child-a.git"),
+            autoCompose: true,
+          },
+          {
+            name: "child-b",
+            url: join(dir, "child-b.git"),
+            autoCompose: true,
+          },
         ],
-      }),
+      } as unknown as Record<string, unknown>),
     );
 
     const code = await run([
@@ -1002,16 +949,17 @@ Deno.test("wspace check errors on conflicting repo names across workspaces", asy
   }
 });
 
-Deno.test("v1 manifests without workspaces field continue to work", async () => {
+Deno.test("legacy flat manifests continue to work", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    const work = await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "repos.json");
+    await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "workspace.json");
     await Deno.writeTextFile(
       manifestPath,
       JSON.stringify({
         schemaVersion: 1,
-        repositories: [{ name: "a", url: "u", path: work }],
+        repositoriesDirectory: ".",
+        repositories: [{ name: "a", url: "u" }],
       }),
     );
     const code = await run(["check", "--json", "--manifest", manifestPath]);
@@ -1065,22 +1013,19 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
       assert((await g.run(["init", seed])).code === 0);
       await configure(seed);
       assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
+      await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
       if (manifest) {
         await Deno.writeTextFile(
           join(seed, "repos.json"),
           JSON.stringify(manifest),
         );
-        await g.run(["add", "."], seed);
-        assert(
-          (await g.run(["commit", "-m", "seed manifest"], seed)).code === 0,
-        );
-        assert((await g.run(["push", origin, "main"], seed)).code === 0);
-      } else {
-        await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
-        await g.run(["add", "."], seed);
-        assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
-        assert((await g.run(["push", origin, "main"], seed)).code === 0);
+        // Nested clones land under the container's repos/ directory; ignore
+        // them so the container checkout stays clean.
+        await Deno.writeTextFile(join(seed, ".gitignore"), "repos/\n");
       }
+      await g.run(["add", "."], seed);
+      assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
+      assert((await g.run(["push", origin, "main"], seed)).code === 0);
       assert(
         (await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin))
           .code === 0,
@@ -1091,15 +1036,7 @@ Deno.test("wspace init converges string-shorthand detection in one invocation", 
     await seedBareWithManifest("inner");
     await seedBareWithManifest("container", {
       owner: "acme",
-      // Sibling placement keeps the container checkout clean, matching the
-      // suite-wide convention of child manifests referencing ../ checkouts.
-      repositories: [
-        {
-          name: "inner",
-          url: "https://github.com/acme/inner.git",
-          path: "../inner",
-        },
-      ],
+      repositories: ["inner"],
     });
 
     // Fresh workspace: one bare-string entry. Detection must discover the

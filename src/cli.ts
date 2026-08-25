@@ -18,13 +18,6 @@ import type { ManifestPaths } from "./manifest.ts";
 import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
-import type { RepositoryEntry } from "./types.ts";
-import { isWorkspaceReference } from "./types.ts";
-import { MissingManifestError } from "./manifest.ts";
-
-function clonableReference(entry: RepositoryEntry): boolean {
-  return isWorkspaceReference(entry) && Boolean(entry.url);
-}
 
 /** Defensive cap on init convergence passes; cycle detection fires first. */
 const MAX_INIT_PASSES = 16;
@@ -409,20 +402,13 @@ function printRows(rows: unknown[], json: boolean): void {
 }
 
 /**
- * Flatten a resolved tree into the manifest shape commands consume:
- * every repository row plus url-carrying references (clone targets).
+ * Flatten a resolved tree into the manifest shape commands consume.
  */
 function flattenResolved(
   resolved: ResolvedWorkspace,
   root: WorkspaceManifest,
 ): WorkspaceManifest {
-  return {
-    ...root,
-    repositories: [
-      ...resolved.repositories,
-      ...resolved.references.filter((r) => r.url),
-    ],
-  };
+  return { ...root, repositories: resolved.repositories };
 }
 
 /**
@@ -442,33 +428,8 @@ async function runInitConverging(
   let failed = false;
 
   for (let pass = 0; pass < MAX_INIT_PASSES; pass++) {
-    let flat: WorkspaceManifest;
-    try {
-      const resolved = await resolveWorkspaceTree(manifest, manifestPath);
-      flat = flattenResolved(resolved, manifest);
-    } catch (error) {
-      if (!(error instanceof MissingManifestError)) throw error;
-      // Explicit references whose container repos are missing: clone them
-      // this pass so the child manifests become readable next pass.
-      const bootstrapRefs = manifest.repositories.filter((r) =>
-        clonableReference(r) &&
-        (targets.length === 0 || targets.includes(r.name))
-      );
-      if (bootstrapRefs.length === 0) throw error;
-      const bootstrapPaths = manifestPaths(manifest, manifestPath);
-      const bootstrapRows = await cloneMissing(
-        g,
-        { ...manifest, repositories: bootstrapRefs },
-        bootstrapPaths,
-      );
-      const freshBootstrap = bootstrapRows.filter(
-        (r) => latest.get(r.name)?.state !== r.state,
-      );
-      printRows(freshBootstrap, opts.json);
-      for (const row of bootstrapRows) latest.set(row.name, row);
-      if (bootstrapRows.some(isBadInitRow)) failed = true;
-      break;
-    }
+    const resolved = await resolveWorkspaceTree(manifest, manifestPath);
+    const flat = flattenResolved(resolved, manifest);
 
     const scoped = opts.workspace
       ? {
@@ -519,18 +480,7 @@ export async function run(args: string[]): Promise<number> {
 
   // Every other command resolves once; detected sub-workspaces reflect
   // whatever is currently on disk.
-  let resolvedTree: ResolvedWorkspace | undefined;
-  try {
-    resolvedTree = await resolveWorkspaceTree(manifest, manifestPath);
-  } catch (error) {
-    if (
-      error instanceof MissingManifestError &&
-      manifest.repositories.some(clonableReference)
-    ) {
-      throw new Error(`${error.message}\nRun 'wspace init' to clone it.`);
-    }
-    throw error;
-  }
+  const resolvedTree = await resolveWorkspaceTree(manifest, manifestPath);
 
   // Detect conflicts.
   const conflicts = detectConflicts(resolvedTree);

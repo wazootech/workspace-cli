@@ -80,12 +80,11 @@ export async function syncEnv(
       }
     }
 
-    const patterns = repository.localFiles ?? [];
     for await (const fileEntry of Deno.readDir(vaultRepoDir)) {
       if (!fileEntry.isFile) {
         continue;
       }
-      if (!isLocalConfigFile(fileEntry.name, patterns)) {
+      if (!isLocalConfigFile(fileEntry.name)) {
         continue;
       }
       const source = join(vaultRepoDir, fileEntry.name);

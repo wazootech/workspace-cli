@@ -65,19 +65,14 @@ The manifest can be `workspace.json`, `wspace.json`, or `repos.json` in `.json`,
 `.jsonc`, or `.yaml`/`.yml` format (JSONC allows comments and trailing commas).
 Discovery is name-first, then extension.
 
-Schema v4 keeps one `repositories` array with three entry forms:
+Schema v4 keeps one `repositories` array with exactly two entry forms:
 
 1. **Bare string** — `"repo"` expands against the manifest's `owner` to
    `https://github.com/<owner>/repo.git`. After cloning, if the checkout
    contains a workspace manifest, it composes automatically as a sub-workspace.
-2. **Object leaf** — `{ "name": "...", "url": "..." }` is a plain repository; it
-   never auto-composes, even when a manifest exists inside it. Use object form
-   for non-GitHub remotes or to opt out of composition.
-3. **Object reference** — `{ "name": "...", "manifest": "path/to/manifest" }`
-   delegates to a child manifest relative to the declaring manifest's directory.
-   With an optional `url`, the container becomes a managed repository that init
-   clones before reading its child manifest, so fresh checkouts bootstrap
-   without manual steps.
+2. **Object** — `{ "name": "...", "url": "..." }` is a plain repository for any
+   Git host; it never auto-composes, even when a manifest exists inside its
+   checkout.
 
 ```json
 {
@@ -85,12 +80,7 @@ Schema v4 keeps one `repositories` array with three entry forms:
   "owner": "acme",
   "repositories": [
     "shared-reference",
-    { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" },
-    {
-      "name": "umbra-suite",
-      "url": "https://github.com/acme/umbra-wiki.git",
-      "manifest": "repos/umbra-wiki/workspace.json"
-    }
+    { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" }
   ]
 }
 ```
@@ -101,17 +91,18 @@ sub-workspaces), and repeats until nothing new appears. Every other command
 resolves once against whatever is currently on disk.
 
 Each child manifest is a standard manifest: its repositories resolve against its
-own root (defaulting to the directory containing the child manifest), and it may
-declare further sub-workspaces. Resolution errors on circular references,
-duplicate sub-workspace names, and duplicate repository claims across
-workspaces; a detected manifest that was already visited (for example a
-repository hosting its own root manifest) degrades silently to a plain
+own root (defaulting to `repos/` under the directory containing the child
+manifest), and it may compose further sub-workspaces through its own bare
+strings. Resolution errors on circular references and duplicate repository
+claims across workspaces; a detected manifest that was already visited (for
+example a repository hosting its own root manifest) degrades silently to a plain
 repository row.
 
-Schema v2/v3 notes: the separate `workspaces` array was removed in v4 — move
-each entry into `repositories` as `{ "name": "...", "manifest": "<path>" }`.
-`vaultDirectory` was renamed to `secretsDirectory`; both removals produce
-pointed migration errors instead of silent misbehavior.
+Schema v4 migration notes: the separate `workspaces` array was removed — child
+workspaces now compose automatically through detection. Entry fields `path`,
+`groups`, `localFiles`, and `manifest` were removed; entries are bare strings or
+`{ "name", "url" }`. `vaultDirectory` was renamed to `secretsDirectory`. All
+removals produce pointed errors instead of silent misbehavior.
 
 ## Agent skills
 

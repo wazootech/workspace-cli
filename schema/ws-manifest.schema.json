@@ -30,35 +30,16 @@
           },
           {
             "type": "object",
-            "required": ["name"],
+            "required": ["name", "url"],
             "additionalProperties": false,
             "properties": {
               "name": { "type": "string" },
               "url": {
                 "type": "string",
                 "format": "uri",
-                "description": "Clone URL. Required on leaf repositories. Optional on sub-workspace references, where it promotes the reference to a managed repository: init clones it before reading the child manifest."
-              },
-              "manifest": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Path to a child workspace manifest, relative to this manifest's directory (schema v3+). Marks the entry as a sub-workspace reference. An optional url turns the reference into a managed repository: init clones it before reading the child manifest."
-              },
-              "path": { "type": "string" },
-              "groups": { "type": "array", "items": { "type": "string" } },
-              "localFiles": { "type": "array", "items": { "type": "string" } }
-            },
-            "if": { "required": ["manifest"] },
-            "then": {
-              "not": {
-                "anyOf": [
-                  { "required": ["path"] },
-                  { "required": ["groups"] },
-                  { "required": ["localFiles"] }
-                ]
+                "description": "Clone URL. Any Git host; bare-string expansion targets GitHub HTTPS."
               }
-            },
-            "else": { "required": ["url"] }
+            }
           }
         ]
       }

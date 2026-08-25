@@ -26,20 +26,18 @@ Pass `--manifest <path>` to point at a manifest elsewhere.
 
 ## Manifest schema
 
-Schema version 4 keeps one `repositories[]` array with three entry forms:
+Schema version 4 keeps one `repositories[]` array with exactly two entry forms:
 
 1. **Bare string** `"repo"` — expands against the manifest's `owner` to
    `https://github.com/<owner>/repo.git`. After cloning, if the checkout
    contains a workspace manifest, it composes automatically as a sub-workspace.
-2. **Object leaf** `{ "name", "url" }` (+ optional `path`, `groups`,
-   `localFiles`) — a plain repository; never auto-composes.
-3. **Object reference** `{ "name", "manifest" }` (optional `url`) — delegates to
-   a child manifest relative to the declaring manifest's directory; with `url`,
-   init clones the container first so fresh checkouts bootstrap.
+2. **Object** `{ "name", "url" }` — a plain repository for any Git host; never
+   auto-composes.
 
-Legacy keys removed in v4 produce migration errors: `workspaces[]` (move each
-entry into `repositories[]` as `{ "name", "manifest" }`) and `vaultDirectory`
-(renamed to `secretsDirectory`).
+Legacy keys removed in v4 produce migration errors: `workspaces[]` (composition
+is now automatic through detection), entry fields `path`, `groups`,
+`localFiles`, and `manifest`, and `vaultDirectory` (renamed to
+`secretsDirectory`).
 
 Recursion conventions: child manifests re-root their own directory defaults;
 worktrees always land under the root workspace's `worktrees/`; `env sync` always
@@ -47,18 +45,18 @@ reads the root `secrets/<repoName>/`.
 
 ## Commands
 
-| Command                                               | Purpose                                                                                                                                                                                                                                              |
-| :---------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wspace check`                                        | Read-only baseline check. Reports `CLEAN`, `DIRTY`, `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, `UNMANAGED` states.                                                                                                                           |
-| `wspace check --json`                                 | Structured per-repo state for tools.                                                                                                                                                                                                                 |
-| `wspace init [<repo...>]`                             | Clone missing repos, converging in one invocation: each pass re-resolves the tree, so detected sub-workspaces and reference containers bootstrap without reruns. Scoped targets stay single-pass. Fresh clones lack gitignored files and repo setup. |
-| `wspace sync`                                         | Alias for `wspace init`.                                                                                                                                                                                                                             |
-| `wspace update`                                       | Fetch remotes and fast-forward only clean default branches.                                                                                                                                                                                          |
-| `wspace worktree add <repo> <feature> [<commit-ish>]` | Create a git worktree under `worktrees/<repo>/<feature>/`, branching from `origin/<default>` or an explicit `<commit-ish>`.                                                                                                                          |
-| `wspace worktree list [--stale] [--json]`             | List worktrees across all repos. `--stale` filters to worktrees whose branch is fully merged (safe removal candidates).                                                                                                                              |
-| `wspace worktree remove <repo> <feature>`             | Remove a worktree, then prune and tidy the empty `worktrees/<repo>/` directory.                                                                                                                                                                      |
-| `wspace env sync [--dry-run]`                         | Copy local environment files from a gitignored `secrets/` directory into checkouts and worktrees.                                                                                                                                                    |
-| `wspace validate`                                     | Validate the manifest without touching any repository.                                                                                                                                                                                               |
+| Command                                               | Purpose                                                                                                                                                                                                                           |
+| :---------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wspace check`                                        | Read-only baseline check. Reports `CLEAN`, `DIRTY`, `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, `UNMANAGED` states.                                                                                                        |
+| `wspace check --json`                                 | Structured per-repo state for tools.                                                                                                                                                                                              |
+| `wspace init [<repo...>]`                             | Clone missing repos, converging in one invocation: each pass re-resolves the tree, so newly detected sub-workspaces bootstrap without reruns. Scoped targets stay single-pass. Fresh clones lack gitignored files and repo setup. |
+| `wspace sync`                                         | Alias for `wspace init`.                                                                                                                                                                                                          |
+| `wspace update`                                       | Fetch remotes and fast-forward only clean default branches.                                                                                                                                                                       |
+| `wspace worktree add <repo> <feature> [<commit-ish>]` | Create a git worktree under `worktrees/<repo>/<feature>/`, branching from `origin/<default>` or an explicit `<commit-ish>`.                                                                                                       |
+| `wspace worktree list [--stale] [--json]`             | List worktrees across all repos. `--stale` filters to worktrees whose branch is fully merged (safe removal candidates).                                                                                                           |
+| `wspace worktree remove <repo> <feature>`             | Remove a worktree, then prune and tidy the empty `worktrees/<repo>/` directory.                                                                                                                                                   |
+| `wspace env sync [--dry-run]`                         | Copy local environment files from a gitignored `secrets/` directory into checkouts and worktrees.                                                                                                                                 |
+| `wspace validate`                                     | Validate the manifest without touching any repository.                                                                                                                                                                            |
 
 ## Worktree creation rules
 
