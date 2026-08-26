@@ -83,21 +83,21 @@ interface CliOptions {
 }
 
 function usage(): void {
-  console.log(`workspace-cli (wspace)
+  console.log(`workspace-cli (works)
 
 Usage:
-  wspace check [--json] [--workspace <name>]
-  wspace init [--host <host>] [--owner <owner>] [<repo...>]
-  wspace install [<repo...>] [--json] [--workspace <name>]
-  wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
-  wspace remove <repo>
-  wspace update [--json] [--workspace <name>]
-  wspace worktree add <repo> <feature> [<commit-ish>]
-  wspace worktree list [--stale] [--json] [--workspace <name>]
-  wspace worktree remove <repo> <feature>
-  wspace workspaces [--json]
-  wspace env sync [--dry-run] [--json]
-  wspace validate
+  works check [--json] [--workspace <name>]
+  works init [--host <host>] [--owner <owner>] [<repo...>]
+  works install [<repo...>] [--json] [--workspace <name>]
+  works add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
+  works remove <repo>
+  works update [--json] [--workspace <name>]
+  works worktree add <repo> <feature> [<commit-ish>]
+  works worktree list [--stale] [--json] [--workspace <name>]
+  works worktree remove <repo> <feature>
+  works workspaces [--json]
+  works env sync [--dry-run] [--json]
+  works validate
 
 Options:
   --manifest <path>   Manifest path (default: workspace.json / wspace.json / repos.json)
@@ -224,7 +224,7 @@ async function runWorktree(
       const [repoName, feature, startPoint] = opts.positional;
       if (!repoName || !feature) {
         console.error(
-          "Usage: wspace worktree add <repo> <feature> [<commit-ish>]",
+          "Usage: works worktree add <repo> <feature> [<commit-ish>]",
         );
         return 2;
       }
@@ -275,7 +275,7 @@ async function runWorktree(
     case "remove": {
       const [repoName, feature] = opts.positional;
       if (!repoName || !feature) {
-        console.error("Usage: wspace worktree remove <repo> <feature>");
+        console.error("Usage: works worktree remove <repo> <feature>");
         return 2;
       }
       const repository = manifest.repositories.find((r) => r.name === repoName);
@@ -301,7 +301,7 @@ async function runWorktree(
       return 0;
     }
     default:
-      console.error("Usage: wspace worktree add|list|remove");
+      console.error("Usage: works worktree add|list|remove");
       return 2;
   }
 }
@@ -384,7 +384,7 @@ async function runCommand(
       // Install runs through the converging fixpoint in runInstallConverging
       // before runCommand is reached; this case only handles misuse.
       console.error(
-        "Usage: wspace install [<repo...>] [--json] [--workspace <name>]",
+        "Usage: works install [<repo...>] [--json] [--workspace <name>]",
       );
       return 2;
     }
@@ -410,7 +410,7 @@ async function runCommand(
     }
     case "env": {
       if (opts.subcommand !== "sync") {
-        console.error("Usage: wspace env sync [--dry-run] [--json]");
+        console.error("Usage: works env sync [--dry-run] [--json]");
         return 2;
       }
       const rows = await syncEnv(g, manifest, paths, { dryRun: opts.dryRun });
@@ -511,7 +511,7 @@ async function runInstallConverging(
       `NOTE: Fresh clones do not contain files listed in .gitignore.
 Required setup steps may include:
   - Running npm install / deno install / pip install etc. in each repo
-  - Copying .env files from secrets/ (run: wspace env sync)
+  - Copying .env files from secrets/ (run: works env sync)
   - Any repo-specific setup documented in each repo's README`,
     );
   }
@@ -521,7 +521,7 @@ Required setup steps may include:
 /**
  * Scaffold a brand-new workspace: write a fresh manifest (schema v4) with
  * optional host/owner and seeded shorthand entries, create the standard
- * directories, and point the user at `wspace install`. Fails closed when any
+ * directories, and point the user at `works install`. Fails closed when any
  * manifest already exists in the target directory; seeds are validated through
  * the same normalize/validate pipeline as an existing manifest before
  * anything is written.
@@ -568,7 +568,7 @@ async function runInitScaffold(opts: CliOptions): Promise<number> {
   console.log(`Created ${target} (schema v${CURRENT_SCHEMA_VERSION})`);
   console.log("Created repos/, worktrees/, secrets/");
   if (opts.positional.length > 0) {
-    console.log("Next: run `wspace install` to clone the listed repositories.");
+    console.log("Next: run `works install` to clone the listed repositories.");
   }
   return 0;
 }
@@ -604,7 +604,7 @@ async function runManifestEdit(
 ): Promise<number> {
   if (!(await exists(manifestPath))) {
     console.error(
-      `No manifest found at ${manifestPath}; run \`wspace init\` first`,
+      `No manifest found at ${manifestPath}; run \`works init\` first`,
     );
     return 2;
   }
@@ -674,7 +674,7 @@ async function runAdd(
   } else {
     const shorthand = opts.positional[0];
     if (!shorthand) {
-      console.error("Usage: wspace add [<name>] [--url <url>] [--name <n>]");
+      console.error("Usage: works add [<name>] [--url <url>] [--name <n>]");
       return 2;
     }
     const host = manifest.host ?? "github.com";
@@ -731,7 +731,7 @@ async function runAdd(
   printRows(rows, opts.json);
   if (!opts.dryRun) {
     await Deno.writeTextFile(manifestPath, newText);
-    console.log(`Next: run \`wspace install ${entryName}\` to clone it.`);
+    console.log(`Next: run \`works install ${entryName}\` to clone it.`);
   }
   return 0;
 }
@@ -750,7 +750,7 @@ async function runRemove(
   }
   const target = opts.positional[0];
   if (!target || opts.positional.length > 1) {
-    console.error("Usage: wspace remove <repo>");
+    console.error("Usage: works remove <repo>");
     return 2;
   }
   const existing = manifest.repositories.find((r) => r.name === target);

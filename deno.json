@@ -1,13 +1,13 @@
 {
   "name": "@wazoo/workspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts",
     "./cli": "./src/cli.ts"
   },
   "bin": {
-    "wspace": "./src/cli.ts"
+    "works": "./src/cli.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.0",
@@ -18,7 +18,7 @@
     "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },
   "tasks": {
-    "build": "deno compile --allow-read --allow-write --allow-run=git --output wspace src/cli.ts",
+    "build": "deno compile --allow-read --allow-write --allow-run=git --output works src/cli.ts",
     "ci": "deno fmt --check && deno lint && deno check src/ tests/ && deno task test",
     "test": "deno test --allow-read --allow-write --allow-run --allow-env"
   },

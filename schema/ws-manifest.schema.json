@@ -22,7 +22,7 @@
     "worktreesDirectory": { "type": "string" },
     "secretsDirectory": {
       "type": "string",
-      "description": "Gitignored directory holding per-repository local config files synced by `wspace env sync` (renamed from vaultDirectory in schema v4; default \"secrets\")."
+      "description": "Gitignored directory holding per-repository local config files synced by `works env sync` (renamed from vaultDirectory in schema v4; default \"secrets\")."
     },
     "repositories": {
       "type": "array",
