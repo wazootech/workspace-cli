@@ -11,7 +11,7 @@ safe, predictable progress and clearly report what it skipped and why.
 
 ## Decision
 
-`wspace update` applies this policy, per repository:
+`works update` applies this policy, per repository:
 
 1. Fetch the remote.
 2. Compute the state of the current branch.

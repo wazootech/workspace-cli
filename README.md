@@ -11,11 +11,11 @@
   <a href="https://deepwiki.com/wazootech/workspace-cli"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
 </p>
 
-# wspace — Wazoo workspace CLI
+# works — Wazoo workspace CLI
 
 ## Goal
 
-`wspace` is a small, git-native CLI that manages a multi-repo Wazoo workspace
+`works` is a small, git-native CLI that manages a multi-repo Wazoo workspace
 without Git submodules. It keeps the working rules in one place and makes them
 enforceable from the terminal.
 
@@ -30,48 +30,48 @@ Design principles:
   default branches; it never resets, rebases, stashes, or rewrites history.
 - **Machine-readable output.** `check --json` emits structured results for
   tools; plain output is for humans.
-- **Exit code contract.** `wspace check` exits `0` when the workspace is clean
+- **Exit code contract.** `works check` exits `0` when the workspace is clean
   and `1` when any repository is dirty, diverged, missing, or otherwise not in
   sync.
 
 ## Commands
 
-- `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
+- `works check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
-- `wspace init [--host <host>] [--owner <owner>] [<repo...>]` — one-time
-  scaffold for an empty directory: writes a fresh `workspace.json` (schema v4)
-  with optional host/owner and seeded shorthand entries, and creates the
-  standard `repos/`, `worktrees/`, and `secrets/` directories. Fails closed if
-  any manifest already exists.
-- `wspace install [<repo...>]` — clone missing repositories from the manifest
-  (or only a specified subset of repos). Prints a warning that fresh clones lack
+- `works init [--host <host>] [--owner <owner>] [<repo...>]` — one-time scaffold
+  for an empty directory: writes a fresh `workspace.json` (schema v4) with
+  optional host/owner and seeded shorthand entries, and creates the standard
+  `repos/`, `worktrees/`, and `secrets/` directories. Fails closed if any
+  manifest already exists.
+- `works install [<repo...>]` — clone missing repositories from the manifest (or
+  only a specified subset of repos). Prints a warning that fresh clones lack
   gitignored files and repo-specific setup.
-- `wspace add [<name>] [--url <url>] [--name <n>] [--create]
+- `works add [<name>] [--url <url>] [--name <n>] [--create]
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
   with `--name` or a positional name). Edits are surgical: comments in
   `.jsonc`/`.yaml` manifests survive. GitHub shorthand entries are probed with
   `gh`; pass `--create` to create a missing repository first (default private).
-  Nothing is cloned; run `wspace install <name>` afterwards.
-- `wspace remove <repo>` — delete the entry whose effective name matches.
+  Nothing is cloned; run `works install <name>` afterwards.
+- `works remove <repo>` — delete the entry whose effective name matches.
   Surgical edit; local checkouts are never deleted.
-- `wspace update` — fetch remotes and fast-forward only clean default branches.
-- `wspace worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
+- `works update` — fetch remotes and fast-forward only clean default branches.
+- `works worktree add <repo> <feature> [<commit-ish>]` — create a git worktree
   under `worktrees/<repo>/<feature>/`, branching from the repo's default-branch
   baseline (`origin/<default>`) or an explicit `<commit-ish>`. Attaches an
   existing branch of the same name with a warning.
-- `wspace worktree list [--stale] [--json]` — list worktrees across all
+- `works worktree list [--stale] [--json]` — list worktrees across all
   repositories. `--stale` filters to linked worktrees whose branch is fully
   merged into the default branch (or missing), i.e. safe removal candidates.
-- `wspace worktree remove <repo> <feature>` — remove a worktree, then prune and
+- `works worktree remove <repo> <feature>` — remove a worktree, then prune and
   tidy the now-empty `worktrees/<repo>/` directory.
-- `wspace env sync` — copy local environment files from a gitignored `secrets/`
+- `works env sync` — copy local environment files from a gitignored `secrets/`
   directory into checkouts and worktrees.
-- `wspace validate` — validate the manifest without touching any repository.
-- `wspace workspaces [--json]` — list discovered sub-workspaces with repo
-  counts. `check`, `install`, `update`, and `worktree list` accept
-  `--workspace <name>` to scope the command to one sub-workspace.
+- `works validate` — validate the manifest without touching any repository.
+- `works workspaces [--json]` — list discovered sub-workspaces with repo counts.
+  `check`, `install`, `update`, and `worktree list` accept `--workspace <name>`
+  to scope the command to one sub-workspace.
 
 ## Sub-workspaces
 
@@ -128,7 +128,7 @@ the explicit form with your chosen label as `name`:
 
 The aliased copy is an ordinary explicit-url entry: it never auto-composes.
 
-`wspace install` converges in one invocation: each pass clones what is missing,
+`works install` converges in one invocation: each pass clones what is missing,
 re-resolves the tree (newly cloned containers may reveal detected
 sub-workspaces), and repeats until nothing new appears. Every other command
 resolves once against whatever is currently on disk.
@@ -150,7 +150,7 @@ removals produce pointed errors instead of silent misbehavior.
 
 ## Agent skills
 
-The [`wspace` agent skill](skills/wspace/SKILL.md) packages the same workspace
+The [`works` agent skill](skills/works/SKILL.md) packages the same workspace
 discipline into a loadable skill for coding agents (Claude Code, Cursor,
 OpenCode, Gemini, and others). It is not a thin wrapper around the CLI — it
 encodes a set of opinionated software engineering practices that apply to any
@@ -159,7 +159,7 @@ multi-repo workspace:
 - **Worktree isolation as default.** The skill makes "never edit the canonical
   checkout" the only path, not an opt-in. Eliminates an entire class of "oops I
   was on main" incidents across any multi-repo setup.
-- **Single-round-trip discovery.** `wspace check --json` replaces per-repo `ls`
+- **Single-round-trip discovery.** `works check --json` replaces per-repo `ls`
   and `git status` probing. Fewer tool calls means faster time to the first
   useful action and less context consumed per session.
 - **Pipeline with verifiable exit conditions.** Each step ends on a checkable
@@ -173,7 +173,7 @@ multi-repo workspace:
   command syntax in reference files loaded on demand.
 
 ```bash
-npx skills add wazootech/workspace-cli@wspace
+npx skills add wazootech/workspace-cli@works
 ```
 
 The skill reads the workspace manifest and CLI the same way a human would — but
@@ -187,17 +187,17 @@ follow this standard lifecycle:
 
 1. **Check workspace status**:
    ```sh
-   wspace check
+   works check
    ```
 2. **Refresh clean default branches**:
    ```sh
-   wspace update
+   works update
    ```
 3. **Create a feature worktree**:
    ```sh
    git -C repos/<repo> worktree add "$PWD/worktrees/<repo>/<feature>" -b <feature>
    ```
-   _(Or using `wspace`: `wspace worktree add <repo> <feature>`)_
+   _(Or using `works`: `works worktree add <repo> <feature>`)_
 4. **Develop inside the worktree**:
    ```sh
    cd worktrees/<repo>/<feature>
@@ -205,8 +205,8 @@ follow this standard lifecycle:
    ```
 5. **Sync local secrets when needed**:
    ```sh
-   wspace env sync --dry-run   # preview changes
-   wspace env sync             # copy secrets with mode 0600 permissions
+   works env sync --dry-run   # preview changes
+   works env sync             # copy secrets with mode 0600 permissions
    ```
 6. **Push and open a PR**:
    ```sh
@@ -215,11 +215,11 @@ follow this standard lifecycle:
    ```
 7. **Find stale worktrees after PR merge**:
    ```sh
-   wspace worktree list --stale
+   works worktree list --stale
    ```
 8. **Clean up merged worktree**:
    ```sh
-   wspace worktree remove <repo> <feature>
+   works worktree remove <repo> <feature>
    ```
 
 ### Important Path Resolution Rules
@@ -234,7 +234,7 @@ follow this standard lifecycle:
   `repos/<repo>/worktrees/...` instead of at the workspace root. Using
   `"$PWD/worktrees/<repo>/<feature>"` resolves `$PWD` from the workspace root
   before Git runs.
-- **Default Worktree Baseline**: `wspace worktree add` branches from
+- **Default Worktree Baseline**: `works worktree add` branches from
   `origin/<default>` (resolved via `origin/HEAD`), ensuring feature branches
   start from the remote baseline rather than a local dirty state or arbitrary
   `HEAD`.
@@ -259,23 +259,23 @@ package managers optimize dependency caching across worktrees:
 
 - **`PATH_BLOCKED` or `INVALID` during `install`**: An existing directory or
   file occupies the expected repository path but is not a valid Git repository.
-  `wspace install` fails closed without touching or overwriting the path. Remove
+  `works install` fails closed without touching or overwriting the path. Remove
   or relocate the blocking path manually.
 - **`SKIP_FEATURE` / `FEATURE_CLEAN`**: Indicates that `repos/<repo>` is checked
-  out on a feature branch instead of the default branch. `wspace update` skips
+  out on a feature branch instead of the default branch. `works update` skips
   updating feature branches to protect user work.
-- **Symlink rejection in `env sync`**: For security, `wspace env sync` will
+- **Symlink rejection in `env sync`**: For security, `works env sync` will
   refuse to overwrite any destination path that is a symbolic link.
-- **Dirty linked worktrees**: `wspace check` inspects both primary checkouts and
+- **Dirty linked worktrees**: `works check` inspects both primary checkouts and
   linked feature worktrees. If any linked worktree has uncommitted changes,
-  `wspace check` returns a non-zero exit code (`1`).
+  `works check` returns a non-zero exit code (`1`).
 
 ## Install
 
-Install from JSR as the `wspace` binary:
+Install from JSR as the `works` binary:
 
 ```sh
-deno install -g --name wspace jsr:@wazoo/workspace
+deno install -g --name works jsr:@wazoo/workspace
 ```
 
 Or build a local binary:
@@ -284,7 +284,7 @@ Or build a local binary:
 deno task build
 ```
 
-Requires a Deno runtime (v2+). The `wspace` binary has no runtime dependencies.
+Requires a Deno runtime (v2+). The `works` binary has no runtime dependencies.
 
 ## Development
 

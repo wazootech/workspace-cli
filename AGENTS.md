@@ -2,7 +2,7 @@
 
 ## Repository
 
-`wazootech/workspace-cli` — the `wspace` binary. A thin, git-native CLI for
+`wazootech/workspace-cli` — the `works` binary. A thin, git-native CLI for
 managing the Wazoo multi-repo workspace without submodules. See `README.md`.
 
 ## Conventions
@@ -15,11 +15,11 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
   interface over `git`/`gh`/filesystem) so logic stays testable.
 - Commands never mutate user work: update fast-forwards clean default branches
   only; worktree and env operations refuse dirty or feature-branch checkouts.
-- `wspace init` scaffolds a new workspace manifest and standard directories in
-  an empty location; `wspace install` clones missing repositories from the
-  manifest; `wspace add`/`remove` curate manifest entries surgically (comments
-  preserved; remove never deletes checkouts); `wspace check` exits 0 on clean, 1
-  on any non-clean repo.
+- `works init` scaffolds a new workspace manifest and standard directories in an
+  empty location; `works install` clones missing repositories from the manifest;
+  `works add`/`remove` curate manifest entries surgically (comments preserved;
+  remove never deletes checkouts); `works check` exits 0 on clean, 1 on any
+  non-clean repo.
 
 ## Verification
 
