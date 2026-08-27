@@ -4,7 +4,6 @@
  * document text or throw ManifestEditError without side effects.
  * Unrecognized layouts fail closed so a malformed file is never half-edited.
  */
-import { parse as parseYaml } from "@std/yaml";
 import { expandShorthand } from "./manifest.ts";
 
 export class ManifestEditError extends Error {}
@@ -22,14 +21,6 @@ export function formatEntryJsonc(entry: NewEntry): string {
   return `{ "name": ${JSON.stringify(entry.name)}, "url": ${
     JSON.stringify(entry.url)
   } }`;
-}
-
-/** Render an entry as it is written into .yaml/.yml manifests. */
-export function formatEntryYaml(entry: NewEntry): string {
-  if (entry.kind === "shorthand") {
-    return entry.raw;
-  }
-  return `{ name: ${entry.name}, url: ${entry.url} }`;
 }
 
 /**
@@ -62,177 +53,11 @@ export function removeEntryJsonc(
   );
 }
 
-/**
- * Insert an entry into the repositories collection of a .yaml/.yml document.
- * Block sequences append an item; flow sequences delegate to the bracket
- * scanner.
- */
-export function addEntryYaml(raw: string, entryText: string): string {
-  const flow = locateYamlFlowArray(raw);
-  if (flow !== undefined) {
-    return spliceIntoScan(raw, flow, entryText);
-  }
-  const block = scanYamlBlockItems(raw);
-  const indent = " ".repeat(block.appendIndent);
-  const insertAt = block.appendAt;
-  // Appending at end-of-file keeps the file's final-newline convention: the
-  // new item becomes the last line with its own terminator.
-  if (insertAt >= raw.length && raw.endsWith("\n")) {
-    return raw + `${indent}- ${entryText}\n`;
-  }
-  // If the cursor sits just past a newline (blank line mid-file), the item
-  // line needs no extra separator.
-  const leadingNewline = insertAt > 0 && raw[insertAt - 1] === "\n" ? "" : "\n";
-  return raw.slice(0, insertAt) + `${leadingNewline}${indent}- ${entryText}` +
-    raw.slice(insertAt);
-}
-
-/**
- * Remove the entry whose effective repository name equals `targetName` from
- * a .yaml/.yml document, block or flow form.
- */
-export function removeEntryYaml(
-  raw: string,
-  targetName: string,
-  owner?: string,
-  host = "github.com",
-): string {
-  const flow = locateYamlFlowArray(raw);
-  if (flow !== undefined) {
-    for (const el of flow.elements) {
-      let parsed: unknown;
-      try {
-        parsed = parseYaml(raw.slice(el.start, el.end));
-      } catch {
-        continue;
-      }
-      if (parsedEntryName(parsed, owner, host) !== targetName) continue;
-      return spliceOutSpan(raw, el);
-    }
-    throw new ManifestEditError(
-      `Repository "${targetName}" not found in manifest`,
-    );
-  }
-  const block = scanYamlBlockItems(raw);
-  for (const item of block.items) {
-    if (parsedEntryName(parseYaml(item.text), owner, host) !== targetName) {
-      continue;
-    }
-    return raw.slice(0, item.removeStart) + raw.slice(item.removeEnd);
-  }
-  throw new ManifestEditError(
-    `Repository "${targetName}" not found in manifest`,
-  );
-}
-
 interface ArrayScan {
   arrayStart: number;
   arrayEnd: number;
   /** Element spans with absolute indices into raw, trimmed of whitespace. */
   elements: { start: number; end: number }[];
-}
-
-interface YamlBlockScan {
-  appendAt: number;
-  appendIndent: number;
-  items: {
-    text: string;
-    removeStart: number;
-    removeEnd: number;
-  }[];
-}
-
-interface Line {
-  text: string;
-  start: number;
-  /** Index just past this line's terminator (or EOF). */
-  eol: number;
-}
-
-function splitLines(raw: string): Line[] {
-  const lines: Line[] = [];
-  let p = 0;
-  while (p <= raw.length) {
-    const nl = raw.indexOf("\n", p);
-    const end = nl === -1 ? raw.length : nl;
-    lines.push({
-      text: raw.slice(p, end),
-      start: p,
-      eol: nl === -1 ? raw.length : nl + 1,
-    });
-    if (nl === -1) break;
-    p = nl + 1;
-  }
-  return lines;
-}
-
-function indentOf(lineText: string): number {
-  const m = /^[ \t]*/.exec(lineText);
-  return m !== null ? m[0].length : 0;
-}
-
-function scanYamlBlockItems(raw: string): YamlBlockScan {
-  const lines = splitLines(raw);
-  let keyIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^repositories:\s*$/.test(lines[i].text)) {
-      keyIdx = i;
-      break;
-    }
-  }
-  if (keyIdx === -1) {
-    throw new ManifestEditError(
-      `No top-level "repositories:" key found in YAML manifest`,
-    );
-  }
-  const keyIndent = indentOf(lines[keyIdx].text);
-  const items: YamlBlockScan["items"] = [];
-  let itemIndent = keyIndent + 2;
-  let appendAt = lines[keyIdx].eol;
-  for (let i = keyIdx + 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.text.trim() === "") continue;
-    const ind = indentOf(line.text);
-    if (ind <= keyIndent) break;
-    if (!line.text.trimStart().startsWith("- ")) break;
-    itemIndent = ind;
-    const contentLines = [line.text.trimStart().slice(2)];
-    let groupLast = i;
-    let j = i + 1;
-    for (; j < lines.length; j++) {
-      const cont = lines[j];
-      if (cont.text.trim() === "") break;
-      const contInd = indentOf(cont.text);
-      if (contInd <= itemIndent) break;
-      if (cont.text.trimStart().startsWith("- ")) break;
-      contentLines.push(cont.text.trimStart());
-      groupLast = j;
-    }
-    items.push({
-      text: contentLines.join("\n"),
-      removeStart: line.start,
-      removeEnd: lines[groupLast].eol,
-    });
-    appendAt = lines[groupLast].eol;
-    i = j - 1;
-  }
-  return { appendAt, appendIndent: itemIndent, items };
-}
-
-function locateYamlFlowArray(raw: string): ArrayScan | undefined {
-  const keyMatch = /^repositories:[ \t]*/m.exec(raw);
-  if (keyMatch === null || keyMatch.index === undefined) {
-    throw new ManifestEditError(
-      `No top-level "repositories:" key found in YAML manifest`,
-    );
-  }
-  const valueStart = keyMatch.index + keyMatch[0].length;
-  const lineEnd = raw.indexOf("\n", valueStart);
-  const open = raw.indexOf("[", valueStart);
-  if (open === -1 || (lineEnd !== -1 && open > lineEnd)) {
-    return undefined;
-  }
-  return scanBracketSpan(raw, open);
 }
 
 function locateJsoncRepositoriesArray(raw: string): ArrayScan {

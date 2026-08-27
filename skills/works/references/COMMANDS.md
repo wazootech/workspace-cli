@@ -4,9 +4,9 @@ The `works` CLI manages a multi-repo Wazoo workspace without Git submodules. It
 keeps the working rules in one place and enforces them from the terminal.
 
 Run every command from the workspace root, the directory containing the
-manifest. Discovery checks the base names `workspace`, `wspace`, and `repos`
-against the extensions `.json`, `.jsonc`, `.yaml`, and `.yml`, in that order.
-Pass `--manifest <path>` to point at a manifest elsewhere.
+manifest. Discovery checks the base name `workspace` against the extensions
+`.json` and `.jsonc`, in that order. Pass `--manifest <path>` to point at a
+manifest elsewhere.
 
 ## Design principles
 

@@ -23,7 +23,7 @@ Design principles:
 
 - **Thin over custom.** Prefer plain `git` porcelain/plumbing and well-known
   directory conventions over bespoke state files. The workspace layout is
-  encoded in a single `repos.json` manifest.
+  encoded in a single `workspace.json` manifest.
 - **Conservative mutation.** Commands that write or move state (update,
   worktree, env) refuse to touch dirty repositories, feature branches, missing
   repos, or unmanaged checkouts. `update` only fetches and fast-forwards clean
@@ -50,10 +50,10 @@ Design principles:
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
-  with `--name` or a positional name). Edits are surgical: comments in
-  `.jsonc`/`.yaml` manifests survive. GitHub shorthand entries are probed with
-  `gh`; pass `--create` to create a missing repository first (default private).
-  Nothing is cloned; run `works install <name>` afterwards.
+  with `--name` or a positional name). Edits are surgical: comments in `.jsonc`
+  manifests survive. GitHub shorthand entries are probed with `gh`; pass
+  `--create` to create a missing repository first (default private). Nothing is
+  cloned; run `works install <name>` afterwards.
 - `works remove <repo>` — delete the entry whose effective name matches.
   Surgical edit; local checkouts are never deleted.
 - `works update` — fetch remotes and fast-forward only clean default branches.
@@ -75,9 +75,9 @@ Design principles:
 
 ## Sub-workspaces
 
-The manifest can be `workspace.json`, `wspace.json`, or `repos.json` in `.json`,
-`.jsonc`, or `.yaml`/`.yml` format (JSONC allows comments and trailing commas).
-Discovery is name-first, then extension.
+The manifest is `workspace.json` (or `.jsonc`) in `.json` or `.jsonc` format
+(JSONC allows comments and trailing commas). Discovery is name-first, then
+extension.
 
 Schema v4 keeps one `repositories` array with exactly two entry forms:
 
@@ -148,6 +148,12 @@ workspaces now compose automatically through detection. Entry fields `path`,
 `{ "name", "url" }`. `vaultDirectory` was renamed to `secretsDirectory`. All
 removals produce pointed errors instead of silent misbehavior.
 
+Manifest discovery has been simplified to `workspace.json` / `.jsonc` only. The
+`wspace.json` and `repos.json` filename fallbacks and `.yaml` / `.yml` format
+support have been removed. Migrate by renaming your manifest file to
+`workspace.json` (or `workspace.jsonc`) and converting any YAML manifests to
+JSON. Pass `--manifest <path>` to point at a manifest elsewhere.
+
 ## Agent skills
 
 The [`works` agent skill](skills/works/SKILL.md) packages the same workspace
@@ -182,8 +188,8 @@ it never needs to be taught the conventions twice.
 ## Beginner Worktree Lifecycle
 
 All workspace commands run from the workspace root (the directory containing
-`repos.json`). When creating worktrees for parallel feature development, always
-follow this standard lifecycle:
+`workspace.json`). When creating worktrees for parallel feature development,
+always follow this standard lifecycle:
 
 1. **Check workspace status**:
    ```sh
@@ -225,9 +231,8 @@ follow this standard lifecycle:
 ### Important Path Resolution Rules
 
 - **Workspace Root Anchor**: All repository and worktree paths in
-  `workspace.json` (or `wspace.json` / `repos.json`) resolve relative to the
-  directory containing the manifest file, regardless of the caller's current
-  working directory.
+  `workspace.json` resolve relative to the directory containing the manifest
+  file, regardless of the caller's current working directory.
 - **Why `$PWD` is required with `git -C`**: `git -C repos/<repo>` changes Git's
   working directory to `repos/<repo>` before executing. If you pass a relative
   path like `worktrees/<repo>/<feature>`, Git creates the worktree nested inside
