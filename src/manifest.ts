@@ -108,7 +108,7 @@ export function normalizeManifest(
   }
   if (doc.workspaces !== undefined) {
     throw new Error(
-      `Manifest ${manifestPath}: "workspaces" was removed in schema v4. Declare each child workspace's repositories directly, or rely on auto-composition: a cloned repository containing its own manifest composes automatically.`,
+      `Manifest ${manifestPath}: "workspaces" was removed in schema v4. Declare each child workspace's repositories directly in the parent manifest.`,
     );
   }
   const owner = doc.owner;
@@ -136,7 +136,7 @@ export function normalizeManifest(
     for (const key of EVICTED_ENTRY_KEYS) {
       if (record[key] !== undefined) {
         throw new Error(
-          `${at} sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }; sub-workspaces compose automatically when a repository contains its own manifest.`,
+          `${at} sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }.`,
         );
       }
     }
@@ -196,7 +196,6 @@ export function expandShorthand(
   return {
     name,
     url: `https://${host}/${entryOwner}/${name}.git`,
-    autoCompose: true,
   };
 }
 
@@ -205,11 +204,8 @@ export function validateSafeName(name: string, contextName = "Name"): void {
     throw new Error(`${contextName} cannot be empty`);
   }
   if (
-    name.includes("/") ||
-    name.includes("\\") ||
-    name === "." ||
-    name === ".." ||
-    name.includes("..")
+    name.includes("/") || name.includes("\\") || name === "." ||
+    name === ".." || name.includes("..")
   ) {
     throw new Error(
       `${contextName} "${name}" contains invalid characters or path traversal`,
@@ -318,85 +314,21 @@ export async function loadManifest(
 }
 
 /**
- * Resolve the workspace tree: load the root manifest, then recursively load
- * every sub-workspace detected on disk under bare-string entries whose
- * checkout contains a workspace manifest. Flatten the repo list with
- * workspace attribution. Repositories declared by a sub-workspace resolve
- * their paths against that sub-workspace's own root. Throws on circular
- * manifest references; a detected manifest that was already visited degrades
- * silently to a plain repository row.
+ * Resolve the workspace tree: flatten the repo list from the manifest with
+ * workspace attribution. Each repository's path is resolved against the
+ * workspace's configured directories.
  */
-export async function resolveWorkspaceTree(
+export function resolveWorkspaceTree(
   manifest: WorkspaceManifest,
   manifestPath: string,
-): Promise<ResolvedWorkspace> {
-  const children = new Map<string, WorkspaceManifest>();
-  const allRepos: RepositoryEntry[] = [];
-  const visitedManifestDirs = new Set<string>();
-
-  await collectWorkspace(manifest, manifestPath, undefined);
-
-  return {
-    root: manifest,
-    children,
-    repositories: allRepos,
-  };
-
-  async function collectWorkspace(
-    wsManifest: WorkspaceManifest,
-    wsManifestPath: string,
-    workspaceName: string | undefined,
-  ): Promise<void> {
-    const manifestDir = normalize(resolve(dirname(resolve(wsManifestPath))));
-    if (visitedManifestDirs.has(manifestDir)) {
-      throw new Error(`Circular sub-workspace reference at: ${manifestDir}`);
-    }
-    visitedManifestDirs.add(manifestDir);
-
-    const wsPaths = manifestPaths(wsManifest, wsManifestPath);
-    const detectedChildren: { name: string; path: string }[] = [];
-    for (const repo of wsManifest.repositories) {
-      const resolvedRow: RepositoryEntry = {
-        ...repo,
-        workspace: workspaceName,
-        resolvedPath: resolveRepositoryPath(repo, wsPaths),
-      };
-      allRepos.push(resolvedRow);
-
-      // Schema v4 auto-composition: bare-string entries may be workspaces.
-      // Detection happens at the entry's checkout root and only after the
-      // container exists on disk; objects never compose implicitly.
-      if (repo.autoCompose) {
-        const detectedPath = await findExistingManifest(
-          resolvedRow.resolvedPath!,
-        );
-        if (detectedPath === undefined) continue;
-        const detectedDir = normalize(
-          resolve(dirname(resolve(detectedPath))),
-        );
-        // Already part of this resolution tree (e.g. a repository that hosts
-        // its own root manifest): degrade silently to a plain leaf row.
-        if (visitedManifestDirs.has(detectedDir)) continue;
-        detectedChildren.push({
-          name: repo.name,
-          path: normalize(detectedPath),
-        });
-      }
-    }
-
-    for (const child of detectedChildren) {
-      if (children.has(child.name)) {
-        throw new Error(`Duplicate workspace name: ${child.name}`);
-      }
-      const childManifest = await loadManifest(child.path);
-      children.set(child.name, childManifest);
-      await collectWorkspace(
-        childManifest,
-        child.path,
-        child.name,
-      );
-    }
-  }
+): ResolvedWorkspace {
+  const paths = manifestPaths(manifest, manifestPath);
+  const repositories = manifest.repositories.map((repo) => ({
+    ...repo,
+    workspace: undefined as string | undefined,
+    resolvedPath: resolveRepositoryPath(repo, paths),
+  }));
+  return { root: manifest, repositories };
 }
 
 /**
@@ -435,11 +367,18 @@ export function listWorkspaces(
     result.push({ name: "(root)", repos: rootRepos.length, child: false });
   }
 
-  for (const [name, _child] of resolved.children) {
-    const childRepos = resolved.repositories.filter(
-      (r) => r.workspace === name,
-    );
-    result.push({ name, repos: childRepos.length, child: true });
+  // Group repos by workspace name.
+  const byWorkspace = new Map<string, RepositoryEntry[]>();
+  for (const repo of resolved.repositories) {
+    if (repo.workspace) {
+      const existing = byWorkspace.get(repo.workspace) ?? [];
+      existing.push(repo);
+      byWorkspace.set(repo.workspace, existing);
+    }
+  }
+
+  for (const [name, repos] of byWorkspace) {
+    result.push({ name, repos: repos.length, child: true });
   }
 
   return result;

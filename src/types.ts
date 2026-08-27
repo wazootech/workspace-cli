@@ -2,12 +2,6 @@ export interface RepositoryEntry {
   name: string;
   /** Clone URL. Any Git host; shorthand entries expand to GitHub-style HTTPS. */
   url: string;
-  /**
-   * Set when this entry was written as a bare string in schema v4. Such
-   * entries auto-compose as a detected sub-workspace when their checkout
-   * contains a workspace manifest. Internal marker; never authored by hand.
-   */
-  autoCompose?: boolean;
   /** Absolute path resolved from the owning workspace's root (set in the resolved view). */
   resolvedPath?: string;
   /** Name of the sub-workspace this repo belongs to (set in resolved view). */
@@ -36,13 +30,11 @@ export interface WorkspaceManifest {
   repositories: RepositoryEntry[];
 }
 
-/** Flattened view combining parent + all detected/declared child manifests. */
+/** Resolved view of the workspace: the root manifest and all repositories. */
 export interface ResolvedWorkspace {
-  /** The root (parent) manifest. */
+  /** The root manifest. */
   root: WorkspaceManifest;
-  /** All child manifests keyed by workspace name. */
-  children: Map<string, WorkspaceManifest>;
-  /** Flattened repository list with workspace attribution. */
+  /** All repositories with workspace attribution. */
   repositories: RepositoryEntry[];
 }
 

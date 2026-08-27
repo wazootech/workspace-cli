@@ -35,8 +35,6 @@ import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
 
-/** Defensive cap on install convergence passes; cycle detection fires first. */
-const MAX_INSTALL_PASSES = 16;
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -378,7 +376,7 @@ async function runCommand(
       return hasErrors(rows) ? 1 : 0;
     }
     case "install": {
-      // Install runs through the converging fixpoint in runInstallConverging
+      // Install runs through the converging fixpoint in runInstall
       // before runCommand is reached; this case only handles misuse.
       console.error(
         "Usage: works install [<repo...>] [--json] [--workspace <name>]",
@@ -461,11 +459,9 @@ function flattenResolved(
 }
 
 /**
- * Drive install to convergence: resolve the tree (detecting sub-workspaces that
- * only became readable after this pass's clones), clone what is missing, and
- * repeat until a pass clones nothing new. Scoped targets stay single-pass.
+ * Resolve the workspace tree, clone missing repositories, and print results.
  */
-async function runInstallConverging(
+async function runInstall(
   opts: CliOptions,
   manifest: WorkspaceManifest,
   manifestPath: string,
@@ -473,36 +469,23 @@ async function runInstallConverging(
 ): Promise<number> {
   const targets = opts.subcommand ? [opts.subcommand, ...opts.positional] : [];
   const paths = manifestPaths(manifest, manifestPath);
-  const latest = new Map<string, InstallRow>();
-  let failed = false;
 
-  for (let pass = 0; pass < MAX_INSTALL_PASSES; pass++) {
-    const resolved = await resolveWorkspaceTree(manifest, manifestPath);
-    const flat = flattenResolved(resolved, manifest);
+  const resolved = resolveWorkspaceTree(manifest, manifestPath);
+  const flat = flattenResolved(resolved, manifest);
 
-    const scoped = opts.workspace
-      ? {
-        ...flat,
-        repositories: flat.repositories.filter(
-          (r) => r.workspace === opts.workspace,
-        ),
-      }
-      : flat;
-    const passRows = await cloneMissing(g, scoped, paths, targets);
-    const fresh = passRows.filter(
-      (r) => latest.get(r.name)?.state !== r.state,
-    );
-    printRows(fresh, opts.json);
-    for (const row of passRows) latest.set(row.name, row);
-
-    if (passRows.some(isBadInstallRow)) {
-      failed = true;
-      break;
+  const scoped = opts.workspace
+    ? {
+      ...flat,
+      repositories: flat.repositories.filter(
+        (r) => r.workspace === opts.workspace,
+      ),
     }
-    const clonedNow = passRows.some((r) => r.state === "CLONED");
-    if (!clonedNow || targets.length > 0) break;
-  }
+    : flat;
 
+  const rows = await cloneMissing(g, scoped, paths, targets);
+  printRows(rows, opts.json);
+
+  const failed = rows.some(isBadInstallRow);
   if (!failed) {
     console.error(
       `NOTE: Fresh clones do not contain files listed in .gitignore.
@@ -905,12 +888,12 @@ export async function run(args: string[]): Promise<number> {
   const g = new SystemGit();
 
   if (opts.command === "install") {
-    return await runInstallConverging(opts, manifest, manifestPath, g);
+    return await runInstall(opts, manifest, manifestPath, g);
   }
 
   // Every other command resolves once; detected sub-workspaces reflect
   // whatever is currently on disk.
-  const resolvedTree = await resolveWorkspaceTree(manifest, manifestPath);
+  const resolvedTree = resolveWorkspaceTree(manifest, manifestPath);
 
   // Detect conflicts.
   const conflicts = detectConflicts(resolvedTree);

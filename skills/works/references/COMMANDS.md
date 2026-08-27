@@ -31,11 +31,9 @@ Schema version 4 keeps one `repositories[]` array with exactly two entry forms:
 
 1. **Shorthand** `"repo"`, `"owner/repo"`, or `{ "name", "owner" }` — expands
    against the manifest's `host` (default `github.com`) and top-level/default
-   `owner` to `https://<host>/<owner>/<name>.git`. After cloning, if the
-   checkout contains a workspace manifest, it composes automatically as a
-   sub-workspace.
-2. **Object** `{ "name", "url" }` — a plain repository for any Git host; never
-   auto-composes. `url` and `owner` are mutually exclusive on object entries.
+   `owner` to `https://<host>/<owner>/<name>.git`.
+2. **Object** `{ "name", "url" }` — a plain repository for any Git host. `url`
+   and `owner` are mutually exclusive on object entries.
 
 Legacy keys removed in v4 produce migration errors: `workspaces[]` (composition
 is now automatic through detection), entry fields `path`, `groups`,
@@ -49,8 +47,7 @@ post-expansion label: ownership lives in URLs, never in paths. Names reject
 slashes, backslashes, and traversal; duplicates - within a manifest or across
 the composed tree - are errors. To use a different local label than the
 shorthand name, write the explicit form with your chosen `name` plus a full
-`url`; explicit-url entries never auto-compose. Child manifests are
-self-contained: their own `host` and `owner` apply.
+`url`. Child manifests are self-contained: their own `host` and `owner` apply.
 
 Recursion conventions: child manifests re-root their own directory defaults;
 worktrees always land under the root workspace's `worktrees/`; `env sync` always
