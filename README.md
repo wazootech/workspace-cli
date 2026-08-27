@@ -302,3 +302,4 @@ integration tests against real local git repositories).
 - [ADR-0001: Git-native worktrees](docs/adr/0001-git-native-worktrees.md)
 - [ADR-0002: Conservative update policy](docs/adr/0002-conservative-update-policy.md)
 - [ADR-0003: Explicit worktree baseline and merged-branch staleness](docs/adr/0003-worktree-baseline-and-staleness.md)
+- [ADR-0004: The works command name](docs/adr/0004-works-command-name.md)
