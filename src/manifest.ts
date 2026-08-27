@@ -1,6 +1,5 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
 import { parse as parseJsonc } from "@std/jsonc";
-import { parse as parseYaml } from "@std/yaml";
 import { exists } from "@std/fs";
 import type {
   RepositoryEntry,
@@ -11,14 +10,10 @@ import type {
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
-export const DEFAULT_MANIFEST_FILENAMES = [
-  "workspace",
-  "wspace",
-  "repos",
-];
+export const DEFAULT_MANIFEST_FILENAMES = ["workspace"];
 
 /** Supported manifest formats by file extension, in discovery priority order. */
-export const MANIFEST_EXTENSIONS = [".json", ".jsonc", ".yaml", ".yml"];
+export const MANIFEST_EXTENSIONS = [".json", ".jsonc"];
 
 export interface ManifestPaths {
   root: string;
@@ -60,10 +55,6 @@ function parseManifestText(manifestPath: string, raw: string): unknown {
         break;
       case ".jsonc":
         parsed = parseJsonc(raw);
-        break;
-      case ".yaml":
-      case ".yml":
-        parsed = parseYaml(raw);
         break;
       default:
         throw new Error(

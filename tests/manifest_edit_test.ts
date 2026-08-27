@@ -2,10 +2,8 @@ import { assertEquals, assertThrows } from "@std/assert";
 import type { GitResult, GitRunner } from "../src/git.ts";
 import {
   addEntryJsonc,
-  addEntryYaml,
   ManifestEditError,
   removeEntryJsonc,
-  removeEntryYaml,
 } from "../src/manifest-edit.ts";
 import { createGitHubRepo, probeGitHubRepo } from "../src/remote.ts";
 
@@ -100,92 +98,6 @@ Deno.test("jsonc edits preserve CRLF line endings outside touched spans", () => 
   assertEquals(
     out,
     `{\r\n  "repositories": [\r\n    "a",\r\n    "b",\r\n    "c"\r\n  ]\r\n}\r\n`,
-  );
-});
-
-const YAML_BLOCK_FIXTURE = `schemaVersion: 4
-owner: acme
-# comment
-repositories:
-  - api
-  - acme/tool
-  - name: web
-    url: https://gitlab.com/acme/web.git
-`;
-
-Deno.test("addEntryYaml appends after the last block item", () => {
-  const out = addEntryYaml(YAML_BLOCK_FIXTURE, "newsvc");
-  assertEquals(
-    out,
-    `schemaVersion: 4
-owner: acme
-# comment
-repositories:
-  - api
-  - acme/tool
-  - name: web
-    url: https://gitlab.com/acme/web.git
-  - newsvc
-`,
-  );
-});
-
-Deno.test("addEntryYaml writes the first item under an empty key", () => {
-  const fixture = `owner: acme\nrepositories:\n`;
-  assertEquals(
-    addEntryYaml(fixture, "api"),
-    `owner: acme\nrepositories:\n  - api\n`,
-  );
-});
-
-Deno.test("removeEntryYaml deletes a scalar shorthand item", () => {
-  const out = removeEntryYaml(YAML_BLOCK_FIXTURE, "tool", "acme");
-  assertEquals(
-    out,
-    `schemaVersion: 4
-owner: acme
-# comment
-repositories:
-  - api
-  - name: web
-    url: https://gitlab.com/acme/web.git
-`,
-  );
-});
-
-Deno.test("removeEntryYaml deletes a multi-line mapping item", () => {
-  const out = removeEntryYaml(YAML_BLOCK_FIXTURE, "web", "acme");
-  assertEquals(
-    out,
-    `schemaVersion: 4
-owner: acme
-# comment
-repositories:
-  - api
-  - acme/tool
-`,
-  );
-});
-
-Deno.test("yaml flow arrays round-trip through add and remove", () => {
-  const fixture = `owner: acme\nrepositories: ["api", acme/tool]\n`;
-  const added = addEntryYaml(fixture, "extra");
-  assertEquals(added, `owner: acme\nrepositories: ["api", acme/tool, extra]\n`);
-  const removed = removeEntryYaml(added, "tool");
-  assertEquals(
-    removed,
-    `owner: acme\nrepositories: ["api", extra]\n`,
-  );
-});
-
-Deno.test("yaml edits fail closed when repositories key is missing", () => {
-  assertThrows(
-    () => addEntryYaml(`owner: acme\n`, "api"),
-    ManifestEditError,
-  );
-  assertThrows(
-    () => removeEntryYaml(`owner: acme\n`, "api"),
-    ManifestEditError,
   );
 });
 

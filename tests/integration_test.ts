@@ -1364,7 +1364,7 @@ Deno.test("works install converges string-shorthand detection in one invocation"
       await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
       if (manifest) {
         await Deno.writeTextFile(
-          join(seed, "repos.json"),
+          join(seed, "workspace.json"),
           JSON.stringify(manifest),
         );
         // Nested clones land under the container's repos/ directory; ignore
@@ -1457,7 +1457,7 @@ Deno.test("works install converges slash-shorthand on a custom host in one invoc
         // Child manifests are self-contained: shorthand entries resolve
         // against THIS manifest's host and owner, never the parent's.
         await Deno.writeTextFile(
-          join(seed, "repos.json"),
+          join(seed, "workspace.json"),
           JSON.stringify(manifest),
         );
         // Ignore nested repos/ so composed checkouts keep this repo clean.

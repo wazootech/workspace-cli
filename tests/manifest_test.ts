@@ -44,7 +44,7 @@ Deno.test("validateManifest rejects a newer schema version", () => {
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
 });
 
-// --- JSONC and YAML manifests ---
+// --- Manifest format tests ---
 
 Deno.test("loadManifest parses jsonc manifests with comments", async () => {
   const tempDir = await Deno.makeTempDir();
@@ -69,24 +69,19 @@ Deno.test("loadManifest parses jsonc manifests with comments", async () => {
   }
 });
 
-Deno.test("loadManifest parses yaml manifests", async () => {
+Deno.test("loadManifest rejects yaml manifests (unsupported format)", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.yaml");
     await Deno.writeTextFile(
       manifestPath,
-      `schemaVersion: 4
-owner: acme
-repositories:
-  - shared-reference
-`,
+      `schemaVersion: 4\nowner: acme\nrepositories:\n  - shared-reference\n`,
     );
 
-    const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.repositories.length, 1);
-    assertEquals(
-      manifest.repositories[0].url,
-      "https://github.com/acme/shared-reference.git",
+    await assertRejects(
+      () => loadManifest(manifestPath),
+      Error,
+      "Unsupported manifest format",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -108,7 +103,7 @@ Deno.test("loadManifest rejects unsupported manifest extensions", async () => {
   }
 });
 
-Deno.test("loadManifest rejects yaml documents without a repositories array", async () => {
+Deno.test("loadManifest rejects yaml documents (unsupported format)", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.yaml");
@@ -116,25 +111,20 @@ Deno.test("loadManifest rejects yaml documents without a repositories array", as
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
-      "must be an object with a repositories array",
+      "Unsupported manifest format",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
 });
 
-Deno.test("findDefaultManifestPath discovers jsonc and yaml manifests", async () => {
+Deno.test("findDefaultManifestPath discovers json and jsonc manifests", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
-    // Discovery is name-first (workspace > wspace > repos), then extension
-    // (.json > .jsonc > .yaml > .yml).
-    const jsoncPath = join(tempDir, "wspace.jsonc");
+    // Discovery is name-first (workspace), then extension (.json > .jsonc).
+    const jsoncPath = join(tempDir, "workspace.jsonc");
     await Deno.writeTextFile(jsoncPath, "{}\n");
     assertEquals(await findDefaultManifestPath(tempDir), jsoncPath);
-
-    const yamlPath = join(tempDir, "workspace.yaml");
-    await Deno.writeTextFile(yamlPath, "repositories: []\n");
-    assertEquals(await findDefaultManifestPath(tempDir), yamlPath);
 
     const jsonPath = join(tempDir, "workspace.json");
     await Deno.writeTextFile(jsonPath, "{}\n");
@@ -202,7 +192,7 @@ Deno.test("validateManifest rejects invalid repo names or traversal", () => {
   );
 });
 
-Deno.test("findDefaultManifestPath respects fallback order workspace.json -> wspace.json -> repos.json", async () => {
+Deno.test("findDefaultManifestPath defaults to workspace.json", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
     // When no manifest exists, defaults to workspace.json
@@ -211,17 +201,7 @@ Deno.test("findDefaultManifestPath respects fallback order workspace.json -> wsp
       join(tempDir, "workspace.json"),
     );
 
-    // If repos.json exists, resolves repos.json
-    const reposPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(reposPath, "{}");
-    assertEquals(await findDefaultManifestPath(tempDir), reposPath);
-
-    // If wspace.json exists, takes priority over repos.json
-    const wspacePath = join(tempDir, "wspace.json");
-    await Deno.writeTextFile(wspacePath, "{}");
-    assertEquals(await findDefaultManifestPath(tempDir), wspacePath);
-
-    // If workspace.json exists, takes top priority
+    // If workspace.json exists, resolves it
     const workspacePath = join(tempDir, "workspace.json");
     await Deno.writeTextFile(workspacePath, "{}");
     assertEquals(await findDefaultManifestPath(tempDir), workspacePath);
@@ -516,7 +496,7 @@ async function seedContainer(
   const containerDir = join(dir, "repos", "container");
   await Deno.mkdir(containerDir, { recursive: true });
   await Deno.writeTextFile(
-    join(containerDir, "repos.json"),
+    join(containerDir, "workspace.json"),
     JSON.stringify(options),
   );
   return containerDir;
@@ -612,11 +592,11 @@ Deno.test("resolveWorkspaceTree recurses into nested detected sub-workspaces", a
     const innerDir = join(containerDir, "repos", "inner");
     await Deno.mkdir(innerDir, { recursive: true });
     await Deno.writeTextFile(
-      join(containerDir, "repos.json"),
+      join(containerDir, "workspace.json"),
       JSON.stringify({ owner: "acme", repositories: ["inner"] }),
     );
     await Deno.writeTextFile(
-      join(innerDir, "repos.json"),
+      join(innerDir, "workspace.json"),
       JSON.stringify({
         repositories: [
           { name: "deep", url: "https://example.com/deep.git" },
@@ -668,11 +648,11 @@ Deno.test("resolveWorkspaceTree throws on duplicate detected workspace names acr
         recursive: true,
       });
       await Deno.writeTextFile(
-        join(containerDir, "repos.json"),
+        join(containerDir, "workspace.json"),
         JSON.stringify({ owner: "acme", repositories: ["dup"] }),
       );
       await Deno.writeTextFile(
-        join(containerDir, "repos", "dup", "repos.json"),
+        join(containerDir, "repos", "dup", "workspace.json"),
         JSON.stringify({ repositories: [] }),
       );
     }
@@ -710,7 +690,7 @@ Deno.test("resolveWorkspaceTree leaves object entries alone even when a manifest
     const containerDir = join(tempDir, "repos", "explicit");
     await Deno.mkdir(containerDir, { recursive: true });
     await Deno.writeTextFile(
-      join(containerDir, "repos.json"),
+      join(containerDir, "workspace.json"),
       JSON.stringify({ repositories: [] }),
     );
 

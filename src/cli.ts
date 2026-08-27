@@ -25,12 +25,9 @@ import {
 import type { ManifestPaths } from "./manifest.ts";
 import {
   addEntryJsonc,
-  addEntryYaml,
   formatEntryJsonc,
-  formatEntryYaml,
   ManifestEditError,
   removeEntryJsonc,
-  removeEntryYaml,
 } from "./manifest-edit.ts";
 import type { NewEntry } from "./manifest-edit.ts";
 import { createGitHubRepo, probeGitHubRepo } from "./remote.ts";
@@ -587,10 +584,6 @@ function isJsonLike(extension: string): boolean {
   return extension === ".json" || extension === ".jsonc";
 }
 
-function isYamlLike(extension: string): boolean {
-  return extension === ".yaml" || extension === ".yml";
-}
-
 /**
  * Curate the repositories array of an existing manifest: `add` appends a
  * shorthand or explicit-url entry (optionally creating a missing GitHub
@@ -609,9 +602,9 @@ async function runManifestEdit(
     return 2;
   }
   const extension = manifestExtension(manifestPath);
-  if (!isJsonLike(extension) && !isYamlLike(extension)) {
+  if (!isJsonLike(extension)) {
     console.error(
-      `Unsupported manifest format "${extension}" for editing (supported: .json, .jsonc, .yaml, .yml)`,
+      `Unsupported manifest format "${extension}" for editing (supported: .json, .jsonc)`,
     );
     return 2;
   }
@@ -809,9 +802,9 @@ function applyEntryEdit(
         ? addEntryJsonc(raw, formatEntryJsonc(entry!))
         : removeEntryJsonc(raw, targetName, owner, host);
     }
-    return mode === "add"
-      ? addEntryYaml(raw, formatEntryYaml(entry!))
-      : removeEntryYaml(raw, targetName, owner, host);
+    throw new ManifestEditError(
+      `Unsupported manifest format "${extension}" for editing`,
+    );
   } catch (error) {
     if (error instanceof ManifestEditError) {
       console.error(error.message);
