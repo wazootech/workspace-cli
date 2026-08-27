@@ -83,12 +83,9 @@ Schema v4 keeps one `repositories` array with exactly two entry forms:
 
 1. **Shorthand** — `"repo"`, `"owner/repo"`, or
    `{ "name": "...", "owner": "..." }` expands against the manifest's `host`
-   (default `github.com`) to `https://<host>/<owner>/<name>.git`. After cloning,
-   if the checkout contains a workspace manifest, it composes automatically as a
-   sub-workspace.
+   (default `github.com`) to `https://<host>/<owner>/<name>.git`.
 2. **Object** — `{ "name": "...", "url": "..." }` is a plain repository for any
-   Git host; it never auto-composes, even when a manifest exists inside its
-   checkout.
+   Git host.
 
 ```json
 {
@@ -126,7 +123,7 @@ the explicit form with your chosen label as `name`:
 }
 ```
 
-The aliased copy is an ordinary explicit-url entry: it never auto-composes.
+The aliased copy is an ordinary explicit-url entry.
 
 `works install` converges in one invocation: each pass clones what is missing,
 re-resolves the tree (newly cloned containers may reveal detected
@@ -203,7 +200,7 @@ always follow this standard lifecycle:
    ```sh
    git -C repos/<repo> worktree add "$PWD/worktrees/<repo>/<feature>" -b <feature>
    ```
-   _(Or using `works`: `works worktree add <repo> <feature>`)_
+   _(Or using `works`: `works worktree add <repo> <feature>`_
 4. **Develop inside the worktree**:
    ```sh
    cd worktrees/<repo>/<feature>
