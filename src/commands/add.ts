@@ -1,9 +1,5 @@
 import { SystemGit } from "@/git.ts";
-import {
-  expandShorthand,
-  validateManifestText,
-  validateSafeName,
-} from "@/manifest.ts";
+import { expandShorthand, validateManifestText } from "@/manifest.ts";
 import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
 import {
@@ -14,6 +10,7 @@ import {
 } from "@/shared.ts";
 import type { NewEntry } from "@/manifest-edit.ts";
 import type { WorkspaceManifest } from "@/types.ts";
+import { validateSafeName } from "@/validate.ts";
 
 /**
  * Append a repository to the manifest's repositories array. Accepts a GitHub

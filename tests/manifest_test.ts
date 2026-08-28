@@ -8,7 +8,9 @@ import {
   manifestPaths,
   resolveWorkspaceTree,
   validateManifest,
+  validateManifestText,
 } from "@/manifest.ts";
+import { validateSafeName } from "@/validate.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
 Deno.test("validateManifest accepts a valid manifest", () => {
@@ -543,4 +545,358 @@ Deno.test("listWorkspaces returns root with all repos", () => {
   const ws = listWorkspaces(resolved);
   assertEquals(ws.length, 1);
   assertEquals(ws[0], { name: "(root)", repos: 2, child: false });
+});
+
+// ---------------------------------------------------------------------------
+// expandShorthand — tested via validateManifestText
+// ---------------------------------------------------------------------------
+
+Deno.test("validateManifestText expands bare-string shorthand with owner", () => {
+  const raw = JSON.stringify({
+    owner: "acme",
+    repositories: ["api"],
+  });
+  const manifest = validateManifestText(raw, "/fake/workspace.json");
+  assertEquals(manifest.repositories[0].name, "api");
+  assertEquals(
+    manifest.repositories[0].url,
+    "https://github.com/acme/api.git",
+  );
+});
+
+Deno.test("validateManifestText expands owner/name inline shorthand", () => {
+  const raw = JSON.stringify({
+    repositories: ["acme/api"],
+  });
+  const manifest = validateManifestText(raw, "/fake/workspace.json");
+  assertEquals(manifest.repositories[0].name, "api");
+  assertEquals(
+    manifest.repositories[0].url,
+    "https://github.com/acme/api.git",
+  );
+});
+
+Deno.test("validateManifestText inline owner overrides top-level owner", () => {
+  const raw = JSON.stringify({
+    owner: "acme",
+    repositories: ["other/repo"],
+  });
+  const manifest = validateManifestText(raw, "/fake/workspace.json");
+  assertEquals(
+    manifest.repositories[0].url,
+    "https://github.com/other/repo.git",
+  );
+});
+
+Deno.test("validateManifestText expands shorthand against custom host", () => {
+  const raw = JSON.stringify({
+    host: "gitlab.com",
+    owner: "acme",
+    repositories: ["api"],
+  });
+  const manifest = validateManifestText(raw, "/fake/workspace.json");
+  assertEquals(
+    manifest.repositories[0].url,
+    "https://gitlab.com/acme/api.git",
+  );
+});
+
+Deno.test("validateManifestText rejects shorthand without owner", () => {
+  const raw = JSON.stringify({
+    repositories: ["api"],
+  });
+  assertThrows(
+    () => validateManifestText(raw, "/fake/workspace.json"),
+    Error,
+    'requires "owner"',
+  );
+});
+
+Deno.test("validateManifestText rejects multiple slashes in shorthand", () => {
+  const raw = JSON.stringify({
+    repositories: ["a/b/c"],
+  });
+  assertThrows(
+    () => validateManifestText(raw, "/fake/workspace.json"),
+    Error,
+    'exactly "owner/name"',
+  );
+});
+
+Deno.test("validateManifestText rejects shorthand with empty owner half", () => {
+  const raw = JSON.stringify({
+    repositories: ["/api"],
+  });
+  assertThrows(
+    () => validateManifestText(raw, "/fake/workspace.json"),
+    Error,
+    "both halves non-empty",
+  );
+});
+
+Deno.test("validateManifestText rejects shorthand with empty name half", () => {
+  const raw = JSON.stringify({
+    repositories: ["acme/"],
+  });
+  assertThrows(
+    () => validateManifestText(raw, "/fake/workspace.json"),
+    Error,
+    "both halves non-empty",
+  );
+});
+
+Deno.test("validateManifestText expands { name, owner } object shorthand", () => {
+  const raw = JSON.stringify({
+    host: "gitlab.com",
+    repositories: [{ name: "api", owner: "acme" }],
+  });
+  const manifest = validateManifestText(raw, "/fake/workspace.json");
+  assertEquals(manifest.repositories[0].name, "api");
+  assertEquals(
+    manifest.repositories[0].url,
+    "https://gitlab.com/acme/api.git",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// paths.resolveRepo — direct tests
+// ---------------------------------------------------------------------------
+
+Deno.test("paths.resolveRepo computes default path from reposDirectory", () => {
+  const manifest: WorkspaceManifest = { repositories: [] };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  assertEquals(
+    paths.resolveRepo({ name: "api" }),
+    join(wsDir, "repos", "api"),
+  );
+});
+
+Deno.test("paths.resolveRepo uses pre-set resolvedPath when available", () => {
+  const manifest: WorkspaceManifest = { repositories: [] };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  const expected = Deno.build.os === "windows"
+    ? "C:\\custom\\path"
+    : "/custom/path";
+  assertEquals(
+    paths.resolveRepo({ name: "api", resolvedPath: expected }),
+    expected,
+  );
+});
+
+Deno.test("paths.resolveRepo respects custom repositoriesDirectory", () => {
+  const manifest: WorkspaceManifest = {
+    repositoriesDirectory: "libs",
+    repositories: [],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  assertEquals(
+    paths.resolveRepo({ name: "api" }),
+    join(wsDir, "libs", "api"),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// resolveWorkspaceTree — expanded coverage
+// ---------------------------------------------------------------------------
+
+Deno.test("resolveWorkspaceTree computes resolvedPath for each repo", () => {
+  const manifest: WorkspaceManifest = {
+    repositories: [
+      { name: "a", url: "https://example.com/a.git" },
+      { name: "b", url: "https://example.com/b.git" },
+    ],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const resolved = resolveWorkspaceTree(
+    manifest,
+    join(wsDir, "workspace.json"),
+  );
+  assertEquals(resolved.repositories.length, 2);
+  assertEquals(
+    resolved.repositories[0].resolvedPath,
+    join(wsDir, "repos", "a"),
+  );
+  assertEquals(
+    resolved.repositories[1].resolvedPath,
+    join(wsDir, "repos", "b"),
+  );
+});
+
+Deno.test("resolveWorkspaceTree sets workspace to undefined for root repos", () => {
+  const manifest: WorkspaceManifest = {
+    repositories: [{ name: "a", url: "u" }],
+  };
+  const resolved = resolveWorkspaceTree(manifest, "/ws/workspace.json");
+  assertEquals(resolved.repositories[0].workspace, undefined);
+});
+
+Deno.test("resolveWorkspaceTree uses custom repositoriesDirectory", () => {
+  const manifest: WorkspaceManifest = {
+    repositoriesDirectory: "libs",
+    repositories: [{ name: "a", url: "u" }],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const resolved = resolveWorkspaceTree(
+    manifest,
+    join(wsDir, "workspace.json"),
+  );
+  assertEquals(
+    resolved.repositories[0].resolvedPath,
+    join(wsDir, "libs", "a"),
+  );
+});
+
+Deno.test("resolveWorkspaceTree preserves pre-set resolvedPath", () => {
+  const expected = Deno.build.os === "windows" ? "C:\\opt\\a" : "/opt/a";
+  const manifest: WorkspaceManifest = {
+    repositories: [
+      { name: "a", url: "u", resolvedPath: expected },
+    ],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const resolved = resolveWorkspaceTree(
+    manifest,
+    join(wsDir, "workspace.json"),
+  );
+  assertEquals(resolved.repositories[0].resolvedPath, expected);
+});
+
+// ---------------------------------------------------------------------------
+// manifestPaths — custom directory overrides
+// ---------------------------------------------------------------------------
+
+Deno.test("manifestPaths resolves relative repositoriesDirectory", () => {
+  const manifest: WorkspaceManifest = {
+    repositoriesDirectory: "libs",
+    repositories: [],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  assertEquals(paths.repositoriesDirectory, join(wsDir, "libs"));
+});
+
+Deno.test("manifestPaths honors absolute worktreesDirectory", () => {
+  const absWt = Deno.build.os === "windows" ? "C:\\tmp\\wt" : "/tmp/wt";
+  const manifest: WorkspaceManifest = {
+    worktreesDirectory: absWt,
+    repositories: [],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  assertEquals(paths.worktreesDirectory, absWt);
+});
+
+Deno.test("manifestPaths resolves relative secretsDirectory", () => {
+  const manifest: WorkspaceManifest = {
+    secretsDirectory: ".secrets",
+    repositories: [],
+  };
+  const wsDir = join(Deno.cwd(), "ws");
+  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
+  assertEquals(paths.secretsDirectory, join(wsDir, ".secrets"));
+});
+
+// ---------------------------------------------------------------------------
+// validateSafeName — direct tests
+// ---------------------------------------------------------------------------
+
+Deno.test("validateSafeName accepts a valid name", () => {
+  validateSafeName("my-repo");
+});
+
+Deno.test("validateSafeName rejects empty string", () => {
+  assertThrows(() => validateSafeName(""), Error, "cannot be empty");
+});
+
+Deno.test("validateSafeName rejects dot-dot traversal", () => {
+  assertThrows(
+    () => validateSafeName("../etc"),
+    Error,
+    "path traversal",
+  );
+});
+
+Deno.test("validateSafeName rejects single dot", () => {
+  assertThrows(() => validateSafeName("."), Error, "path traversal");
+});
+
+Deno.test("validateSafeName rejects name with embedded dot-dot", () => {
+  assertThrows(
+    () => validateSafeName("foo/../bar"),
+    Error,
+    "path traversal",
+  );
+});
+
+Deno.test("validateSafeName rejects name with backslash", () => {
+  assertThrows(
+    () => validateSafeName("foo\\bar"),
+    Error,
+    "path traversal",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// detectConflicts — additional edge cases
+// ---------------------------------------------------------------------------
+
+Deno.test("detectConflicts finds conflicts across three workspaces", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [
+      { name: "shared", url: "u", workspace: undefined },
+      { name: "shared", url: "u2", workspace: "child-a" },
+      { name: "shared", url: "u3", workspace: "child-b" },
+    ],
+  };
+  const conflicts = detectConflicts(resolved);
+  assertEquals(conflicts.length, 1);
+  assertEquals(conflicts[0].repoName, "shared");
+  assertEquals(conflicts[0].claimedBy.length, 3);
+});
+
+Deno.test("detectConflicts finds multiple distinct conflicts", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [
+      { name: "a", url: "u", workspace: undefined },
+      { name: "a", url: "u2", workspace: "child" },
+      { name: "b", url: "u3", workspace: undefined },
+      { name: "b", url: "u4", workspace: "child" },
+    ],
+  };
+  const conflicts = detectConflicts(resolved);
+  assertEquals(conflicts.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// listWorkspaces — additional edge cases
+// ---------------------------------------------------------------------------
+
+Deno.test("listWorkspaces returns empty for empty repositories", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [],
+  };
+  assertEquals(listWorkspaces(resolved).length, 0);
+});
+
+Deno.test("listWorkspaces groups repos by workspace name", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [
+      { name: "a", url: "u", workspace: undefined },
+      { name: "b", url: "u2", workspace: "child-x" },
+      { name: "c", url: "u3", workspace: "child-x" },
+      { name: "d", url: "u4", workspace: "child-y" },
+    ],
+  };
+  const ws = listWorkspaces(resolved);
+  assertEquals(ws.length, 3);
+  assertEquals(ws[0], { name: "(root)", repos: 1, child: false });
+  assertEquals(ws[1], { name: "child-x", repos: 2, child: true });
+  assertEquals(ws[2], { name: "child-y", repos: 1, child: true });
 });

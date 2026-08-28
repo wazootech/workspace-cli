@@ -9,7 +9,6 @@ import {
   isDirty,
 } from "./git.ts";
 import { exists } from "@std/fs";
-import { resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { RepositoryEntry, UpdateAction } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";
@@ -21,7 +20,7 @@ export async function planUpdate(
 ): Promise<UpdateAction[]> {
   const actions: UpdateAction[] = [];
   for (const repository of repositories) {
-    const repoPath = resolveRepositoryPath(repository, paths);
+    const repoPath = paths.resolveRepo(repository);
     if (!(await exists(repoPath))) {
       actions.push({ kind: "MISSING", name: repository.name });
       continue;

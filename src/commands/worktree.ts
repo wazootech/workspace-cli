@@ -3,7 +3,6 @@ import { join } from "@std/path";
 import { defaultBranch } from "@/git.ts";
 import type { GitRunner } from "@/git.ts";
 import type { ManifestPaths } from "@/manifest.ts";
-import { resolveRepositoryPath } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import { printRows, scopeManifest } from "@/shared.ts";
 import type { WorkspaceManifest } from "@/types.ts";
@@ -35,7 +34,7 @@ export async function run(
         reason?: string;
       }[] = [];
       for (const repository of scoped.repositories) {
-        const repoPath = resolveRepositoryPath(repository, paths);
+        const repoPath = paths.resolveRepo(repository);
         if (!(await exists(repoPath))) {
           continue;
         }
@@ -77,7 +76,7 @@ export async function run(
         console.error(`Unknown repository: ${repoName}`);
         return 2;
       }
-      const repoPath = resolveRepositoryPath(repository, paths);
+      const repoPath = paths.resolveRepo(repository);
       if (!(await exists(repoPath))) {
         console.error(`Repository not cloned: ${repoName}`);
         return 2;
@@ -127,7 +126,7 @@ export async function run(
         console.error(`Unknown repository: ${repoName}`);
         return 2;
       }
-      const repoPath = resolveRepositoryPath(repository, paths);
+      const repoPath = paths.resolveRepo(repository);
       if (!(await exists(repoPath))) {
         console.error(`Repository not cloned: ${repoName}`);
         return 2;

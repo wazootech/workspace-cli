@@ -7,6 +7,7 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
+import { validateSafeName } from "./validate.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -20,6 +21,8 @@ export interface ManifestPaths {
   repositoriesDirectory: string;
   worktreesDirectory: string;
   secretsDirectory: string;
+  /** Resolve the on-disk path for a repository entry. */
+  resolveRepo(repo: { name: string; resolvedPath?: string }): string;
 }
 
 /** Find an existing workspace manifest inside a directory, honoring the default name/extension discovery order. */
@@ -199,20 +202,6 @@ export function expandShorthand(
   };
 }
 
-export function validateSafeName(name: string, contextName = "Name"): void {
-  if (!name || typeof name !== "string" || name.trim() === "") {
-    throw new Error(`${contextName} cannot be empty`);
-  }
-  if (
-    name.includes("/") || name.includes("\\") || name === "." ||
-    name === ".." || name.includes("..")
-  ) {
-    throw new Error(
-      `${contextName} "${name}" contains invalid characters or path traversal`,
-    );
-  }
-}
-
 function requiredEntryMessage(repository: unknown): string {
   return `Repository entries are either bare strings or { "name", "url" }: ${
     JSON.stringify(repository)
@@ -264,8 +253,8 @@ export function validateManifestText(
   return normalized;
 }
 
-export function resolveRepositoryPath(
-  repository: RepositoryEntry,
+function resolveRepositoryPath(
+  repository: { name: string; resolvedPath?: string },
   paths: ManifestPaths,
 ): string {
   if (repository.resolvedPath !== undefined) {
@@ -293,12 +282,16 @@ export function manifestPaths(
       : normalize(resolve(root, value));
   };
 
-  return {
+  const paths: ManifestPaths = {
     root,
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
     worktreesDirectory: dirOption(manifest.worktreesDirectory, "worktrees"),
     secretsDirectory: dirOption(manifest.secretsDirectory, "secrets"),
+    resolveRepo(repo: { name: string; resolvedPath?: string }): string {
+      return resolveRepositoryPath(repo, paths);
+    },
   };
+  return paths;
 }
 
 export async function loadManifest(
@@ -326,7 +319,7 @@ export function resolveWorkspaceTree(
   const repositories = manifest.repositories.map((repo) => ({
     ...repo,
     workspace: undefined as string | undefined,
-    resolvedPath: resolveRepositoryPath(repo, paths),
+    resolvedPath: paths.resolveRepo(repo),
   }));
   return { root: manifest, repositories };
 }

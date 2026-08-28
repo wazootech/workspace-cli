@@ -13,7 +13,6 @@ export {
   CURRENT_SCHEMA_VERSION,
   loadManifest,
   manifestPaths,
-  resolveRepositoryPath,
   validateManifest,
 } from "./manifest.ts";
 export type { ManifestPaths } from "./manifest.ts";

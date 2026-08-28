@@ -75,12 +75,17 @@ async function seedCommitOnOrigin(
 }
 
 function pathsFor(dir: string): ManifestPaths {
-  return {
+  const p: ManifestPaths = {
     root: dir,
     repositoriesDirectory: dir,
     worktreesDirectory: join(dir, "worktrees"),
     secretsDirectory: join(dir, "secrets"),
+    resolveRepo(repo) {
+      if (repo.resolvedPath) return repo.resolvedPath;
+      return join(p.repositoriesDirectory, repo.name);
+    },
   };
+  return p;
 }
 
 Deno.test("defaultBranch resolves from origin/HEAD", async () => {

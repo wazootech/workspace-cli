@@ -1,7 +1,6 @@
 import { join } from "@std/path";
 import { exists } from "@std/fs";
 import type { GitRunner } from "./git.ts";
-import { resolveRepositoryPath } from "./manifest.ts";
 import type { ManifestPaths } from "./manifest.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";
@@ -72,7 +71,7 @@ export async function syncEnv(
       continue;
     }
 
-    const repoPath = resolveRepositoryPath(repository, paths);
+    const repoPath = paths.resolveRepo(repository);
     const targets = [repoPath];
     if (await exists(repoPath)) {
       for (const worktree of await listWorktrees(g, repoPath)) {

@@ -1,7 +1,7 @@
 import { normalize } from "@std/path";
 import { defaultBranch, hasRef } from "./git.ts";
 import type { GitResult, GitRunner } from "./git.ts";
-import { validateSafeName } from "./manifest.ts";
+import { validateSafeName } from "./validate.ts";
 import type { Worktree } from "./types.ts";
 
 export function parseWorktreesPorcelain(output: string): Worktree[] {
