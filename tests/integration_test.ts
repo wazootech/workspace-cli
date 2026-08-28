@@ -896,29 +896,6 @@ Deno.test("works remove fails on unknown names and dry-run writes nothing", asyn
   }
 });
 
-Deno.test("works add preserves JSONC comments through a CLI edit", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const manifestPath = join(dir, "workspace.jsonc");
-    await Deno.writeTextFile(
-      manifestPath,
-      `{\n  // team workspace\n  "schemaVersion": 4,\n  "host": "gitlab.com",\n  "owner": "acme",\n  "repositories": [\n    /* core */\n    "api",\n  ],\n}\n`,
-    );
-    assertEquals(
-      await run(["add", "tool", "--manifest", manifestPath]),
-      0,
-    );
-    const raw = await Deno.readTextFile(manifestPath);
-    assert(raw.includes("// team workspace"), "line comment must survive");
-    assert(raw.includes("/* core */"), "block comment must survive");
-    assert(raw.includes('"tool"'), "new entry must be present");
-    const { repositories } = await loadManifest(manifestPath);
-    assertEquals(repositories.map((r) => r.name), ["api", "tool"]);
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
 Deno.test("collectStatus reports linked worktrees and flags dirty linked worktrees", async () => {
   const dir = await Deno.makeTempDir();
   try {

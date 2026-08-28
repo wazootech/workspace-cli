@@ -47,29 +47,6 @@ Deno.test("validateManifest rejects a newer schema version", () => {
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
 });
 
-Deno.test("loadManifest parses jsonc manifests with comments", async () => {
-  const tempDir = await Deno.makeTempDir();
-  try {
-    const manifestPath = join(tempDir, "workspace.jsonc");
-    await Deno.writeTextFile(
-      manifestPath,
-      `{
-        // Cluster manifest for the umbra wikis.
-        "schemaVersion": 4,
-        "repositories": [
-          { "name": "a", "url": "https://example.com/a.git", }, // trailing comma
-        ],
-      }`,
-    );
-
-    const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.repositories.length, 1);
-    assertEquals(manifest.repositories[0].name, "a");
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
-
 Deno.test("loadManifest rejects yaml manifests (unsupported format)", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
@@ -119,14 +96,9 @@ Deno.test("loadManifest rejects yaml documents (unsupported format)", async () =
   }
 });
 
-Deno.test("findDefaultManifestPath discovers json and jsonc manifests", async () => {
+Deno.test("findDefaultManifestPath discovers json manifests", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
-    // Discovery is name-first (workspace), then extension (.json > .jsonc).
-    const jsoncPath = join(tempDir, "workspace.jsonc");
-    await Deno.writeTextFile(jsoncPath, "{}\n");
-    assertEquals(await findDefaultManifestPath(tempDir), jsoncPath);
-
     const jsonPath = join(tempDir, "workspace.json");
     await Deno.writeTextFile(jsonPath, "{}\n");
     assertEquals(await findDefaultManifestPath(tempDir), jsonPath);

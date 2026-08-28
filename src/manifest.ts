@@ -1,5 +1,4 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
-import { parse as parseJsonc } from "@std/jsonc";
 import { exists } from "@std/fs";
 import type {
   RepositoryEntry,
@@ -14,7 +13,7 @@ export const CURRENT_SCHEMA_VERSION = 4;
 export const DEFAULT_MANIFEST_FILENAMES = ["workspace"];
 
 /** Supported manifest formats by file extension, in discovery priority order. */
-export const MANIFEST_EXTENSIONS = [".json", ".jsonc"];
+export const MANIFEST_EXTENSIONS = [".json"];
 
 export interface ManifestPaths {
   root: string;
@@ -49,7 +48,7 @@ export async function findDefaultManifestPath(
 type RawRepositoryEntry = string | Record<string, unknown>;
 
 /**
- * Raw manifest shape as produced by JSON/JSONC parsing. Repository entries
+ * Raw manifest shape as produced by JSON parsing. Repository entries
  * are either shorthand strings or unvalidated objects — normalization
  * resolves them into typed RepositoryEntry values.
  */
@@ -67,22 +66,14 @@ export interface RawManifest {
 function parseManifestText(manifestPath: string, raw: string): RawManifest {
   const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
     .toLowerCase();
+  if (extension !== ".json") {
+    throw new Error(
+      `Unsupported manifest format "${extension}" (supported: .json)`,
+    );
+  }
   let parsed: unknown;
   try {
-    switch (extension) {
-      case ".json":
-        parsed = JSON.parse(raw);
-        break;
-      case ".jsonc":
-        parsed = parseJsonc(raw);
-        break;
-      default:
-        throw new Error(
-          `Unsupported manifest format "${extension}" (supported: ${
-            MANIFEST_EXTENSIONS.join(", ")
-          })`,
-        );
-    }
+    parsed = JSON.parse(raw);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse manifest ${manifestPath}: ${message}`);
