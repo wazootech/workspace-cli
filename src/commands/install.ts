@@ -2,7 +2,11 @@ import { exists } from "@std/fs";
 import { join } from "@std/path";
 import { clone } from "@/git.ts";
 import type { GitRunner } from "@/git.ts";
-import { manifestPaths, resolveWorkspaceTree } from "@/manifest.ts";
+import {
+  manifestPaths,
+  resolveRepoPath,
+  resolveWorkspaceTree,
+} from "@/manifest.ts";
 import type { ManifestPaths } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import { flattenResolved, printRows } from "@/shared.ts";
@@ -43,7 +47,7 @@ async function cloneMissing(
   }
   const rows: InstallRow[] = [];
   for (const repository of repositories) {
-    const repoPath = paths.resolveRepo(repository);
+    const repoPath = resolveRepoPath(repository, paths);
     if (await exists(repoPath)) {
       if (await exists(join(repoPath, ".git"))) {
         rows.push({ name: repository.name, state: "EXISTS" });

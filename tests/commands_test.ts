@@ -261,9 +261,6 @@ Deno.test("env: unknown subcommand returns 2", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {
@@ -299,9 +296,6 @@ Deno.test("check: missing repo returns exit code 1", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {
@@ -338,9 +332,6 @@ Deno.test("update: returns 0 for up-to-date repos", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(_args: string[], _cwd?: string): Promise<GitResult> {
@@ -374,9 +365,6 @@ Deno.test("worktree: unknown subcommand returns 2", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {
@@ -409,9 +397,6 @@ Deno.test("worktree: add with missing repo returns 2", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {
@@ -442,9 +427,6 @@ Deno.test("worktree: list with no repos returns 0", async () => {
     repositoriesDirectory: "/tmp/repos",
     worktreesDirectory: "/tmp/worktrees",
     secretsDirectory: "/tmp/secrets",
-    resolveRepo(repo: { name: string; resolvedPath?: string }) {
-      return repo.resolvedPath ?? `/tmp/repos/${repo.name}`;
-    },
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {

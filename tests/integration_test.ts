@@ -80,10 +80,6 @@ function pathsFor(dir: string): ManifestPaths {
     repositoriesDirectory: dir,
     worktreesDirectory: join(dir, "worktrees"),
     secretsDirectory: join(dir, "secrets"),
-    resolveRepo(repo) {
-      if (repo.resolvedPath) return repo.resolvedPath;
-      return join(p.repositoriesDirectory, repo.name);
-    },
   };
   return p;
 }
@@ -756,7 +752,7 @@ Deno.test("works add appends shorthand entries without touching remotes", async 
       repositories.map((r) => r.name),
       ["existing", "api", "tool"],
     );
-    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool.git");
+    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool");
   } finally {
     await removeTempDir(dir);
   }

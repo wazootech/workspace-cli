@@ -7,6 +7,7 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
+import { type Repository, resolveRepository } from "./resolve.ts";
 import { validateSafeName } from "./validate.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
@@ -21,8 +22,6 @@ export interface ManifestPaths {
   repositoriesDirectory: string;
   worktreesDirectory: string;
   secretsDirectory: string;
-  /** Resolve the on-disk path for a repository entry. */
-  resolveRepo(repo: { name: string; resolvedPath?: string }): string;
 }
 
 /** Find an existing workspace manifest inside a directory, honoring the default name/extension discovery order. */
@@ -133,7 +132,12 @@ export function normalizeManifest(
   const repositories = (doc.repositories as unknown[]).map((entry, index) => {
     const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
-      return expandShorthand(at, entry, owner, host);
+      try {
+        return resolveRepository({ host, owner }, entry);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${at}: ${message}`);
+      }
     }
     const record = entry as Record<string, unknown>;
     for (const key of EVICTED_ENTRY_KEYS) {
@@ -155,51 +159,17 @@ export function normalizeManifest(
     if (typeof entryOwner !== "string" || entryOwner === "") {
       throw new Error(`${at}: "owner" must be a non-empty string.`);
     }
-    return expandShorthand(
-      at,
-      typeof record.name === "string" ? record.name : "",
-      typeof entryOwner === "string" ? entryOwner : undefined,
-      host,
-    );
+    try {
+      return resolveRepository(
+        { host, owner },
+        record as unknown as Repository,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${at}: ${message}`);
+    }
   });
   return { ...(doc as Partial<WorkspaceManifest>), repositories };
-}
-
-/** Expand a shorthand ("name" or "owner/name") to a full repository entry. */
-export function expandShorthand(
-  at: string,
-  rawName: string,
-  fallbackOwner: string | undefined,
-  host: string,
-): RepositoryEntry {
-  let name = rawName;
-  let entryOwner = fallbackOwner;
-  const slashCount = (rawName.match(/\//g) ?? []).length;
-  if (slashCount > 1) {
-    throw new Error(
-      `${at} ("${rawName}") contains multiple slashes; use exactly "owner/name".`,
-    );
-  }
-  if (slashCount === 1) {
-    const [inlineOwner, ...rest] = rawName.split("/");
-    name = rest.join("/");
-    if (!inlineOwner || !name) {
-      throw new Error(
-        `${at} ("${rawName}") must be "owner/name" with both halves non-empty.`,
-      );
-    }
-    entryOwner = inlineOwner;
-  }
-  if (!entryOwner) {
-    throw new Error(
-      `${at} ("${rawName}") is a shorthand, which requires "owner" so it can expand to https://${host}/<owner>/${name}.`,
-    );
-  }
-  validateSafeName(name, "Repository name");
-  return {
-    name,
-    url: `https://${host}/${entryOwner}/${name}.git`,
-  };
 }
 
 function requiredEntryMessage(repository: unknown): string {
@@ -253,14 +223,19 @@ export function validateManifestText(
   return normalized;
 }
 
-function resolveRepositoryPath(
-  repository: { name: string; resolvedPath?: string },
+/**
+ * Resolve the on-disk path for a repository entry. Uses a pre-set
+ * `resolvedPath` when available, otherwise computes it from the
+ * workspace's repositories directory.
+ */
+export function resolveRepoPath(
+  repo: { name: string; resolvedPath?: string },
   paths: ManifestPaths,
 ): string {
-  if (repository.resolvedPath !== undefined) {
-    return normalize(resolve(repository.resolvedPath));
+  if (repo.resolvedPath !== undefined) {
+    return normalize(resolve(repo.resolvedPath));
   }
-  return normalize(resolve(paths.repositoriesDirectory, repository.name));
+  return normalize(resolve(paths.repositoriesDirectory, repo.name));
 }
 
 export function manifestPaths(
@@ -287,9 +262,6 @@ export function manifestPaths(
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
     worktreesDirectory: dirOption(manifest.worktreesDirectory, "worktrees"),
     secretsDirectory: dirOption(manifest.secretsDirectory, "secrets"),
-    resolveRepo(repo: { name: string; resolvedPath?: string }): string {
-      return resolveRepositoryPath(repo, paths);
-    },
   };
   return paths;
 }
@@ -319,7 +291,7 @@ export function resolveWorkspaceTree(
   const repositories = manifest.repositories.map((repo) => ({
     ...repo,
     workspace: undefined as string | undefined,
-    resolvedPath: paths.resolveRepo(repo),
+    resolvedPath: resolveRepoPath(repo, paths),
   }));
   return { root: manifest, repositories };
 }

@@ -1,5 +1,6 @@
 import { SystemGit } from "@/git.ts";
-import { expandShorthand, validateManifestText } from "@/manifest.ts";
+import { validateManifestText } from "@/manifest.ts";
+import { resolveRepository } from "@/resolve.ts";
 import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
 import {
@@ -76,7 +77,7 @@ async function runAdd(
     const host = manifest.host ?? "github.com";
     let expanded;
     try {
-      expanded = expandShorthand("manifest", shorthand, manifest.owner, host);
+      expanded = resolveRepository({ host, owner: manifest.owner }, shorthand);
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       return 2;

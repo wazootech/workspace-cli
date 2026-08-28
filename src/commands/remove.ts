@@ -1,5 +1,9 @@
 import { exists } from "@std/fs";
-import { manifestPaths, validateManifestText } from "@/manifest.ts";
+import {
+  manifestPaths,
+  resolveRepoPath,
+  validateManifestText,
+} from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import {
   applyEntryEdit,
@@ -61,7 +65,7 @@ async function runRemove(
   }
 
   const paths = manifestPaths(manifest, manifestPath);
-  const repoPath = paths.resolveRepo(existing);
+  const repoPath = resolveRepoPath(existing, paths);
   const checkoutRemains = await exists(repoPath);
 
   if (!opts.dryRun) {

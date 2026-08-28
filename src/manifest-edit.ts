@@ -4,7 +4,7 @@
  * document text or throw ManifestEditError without side effects.
  * Unrecognized layouts fail closed so a malformed file is never half-edited.
  */
-import { expandShorthand } from "./manifest.ts";
+import { resolveRepository } from "./resolve.ts";
 
 export class ManifestEditError extends Error {}
 
@@ -346,7 +346,7 @@ function parsedEntryName(
     // Unexpandable scalars (no resolvable owner) simply never match a
     // removal target; removal must not explode on unrelated entries.
     try {
-      return expandShorthand("manifest-edit", parsed, owner, host).name;
+      return resolveRepository({ host, owner }, parsed).name;
     } catch {
       return "";
     }

@@ -9,7 +9,7 @@ import {
   isDirty,
 } from "./git.ts";
 import { exists } from "@std/fs";
-import type { ManifestPaths } from "./manifest.ts";
+import { type ManifestPaths, resolveRepoPath } from "./manifest.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
 import { listWorktrees } from "./worktrees.ts";
 
@@ -128,7 +128,7 @@ export async function collectStatus(
   const rows: RepoStatus[] = [];
   const managed = new Set(manifest.repositories.map((r) => r.name));
   const managedPaths = new Set(
-    manifest.repositories.map((r) => normalize(paths.resolveRepo(r))),
+    manifest.repositories.map((r) => normalize(resolveRepoPath(r, paths))),
   );
   const reposDir = paths.repositoriesDirectory;
 
@@ -157,7 +157,7 @@ export async function collectStatus(
   }
 
   for (const repository of manifest.repositories) {
-    const repoPath = paths.resolveRepo(repository);
+    const repoPath = resolveRepoPath(repository, paths);
     const mainStatus = await repoStatus(g, repository, repoPath);
     rows.push(mainStatus);
 

@@ -6,10 +6,16 @@ import {
   listWorkspaces,
   loadManifest,
   manifestPaths,
+  resolveRepoPath,
   resolveWorkspaceTree,
   validateManifest,
   validateManifestText,
 } from "@/manifest.ts";
+import {
+  parseRepository,
+  resolveRepository,
+  resolveWorkspace,
+} from "@/resolve.ts";
 import { validateSafeName } from "@/validate.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
@@ -233,11 +239,11 @@ Deno.test("loadManifest expands bare-string entries against owner", async () => 
     assertEquals(manifest.repositories[0].name, "etok.me");
     assertEquals(
       manifest.repositories[0].url,
-      "https://github.com/ethanthatonekid/etok.me.git",
+      "https://github.com/ethanthatonekid/etok.me",
     );
     assertEquals(
       manifest.repositories[1].url,
-      "https://github.com/ethanthatonekid/memsdk.git",
+      "https://github.com/ethanthatonekid/memsdk",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -255,7 +261,7 @@ Deno.test("loadManifest rejects a bare-string entry without an owner", async () 
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
-      'requires "owner"',
+      "Invalid repository owner",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -299,7 +305,7 @@ Deno.test("loadManifest expands owner/name slash strings without top-level owner
     assertEquals(manifest.repositories[0].name, "memsdk");
     assertEquals(
       manifest.repositories[0].url,
-      "https://github.com/wazootech/memsdk.git",
+      "https://github.com/wazootech/memsdk",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -321,11 +327,11 @@ Deno.test("loadManifest lets inline owner override the top-level owner", async (
     const manifest = await loadManifest(manifestPath);
     assertEquals(
       manifest.repositories[0].url,
-      "https://github.com/wazootech/memsdk.git",
+      "https://github.com/wazootech/memsdk",
     );
     assertEquals(
       manifest.repositories[1].url,
-      "https://github.com/ethanthatonekid/etok.me.git",
+      "https://github.com/ethanthatonekid/etok.me",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -343,7 +349,7 @@ Deno.test("loadManifest rejects shorthand strings with multiple slashes", async 
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
-      'exactly "owner/name"',
+      "Unable to parse repository string",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -366,7 +372,7 @@ Deno.test("loadManifest expands { name, owner } object shorthands against host",
     assertEquals(manifest.repositories[0].name, "memsdk");
     assertEquals(
       manifest.repositories[0].url,
-      "https://gitlab.com/wazootech/memsdk.git",
+      "https://gitlab.com/wazootech/memsdk",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -560,7 +566,7 @@ Deno.test("validateManifestText expands bare-string shorthand with owner", () =>
   assertEquals(manifest.repositories[0].name, "api");
   assertEquals(
     manifest.repositories[0].url,
-    "https://github.com/acme/api.git",
+    "https://github.com/acme/api",
   );
 });
 
@@ -572,7 +578,7 @@ Deno.test("validateManifestText expands owner/name inline shorthand", () => {
   assertEquals(manifest.repositories[0].name, "api");
   assertEquals(
     manifest.repositories[0].url,
-    "https://github.com/acme/api.git",
+    "https://github.com/acme/api",
   );
 });
 
@@ -584,7 +590,7 @@ Deno.test("validateManifestText inline owner overrides top-level owner", () => {
   const manifest = validateManifestText(raw, "/fake/workspace.json");
   assertEquals(
     manifest.repositories[0].url,
-    "https://github.com/other/repo.git",
+    "https://github.com/other/repo",
   );
 });
 
@@ -597,7 +603,7 @@ Deno.test("validateManifestText expands shorthand against custom host", () => {
   const manifest = validateManifestText(raw, "/fake/workspace.json");
   assertEquals(
     manifest.repositories[0].url,
-    "https://gitlab.com/acme/api.git",
+    "https://gitlab.com/acme/api",
   );
 });
 
@@ -608,7 +614,7 @@ Deno.test("validateManifestText rejects shorthand without owner", () => {
   assertThrows(
     () => validateManifestText(raw, "/fake/workspace.json"),
     Error,
-    'requires "owner"',
+    "Invalid repository owner",
   );
 });
 
@@ -619,7 +625,7 @@ Deno.test("validateManifestText rejects multiple slashes in shorthand", () => {
   assertThrows(
     () => validateManifestText(raw, "/fake/workspace.json"),
     Error,
-    'exactly "owner/name"',
+    "Unable to parse repository string",
   );
 });
 
@@ -630,7 +636,7 @@ Deno.test("validateManifestText rejects shorthand with empty owner half", () => 
   assertThrows(
     () => validateManifestText(raw, "/fake/workspace.json"),
     Error,
-    "both halves non-empty",
+    "Unable to parse repository string",
   );
 });
 
@@ -641,7 +647,7 @@ Deno.test("validateManifestText rejects shorthand with empty name half", () => {
   assertThrows(
     () => validateManifestText(raw, "/fake/workspace.json"),
     Error,
-    "both halves non-empty",
+    "Unable to parse repository string",
   );
 });
 
@@ -654,25 +660,25 @@ Deno.test("validateManifestText expands { name, owner } object shorthand", () =>
   assertEquals(manifest.repositories[0].name, "api");
   assertEquals(
     manifest.repositories[0].url,
-    "https://gitlab.com/acme/api.git",
+    "https://gitlab.com/acme/api",
   );
 });
 
 // ---------------------------------------------------------------------------
-// paths.resolveRepo — direct tests
+// resolveRepoPath — direct tests
 // ---------------------------------------------------------------------------
 
-Deno.test("paths.resolveRepo computes default path from reposDirectory", () => {
+Deno.test("resolveRepoPath computes default path from reposDirectory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
   assertEquals(
-    paths.resolveRepo({ name: "api" }),
+    resolveRepoPath({ name: "api" }, paths),
     join(wsDir, "repos", "api"),
   );
 });
 
-Deno.test("paths.resolveRepo uses pre-set resolvedPath when available", () => {
+Deno.test("resolveRepoPath uses pre-set resolvedPath when available", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
@@ -680,12 +686,12 @@ Deno.test("paths.resolveRepo uses pre-set resolvedPath when available", () => {
     ? "C:\\custom\\path"
     : "/custom/path";
   assertEquals(
-    paths.resolveRepo({ name: "api", resolvedPath: expected }),
+    resolveRepoPath({ name: "api", resolvedPath: expected }, paths),
     expected,
   );
 });
 
-Deno.test("paths.resolveRepo respects custom repositoriesDirectory", () => {
+Deno.test("resolveRepoPath respects custom repositoriesDirectory", () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
     repositories: [],
@@ -693,7 +699,7 @@ Deno.test("paths.resolveRepo respects custom repositoriesDirectory", () => {
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
   assertEquals(
-    paths.resolveRepo({ name: "api" }),
+    resolveRepoPath({ name: "api" }, paths),
     join(wsDir, "libs", "api"),
   );
 });
@@ -899,4 +905,138 @@ Deno.test("listWorkspaces groups repos by workspace name", () => {
   assertEquals(ws[0], { name: "(root)", repos: 1, child: false });
   assertEquals(ws[1], { name: "child-x", repos: 2, child: true });
   assertEquals(ws[2], { name: "child-y", repos: 1, child: true });
+});
+
+// ---------------------------------------------------------------------------
+// resolve.ts — parseRepository
+// ---------------------------------------------------------------------------
+
+Deno.test("parseRepository parses bare name", () => {
+  assertEquals(parseRepository("api"), { name: "api" });
+});
+
+Deno.test("parseRepository parses owner/name", () => {
+  assertEquals(parseRepository("acme/api"), { owner: "acme", name: "api" });
+});
+
+Deno.test("parseRepository rejects multiple slashes", () => {
+  assertThrows(
+    () => parseRepository("a/b/c"),
+    Error,
+    "Unable to parse repository string",
+  );
+});
+
+Deno.test("parseRepository rejects empty owner half", () => {
+  assertThrows(
+    () => parseRepository("/api"),
+    Error,
+    "Unable to parse repository string",
+  );
+});
+
+Deno.test("parseRepository rejects empty name half", () => {
+  assertThrows(
+    () => parseRepository("acme/"),
+    Error,
+    "Unable to parse repository string",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// resolve.ts — resolveRepository
+// ---------------------------------------------------------------------------
+
+Deno.test("resolveRepository expands bare string with workspace owner", () => {
+  const result = resolveRepository(
+    { owner: "acme" },
+    "api",
+  );
+  assertEquals(result, { name: "api", url: "https://github.com/acme/api" });
+});
+
+Deno.test("resolveRepository expands owner/name inline shorthand", () => {
+  const result = resolveRepository(
+    { owner: "acme" },
+    "other/repo",
+  );
+  assertEquals(result, { name: "repo", url: "https://github.com/other/repo" });
+});
+
+Deno.test("resolveRepository inline owner overrides workspace owner", () => {
+  const result = resolveRepository(
+    { owner: "acme" },
+    { name: "repo", owner: "other" },
+  );
+  assertEquals(result, { name: "repo", url: "https://github.com/other/repo" });
+});
+
+Deno.test("resolveRepository passthrough explicit url", () => {
+  const result = resolveRepository(
+    { owner: "acme" },
+    { name: "custom", url: "https://gitlab.com/x/y.git" },
+  );
+  assertEquals(result, { name: "custom", url: "https://gitlab.com/x/y.git" });
+});
+
+Deno.test("resolveRepository uses custom host from repository", () => {
+  const result = resolveRepository(
+    { owner: "acme" },
+    { name: "api", host: "gitlab.com" },
+  );
+  assertEquals(result, { name: "api", url: "https://gitlab.com/acme/api" });
+});
+
+Deno.test("resolveRepository normalizes bare hostname to https", () => {
+  const result = resolveRepository(
+    { host: "github.com", owner: "acme" },
+    "api",
+  );
+  assertEquals(result, { name: "api", url: "https://github.com/acme/api" });
+});
+
+Deno.test("resolveRepository throws on missing owner", () => {
+  assertThrows(
+    () => resolveRepository({}, "api"),
+    Error,
+    "Invalid repository owner",
+  );
+});
+
+Deno.test("resolveRepository throws on invalid name", () => {
+  assertThrows(
+    () => resolveRepository({ owner: "acme" }, { name: "", url: undefined }),
+    Error,
+    "Invalid repository name",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// resolve.ts — resolveWorkspace
+// ---------------------------------------------------------------------------
+
+Deno.test("resolveWorkspace maps all repositories", () => {
+  const result = resolveWorkspace({
+    owner: "acme",
+    repositories: ["api", "other/repo"],
+  });
+  assertEquals(result.repositories.length, 2);
+  assertEquals(result.repositories[0], {
+    name: "api",
+    url: "https://github.com/acme/api",
+  });
+  assertEquals(result.repositories[1], {
+    name: "repo",
+    url: "https://github.com/other/repo",
+  });
+});
+
+Deno.test("resolveWorkspace preserves host and owner", () => {
+  const result = resolveWorkspace({
+    host: "gitlab.com",
+    owner: "acme",
+    repositories: ["api"],
+  });
+  assertEquals(result.host, "gitlab.com");
+  assertEquals(result.owner, "acme");
 });
