@@ -46,7 +46,27 @@ export async function findDefaultManifestPath(
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
-function parseManifestText(manifestPath: string, raw: string): unknown {
+/**
+ * Raw manifest shape as produced by JSON/JSONC parsing. Repository entries
+ * are either shorthand strings or unvalidated objects — normalization
+ * resolves them into typed RepositoryEntry values.
+ */
+export interface RawManifest {
+  schemaVersion?: number;
+  owner?: string;
+  host?: string;
+  workspaceRoot?: string;
+  repositoriesDirectory?: string;
+  worktreesDirectory?: string;
+  secretsDirectory?: string;
+  /** @deprecated Removed in schema v4 */
+  vaultDirectory?: unknown;
+  /** @deprecated Removed in schema v4 */
+  workspaces?: unknown;
+  repositories: Array<string | Record<string, unknown>>;
+}
+
+function parseManifestText(manifestPath: string, raw: string): RawManifest {
   const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
     .toLowerCase();
   let parsed: unknown;
@@ -71,13 +91,13 @@ function parseManifestText(manifestPath: string, raw: string): unknown {
   }
   if (
     typeof parsed !== "object" || parsed === null ||
-    !Array.isArray((parsed as { repositories?: unknown }).repositories)
+    !Array.isArray((parsed as Record<string, unknown>).repositories)
   ) {
     throw new Error(
       `Manifest ${manifestPath} must be an object with a repositories array`,
     );
   }
-  return parsed;
+  return parsed as RawManifest;
 }
 
 /**
@@ -87,10 +107,10 @@ function parseManifestText(manifestPath: string, raw: string): unknown {
  * github.com).
  */
 export function normalizeManifest(
-  parsed: unknown,
+  parsed: RawManifest,
   manifestPath: string,
 ): WorkspaceManifest {
-  const doc = parsed as Record<string, unknown>;
+  const doc = parsed;
   if (doc.vaultDirectory !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "vaultDirectory" was renamed to "secretsDirectory" in schema v4.`,
@@ -117,7 +137,7 @@ export function normalizeManifest(
     );
   }
 
-  const repositories = (doc.repositories as unknown[]).map((entry, index) => {
+  const repositories = doc.repositories.map((entry, index) => {
     const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
       try {
@@ -127,9 +147,12 @@ export function normalizeManifest(
         throw new Error(`${at}: ${message}`);
       }
     }
-    const record = entry as Record<string, unknown>;
+    const record = entry;
     if (record.owner === undefined) {
-      return entry as RepositoryEntry;
+      return {
+        name: typeof record.name === "string" ? record.name : "",
+        url: typeof record.url === "string" ? record.url : "",
+      };
     }
     if (record.url !== undefined && record.url !== "") {
       throw new Error(
@@ -155,7 +178,16 @@ export function normalizeManifest(
       throw new Error(`${at}: ${message}`);
     }
   });
-  return { ...(doc as Partial<WorkspaceManifest>), repositories };
+  return {
+    schemaVersion: doc.schemaVersion,
+    owner: doc.owner,
+    host: doc.host,
+    workspaceRoot: doc.workspaceRoot,
+    repositoriesDirectory: doc.repositoriesDirectory,
+    worktreesDirectory: doc.worktreesDirectory,
+    secretsDirectory: doc.secretsDirectory,
+    repositories,
+  };
 }
 
 function requiredEntryMessage(repository: unknown): string {
