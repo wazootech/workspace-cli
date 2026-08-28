@@ -11,7 +11,7 @@ import {
   validateManifest,
   validateManifestText,
 } from "@/manifest.ts";
-import { validateSafeName } from "@/validate.ts";
+import { validateSafeName } from "@/manifest.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
 Deno.test("validateManifest accepts a valid manifest", () => {
@@ -46,8 +46,6 @@ Deno.test("validateManifest rejects a newer schema version", () => {
   const manifest: WorkspaceManifest = { schemaVersion: 99, repositories: [] };
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
 });
-
-// --- Manifest format tests ---
 
 Deno.test("loadManifest parses jsonc manifests with comments", async () => {
   const tempDir = await Deno.makeTempDir();
@@ -212,8 +210,6 @@ Deno.test("findDefaultManifestPath defaults to workspace.json", async () => {
     await Deno.remove(tempDir, { recursive: true });
   }
 });
-
-// --- Schema v4: owner shorthand, evictions ---
 
 Deno.test("loadManifest expands bare-string entries against owner", async () => {
   const tempDir = await Deno.makeTempDir();
@@ -521,10 +517,6 @@ Deno.test("listWorkspaces returns root with all repos", () => {
   assertEquals(ws[0], { name: "(root)", repos: 2, child: false });
 });
 
-// ---------------------------------------------------------------------------
-// expandShorthand — tested via validateManifestText
-// ---------------------------------------------------------------------------
-
 Deno.test("validateManifestText expands bare-string shorthand with owner", () => {
   const raw = JSON.stringify({
     owner: "acme",
@@ -632,10 +624,6 @@ Deno.test("validateManifestText expands { name, owner } object shorthand", () =>
   );
 });
 
-// ---------------------------------------------------------------------------
-// resolveRepositoryPath — direct tests
-// ---------------------------------------------------------------------------
-
 Deno.test("resolveRepositoryPath computes default path from reposDirectory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(Deno.cwd(), "ws");
@@ -671,10 +659,6 @@ Deno.test("resolveRepositoryPath respects custom repositoriesDirectory", () => {
     join(wsDir, "libs", "api"),
   );
 });
-
-// ---------------------------------------------------------------------------
-// resolveWorkspaceTree — expanded coverage
-// ---------------------------------------------------------------------------
 
 Deno.test("resolveWorkspaceTree computes resolvedPath for each repo", () => {
   const manifest: WorkspaceManifest = {
@@ -738,10 +722,6 @@ Deno.test("resolveWorkspaceTree preserves pre-set resolvedPath", () => {
   assertEquals(resolved.repositories[0].resolvedPath, expected);
 });
 
-// ---------------------------------------------------------------------------
-// manifestPaths — custom directory overrides
-// ---------------------------------------------------------------------------
-
 Deno.test("manifestPaths resolves relative repositoriesDirectory", () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
@@ -773,9 +753,6 @@ Deno.test("manifestPaths resolves relative secretsDirectory", () => {
   assertEquals(paths.secretsDirectory, join(wsDir, ".secrets"));
 });
 
-// ---------------------------------------------------------------------------
-// validateSafeName — table-driven
-
 Deno.test("validateSafeName", async (t) => {
   const validCases = ["my-repo", "repo_name", "a.b", "123"];
   for (const name of validCases) {
@@ -798,12 +775,6 @@ Deno.test("validateSafeName", async (t) => {
     });
   }
 });
-
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// detectConflicts — additional edge cases
-// ---------------------------------------------------------------------------
 
 Deno.test("detectConflicts finds conflicts across three workspaces", () => {
   const resolved = {
@@ -834,10 +805,6 @@ Deno.test("detectConflicts finds multiple distinct conflicts", () => {
   assertEquals(conflicts.length, 2);
 });
 
-// ---------------------------------------------------------------------------
-// listWorkspaces — additional edge cases
-// ---------------------------------------------------------------------------
-
 Deno.test("listWorkspaces returns empty for empty repositories", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
@@ -862,5 +829,3 @@ Deno.test("listWorkspaces groups repos by workspace name", () => {
   assertEquals(ws[1], { name: "child-x", repos: 2, child: true });
   assertEquals(ws[2], { name: "child-y", repos: 1, child: true });
 });
-
-// ---------------------------------------------------------------------------

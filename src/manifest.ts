@@ -8,7 +8,6 @@ import type {
   WorkspaceManifest,
 } from "./types.ts";
 import { resolveRepository } from "./resolve.ts";
-import { validateSafeName } from "./validate.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -46,6 +45,9 @@ export async function findDefaultManifestPath(
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
+/** Raw repository entry — shorthand string or unvalidated object. */
+type RawRepositoryEntry = string | Record<string, unknown>;
+
 /**
  * Raw manifest shape as produced by JSON/JSONC parsing. Repository entries
  * are either shorthand strings or unvalidated objects — normalization
@@ -59,11 +61,7 @@ export interface RawManifest {
   repositoriesDirectory?: string;
   worktreesDirectory?: string;
   secretsDirectory?: string;
-  /** @deprecated Removed in schema v4 */
-  vaultDirectory?: unknown;
-  /** @deprecated Removed in schema v4 */
-  workspaces?: unknown;
-  repositories: Array<string | Record<string, unknown>>;
+  repositories: Array<string | RawRepositoryEntry>;
 }
 
 function parseManifestText(manifestPath: string, raw: string): RawManifest {
@@ -111,12 +109,13 @@ export function normalizeManifest(
   manifestPath: string,
 ): WorkspaceManifest {
   const doc = parsed;
-  if (doc.vaultDirectory !== undefined) {
+  const raw = doc as unknown as Record<string, unknown>;
+  if (raw.vaultDirectory !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "vaultDirectory" was renamed to "secretsDirectory" in schema v4.`,
     );
   }
-  if (doc.workspaces !== undefined) {
+  if (raw.workspaces !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "workspaces" was removed in schema v4. Declare each child workspace's repositories directly in the parent manifest.`,
     );
@@ -188,6 +187,20 @@ export function normalizeManifest(
     secretsDirectory: doc.secretsDirectory,
     repositories,
   };
+}
+
+export function validateSafeName(name: string, contextName = "Name"): void {
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    throw new Error(`${contextName} cannot be empty`);
+  }
+  if (
+    name.includes("/") || name.includes("\\") || name === "." ||
+    name === ".." || name.includes("..")
+  ) {
+    throw new Error(
+      `${contextName} "${name}" contains invalid characters or path traversal`,
+    );
+  }
 }
 
 function requiredEntryMessage(repository: unknown): string {
