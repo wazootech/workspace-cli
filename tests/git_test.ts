@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
-import { branchAb, configuredUpstream, defaultBranch } from "../src/git.ts";
-import type { GitResult, GitRunner } from "../src/git.ts";
+import { branchAb, configuredUpstream, defaultBranch } from "@/git.ts";
+import type { GitResult, GitRunner } from "@/git.ts";
 
 function respond(responses: Record<string, GitResult>): GitRunner {
   return {

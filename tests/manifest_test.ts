@@ -8,8 +8,8 @@ import {
   manifestPaths,
   resolveWorkspaceTree,
   validateManifest,
-} from "../src/manifest.ts";
-import type { WorkspaceManifest } from "../src/types.ts";
+} from "@/manifest.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 Deno.test("validateManifest accepts a valid manifest", () => {
   const manifest: WorkspaceManifest = {

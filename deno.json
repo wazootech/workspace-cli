@@ -10,6 +10,7 @@
     "works": "./src/cli.ts"
   },
   "imports": {
+    "@/": "./src/",
     "@std/assert": "jsr:@std/assert@^1.0.0",
     "@std/cli": "jsr:@std/cli@^1.0.0",
     "@std/fs": "jsr:@std/fs@^1.0.0",
@@ -19,7 +20,8 @@
   },
   "tasks": {
     "build": "deno compile --allow-read --allow-write --allow-run=git --output works src/cli.ts",
-    "ci": "deno fmt --check && deno lint && deno check src/ tests/ && deno task test",
+    "ci": "deno fmt --check && deno lint && deno task lint:imports && deno check src/ tests/ && deno task test",
+    "lint:imports": "deno run --allow-read scripts/lint_imports.ts",
     "test": "deno test --allow-read --allow-write --allow-run --allow-env"
   },
   "publish": {

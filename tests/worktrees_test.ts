@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { parseWorktreesPorcelain } from "../src/worktrees.ts";
+import { parseWorktreesPorcelain } from "@/worktrees.ts";
 
 const SAMPLE = `worktree C:/ws/repos/a
 HEAD 0123456789abcdef0123456789abcdef01234567

@@ -1,7 +1,7 @@
-import { listWorkspaces } from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
-import { printRows } from "../shared.ts";
-import type { ResolvedWorkspace } from "../types.ts";
+import { listWorkspaces } from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
+import { printRows } from "@/shared.ts";
+import type { ResolvedWorkspace } from "@/types.ts";
 
 export function run(
   opts: CliOptions,

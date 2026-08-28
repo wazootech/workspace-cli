@@ -1,8 +1,8 @@
 import { assertEquals } from "@std/assert";
-import { classifyState } from "../src/status.ts";
-import type { ClassifyInput } from "../src/status.ts";
-import { hasErrors } from "../src/status.ts";
-import type { RepoStatus } from "../src/types.ts";
+import { classifyState } from "@/status.ts";
+import type { ClassifyInput } from "@/status.ts";
+import { hasErrors } from "@/status.ts";
+import type { RepoStatus } from "@/types.ts";
 
 function input(overrides: Partial<ClassifyInput>): ClassifyInput {
   return {

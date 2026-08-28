@@ -7,17 +7,17 @@ import {
   type GitRunner,
   isDirty,
   SystemGit,
-} from "../src/git.ts";
-import { loadManifest, type ManifestPaths } from "../src/manifest.ts";
-import { run } from "../src/cli.ts";
-import { collectStatus } from "../src/status.ts";
-import { runUpdate } from "../src/update.ts";
+} from "@/git.ts";
+import { loadManifest, type ManifestPaths } from "@/manifest.ts";
+import { run } from "@/cli.ts";
+import { collectStatus } from "@/status.ts";
+import { runUpdate } from "@/update.ts";
 import {
   addWorktree,
   listWorktrees,
   removeWorktree,
   staleness,
-} from "../src/worktrees.ts";
+} from "@/worktrees.ts";
 
 const g = new SystemGit();
 

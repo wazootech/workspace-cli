@@ -6,8 +6,8 @@ import {
   MANIFEST_EXTENSIONS,
   normalizeManifest,
   validateManifest,
-} from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
+} from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
 
 /**
  * Scaffold a brand-new workspace: write a fresh manifest (schema v4) with

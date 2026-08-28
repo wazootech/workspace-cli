@@ -1,9 +1,9 @@
-import { syncEnv } from "../env.ts";
-import type { GitRunner } from "../git.ts";
-import type { ManifestPaths } from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
-import { printRows } from "../shared.ts";
-import type { WorkspaceManifest } from "../types.ts";
+import { syncEnv } from "@/env.ts";
+import type { GitRunner } from "@/git.ts";
+import type { ManifestPaths } from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
+import { printRows } from "@/shared.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 export async function run(
   opts: CliOptions,
