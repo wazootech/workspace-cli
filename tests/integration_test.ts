@@ -1050,4 +1050,37 @@ Deno.test("loadManifest rejects a legacy vaultDirectory through the CLI path", a
   }
 });
 
+Deno.test("works i alias clones missing repositories", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    await makeRepoWithMain(dir, "b");
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: dir,
+        repositories: [
+          { name: "a", url: join(dir, "a.git") },
+          { name: "b", url: join(dir, "b.git") },
+        ],
+      }),
+    );
+    const code = await run(["i", "--manifest", manifestPath]);
+    assertEquals(code, 0);
+    assertEquals(
+      await exists(join(dir, "repos", "a", ".git")),
+      true,
+      "repo a should be cloned via alias",
+    );
+    assertEquals(
+      await exists(join(dir, "repos", "b", ".git")),
+      true,
+      "repo b should be cloned via alias",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
 export type { GitRunner };
