@@ -1,9 +1,9 @@
-import type { GitRunner } from "../git.ts";
-import type { ManifestPaths } from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
-import { printRows, scopeManifest } from "../shared.ts";
-import type { WorkspaceManifest } from "../types.ts";
-import { runUpdate } from "../update.ts";
+import type { GitRunner } from "@/git.ts";
+import type { ManifestPaths } from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
+import { printRows, scopeManifest } from "@/shared.ts";
+import type { WorkspaceManifest } from "@/types.ts";
+import { runUpdate } from "@/update.ts";
 
 export async function run(
   opts: CliOptions,

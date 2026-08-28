@@ -3,15 +3,15 @@ import {
   manifestPaths,
   resolveRepositoryPath,
   validateManifestText,
-} from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
+} from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
 import {
   applyEntryEdit,
   loadEditableManifest,
   manifestExtension,
   printRows,
-} from "../shared.ts";
-import type { WorkspaceManifest } from "../types.ts";
+} from "@/shared.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 /**
  * Remove a repository from the manifest's repositories array. Edits

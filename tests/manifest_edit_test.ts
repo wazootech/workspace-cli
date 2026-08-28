@@ -1,11 +1,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import type { GitResult, GitRunner } from "../src/git.ts";
+import type { GitResult, GitRunner } from "@/git.ts";
 import {
   addEntryJsonc,
   ManifestEditError,
   removeEntryJsonc,
-} from "../src/manifest-edit.ts";
-import { createGitHubRepo, probeGitHubRepo } from "../src/remote.ts";
+} from "@/manifest-edit.ts";
+import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
 
 const JSONC_FIXTURE = `{
   // team workspace

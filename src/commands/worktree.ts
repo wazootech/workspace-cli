@@ -1,12 +1,12 @@
 import { exists } from "@std/fs";
 import { join } from "@std/path";
-import { defaultBranch } from "../git.ts";
-import type { GitRunner } from "../git.ts";
-import type { ManifestPaths } from "../manifest.ts";
-import { resolveRepositoryPath } from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
-import { printRows, scopeManifest } from "../shared.ts";
-import type { WorkspaceManifest } from "../types.ts";
+import { defaultBranch } from "@/git.ts";
+import type { GitRunner } from "@/git.ts";
+import type { ManifestPaths } from "@/manifest.ts";
+import { resolveRepositoryPath } from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
+import { printRows, scopeManifest } from "@/shared.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 import {
   addWorktree,
   branchExists,
@@ -14,7 +14,7 @@ import {
   listWorktrees,
   removeWorktree,
   staleness,
-} from "../worktrees.ts";
+} from "@/worktrees.ts";
 
 export async function run(
   opts: CliOptions,

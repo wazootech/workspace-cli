@@ -1,16 +1,16 @@
 import { exists } from "@std/fs";
 import { join } from "@std/path";
-import { clone } from "../git.ts";
-import type { GitRunner } from "../git.ts";
+import { clone } from "@/git.ts";
+import type { GitRunner } from "@/git.ts";
 import {
   manifestPaths,
   resolveRepositoryPath,
   resolveWorkspaceTree,
-} from "../manifest.ts";
-import type { ManifestPaths } from "../manifest.ts";
-import type { CliOptions } from "../shared.ts";
-import { flattenResolved, printRows } from "../shared.ts";
-import type { WorkspaceManifest } from "../types.ts";
+} from "@/manifest.ts";
+import type { ManifestPaths } from "@/manifest.ts";
+import type { CliOptions } from "@/shared.ts";
+import { flattenResolved, printRows } from "@/shared.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 type InstallRow = { name: string; state: string; detail?: string };
 

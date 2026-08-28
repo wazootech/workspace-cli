@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { isLocalConfigFile } from "../src/env.ts";
+import { isLocalConfigFile } from "@/env.ts";
 
 Deno.test("isLocalConfigFile matches default patterns", () => {
   assertEquals(isLocalConfigFile(".env"), true);

@@ -1,5 +1,5 @@
-import { validateManifest } from "../manifest.ts";
-import type { WorkspaceManifest } from "../types.ts";
+import { validateManifest } from "@/manifest.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 export function run(manifest: WorkspaceManifest): number {
   validateManifest(manifest);

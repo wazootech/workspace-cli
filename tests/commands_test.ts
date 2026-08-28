@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
-import type { GitResult, GitRunner } from "../src/git.ts";
-import type { WorkspaceManifest } from "../src/types.ts";
+import type { GitResult, GitRunner } from "@/git.ts";
+import type { WorkspaceManifest } from "@/types.ts";
 
 import {
   flattenResolved,
@@ -9,16 +9,16 @@ import {
   manifestExtension,
   printRows,
   scopeManifest,
-} from "../src/shared.ts";
+} from "@/shared.ts";
 
-import * as initCmd from "../src/commands/init.ts";
-import * as validateCmd from "../src/commands/validate.ts";
-import * as workspacesCmd from "../src/commands/workspaces.ts";
-import * as envCmd from "../src/commands/env.ts";
-import * as checkCmd from "../src/commands/check.ts";
-import * as updateCmd from "../src/commands/update.ts";
-import * as worktreeCmd from "../src/commands/worktree.ts";
-import * as installCmd from "../src/commands/install.ts";
+import * as initCmd from "@/commands/init.ts";
+import * as validateCmd from "@/commands/validate.ts";
+import * as workspacesCmd from "@/commands/workspaces.ts";
+import * as envCmd from "@/commands/env.ts";
+import * as checkCmd from "@/commands/check.ts";
+import * as updateCmd from "@/commands/update.ts";
+import * as worktreeCmd from "@/commands/worktree.ts";
+import * as installCmd from "@/commands/install.ts";
 
 // ---------------------------------------------------------------------------
 // Shared helpers (src/shared.ts)
