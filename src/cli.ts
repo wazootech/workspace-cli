@@ -58,6 +58,10 @@ const COMMANDS = [
   "validate",
 ];
 
+const COMMAND_ALIASES: Record<string, string> = {
+  "i": "install",
+};
+
 class CliHelp extends Error {}
 
 interface CliOptions {
@@ -84,6 +88,7 @@ Usage:
   works check [--json] [--workspace <name>]
   works init [--host <host>] [--owner <owner>] [<repo...>]
   works install [<repo...>] [--json] [--workspace <name>]
+  works i [<repo...>] [--json] [--workspace <name>]      (alias for install)
   works add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
   works remove <repo>
   works update [--json] [--workspace <name>]
@@ -136,11 +141,11 @@ function parseCliArgs(args: string[]): CliOptions {
     throw new CliHelp();
   }
   const positional = parsed._.map(String);
-  const command = positional[0];
+  const command = COMMAND_ALIASES[positional[0]] ?? positional[0];
   if (!command || !COMMANDS.includes(command)) {
-    console.error(`Unknown or missing command: ${command ?? "(none)"}\n`);
+    console.error(`Unknown or missing command: ${positional[0] ?? "(none)"}\n`);
     usage();
-    throw new Error(`Unknown or missing command: ${command ?? "(none)"}`);
+    throw new Error(`Unknown or missing command: ${positional[0] ?? "(none)"}`);
   }
   return {
     command,
