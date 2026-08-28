@@ -4,7 +4,7 @@ import { clone } from "@/git.ts";
 import type { GitRunner } from "@/git.ts";
 import {
   manifestPaths,
-  resolveRepoPath,
+  resolveRepositoryPath,
   resolveWorkspaceTree,
 } from "@/manifest.ts";
 import type { ManifestPaths } from "@/manifest.ts";
@@ -47,7 +47,7 @@ async function cloneMissing(
   }
   const rows: InstallRow[] = [];
   for (const repository of repositories) {
-    const repoPath = resolveRepoPath(repository, paths);
+    const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
       if (await exists(join(repoPath, ".git"))) {
         rows.push({ name: repository.name, state: "EXISTS" });

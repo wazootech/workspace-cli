@@ -1,7 +1,7 @@
 import { exists } from "@std/fs";
 import {
   manifestPaths,
-  resolveRepoPath,
+  resolveRepositoryPath,
   validateManifestText,
 } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
@@ -65,7 +65,7 @@ async function runRemove(
   }
 
   const paths = manifestPaths(manifest, manifestPath);
-  const repoPath = resolveRepoPath(existing, paths);
+  const repoPath = resolveRepositoryPath(existing, paths);
   const checkoutRemains = await exists(repoPath);
 
   if (!opts.dryRun) {

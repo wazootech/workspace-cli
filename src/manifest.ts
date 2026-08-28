@@ -7,7 +7,7 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
-import { type Repository, resolveRepository } from "./resolve.ts";
+import { resolveRepository } from "./resolve.ts";
 import { validateSafeName } from "./validate.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
@@ -143,7 +143,12 @@ export function normalizeManifest(
     try {
       return resolveRepository(
         { host, owner },
-        record as unknown as Repository,
+        {
+          name: typeof record.name === "string" ? record.name : "",
+          host: typeof record.host === "string" ? record.host : undefined,
+          owner: entryOwner,
+          url: typeof record.url === "string" ? record.url : undefined,
+        },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -209,7 +214,7 @@ export function validateManifestText(
  * `resolvedPath` when available, otherwise computes it from the
  * workspace's repositories directory.
  */
-export function resolveRepoPath(
+export function resolveRepositoryPath(
   repo: { name: string; resolvedPath?: string },
   paths: ManifestPaths,
 ): string {
@@ -272,7 +277,7 @@ export function resolveWorkspaceTree(
   const repositories = manifest.repositories.map((repo) => ({
     ...repo,
     workspace: undefined as string | undefined,
-    resolvedPath: resolveRepoPath(repo, paths),
+    resolvedPath: resolveRepositoryPath(repo, paths),
   }));
   return { root: manifest, repositories };
 }

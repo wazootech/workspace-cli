@@ -6,7 +6,7 @@ import {
   listWorkspaces,
   loadManifest,
   manifestPaths,
-  resolveRepoPath,
+  resolveRepositoryPath,
   resolveWorkspaceTree,
   validateManifest,
   validateManifestText,
@@ -638,20 +638,20 @@ Deno.test("validateManifestText expands { name, owner } object shorthand", () =>
 });
 
 // ---------------------------------------------------------------------------
-// resolveRepoPath — direct tests
+// resolveRepositoryPath — direct tests
 // ---------------------------------------------------------------------------
 
-Deno.test("resolveRepoPath computes default path from reposDirectory", () => {
+Deno.test("resolveRepositoryPath computes default path from reposDirectory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
   assertEquals(
-    resolveRepoPath({ name: "api" }, paths),
+    resolveRepositoryPath({ name: "api" }, paths),
     join(wsDir, "repos", "api"),
   );
 });
 
-Deno.test("resolveRepoPath uses pre-set resolvedPath when available", () => {
+Deno.test("resolveRepositoryPath uses pre-set resolvedPath when available", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
@@ -659,12 +659,12 @@ Deno.test("resolveRepoPath uses pre-set resolvedPath when available", () => {
     ? "C:\\custom\\path"
     : "/custom/path";
   assertEquals(
-    resolveRepoPath({ name: "api", resolvedPath: expected }, paths),
+    resolveRepositoryPath({ name: "api", resolvedPath: expected }, paths),
     expected,
   );
 });
 
-Deno.test("resolveRepoPath respects custom repositoriesDirectory", () => {
+Deno.test("resolveRepositoryPath respects custom repositoriesDirectory", () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
     repositories: [],
@@ -672,7 +672,7 @@ Deno.test("resolveRepoPath respects custom repositoriesDirectory", () => {
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
   assertEquals(
-    resolveRepoPath({ name: "api" }, paths),
+    resolveRepositoryPath({ name: "api" }, paths),
     join(wsDir, "libs", "api"),
   );
 });
