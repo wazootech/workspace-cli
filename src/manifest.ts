@@ -81,22 +81,10 @@ function parseManifestText(manifestPath: string, raw: string): unknown {
 }
 
 /**
- * Entry keys removed in schema v4.1, rejected with pointed migration
- * messages instead of being silently ignored.
- */
-const EVICTED_ENTRY_KEYS = [
-  "path",
-  "groups",
-  "localFiles",
-  "manifest",
-] as const;
-
-/**
  * Normalize a parsed manifest document into a WorkspaceManifest. Expands
  * shorthand repository entries — bare strings, "owner/name" strings, and
  * { name, owner } objects — against the manifest's host (default
- * github.com), and rejects keys removed in schema v4 with pointed migration
- * messages.
+ * github.com).
  */
 export function normalizeManifest(
   parsed: unknown,
@@ -140,13 +128,6 @@ export function normalizeManifest(
       }
     }
     const record = entry as Record<string, unknown>;
-    for (const key of EVICTED_ENTRY_KEYS) {
-      if (record[key] !== undefined) {
-        throw new Error(
-          `${at} sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }.`,
-        );
-      }
-    }
     if (record.owner === undefined) {
       return entry as RepositoryEntry;
     }

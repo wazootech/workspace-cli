@@ -424,33 +424,6 @@ Deno.test("loadManifest rejects a non-hostname host value", async () => {
   }
 });
 
-Deno.test("loadManifest rejects entries carrying removed fields", async () => {
-  const tempDir = await Deno.makeTempDir();
-  try {
-    const manifestPath = join(tempDir, "repos.json");
-    for (
-      const entry of [
-        { name: "a", url: "u", path: "." },
-        { name: "a", url: "u", groups: ["beta"] },
-        { name: "a", url: "u", localFiles: [".env.qa"] },
-        { name: "a", url: "u", manifest: "../child/repos.json" },
-      ]
-    ) {
-      await Deno.writeTextFile(
-        manifestPath,
-        JSON.stringify({ repositories: [entry] }),
-      );
-      await assertRejects(
-        () => loadManifest(manifestPath),
-        Error,
-        "not supported in schema v4",
-      );
-    }
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
-});
-
 Deno.test("loadManifest rejects a legacy vaultDirectory key", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
