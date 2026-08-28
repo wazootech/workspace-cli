@@ -9,7 +9,6 @@ import {
   DEFAULT_MANIFEST_FILENAMES,
   detectConflicts,
   expandShorthand,
-  findDefaultManifestPath,
   findExistingManifest,
   listWorkspaces,
   loadManifest,
@@ -33,8 +32,9 @@ import type { NewEntry } from "./manifest-edit.ts";
 import { createGitHubRepo, probeGitHubRepo } from "./remote.ts";
 import { exists } from "@std/fs";
 import { collectStatus, hasErrors } from "./status.ts";
-import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
-
+import type { WorkspaceManifest } from "./types.ts";
+import { flattenResolved, printRows, resolveManifestPath } from "./shared.ts";
+import type { CliOptions } from "./shared.ts";
 import { runUpdate } from "./update.ts";
 import {
   addWorktree,
@@ -63,23 +63,6 @@ const COMMAND_ALIASES: Record<string, string> = {
 };
 
 class CliHelp extends Error {}
-
-interface CliOptions {
-  command: string;
-  subcommand?: string;
-  manifestPath?: string;
-  host?: string;
-  owner?: string;
-  url?: string;
-  name?: string;
-  visibility?: string;
-  create: boolean;
-  json: boolean;
-  stale: boolean;
-  dryRun: boolean;
-  positional: string[];
-  workspace?: string;
-}
 
 function usage(): void {
   console.log(`workspace-cli (works)
@@ -443,24 +426,6 @@ function isBadInstallRow(row: InstallRow): boolean {
     row.state === "INVALID" ||
     row.state === "UNKNOWN_REPO"
   );
-}
-
-function printRows(rows: unknown[], json: boolean): void {
-  if (json) {
-    console.log(JSON.stringify(rows, null, 2));
-  } else {
-    console.table(rows);
-  }
-}
-
-/**
- * Flatten a resolved tree into the manifest shape commands consume.
- */
-function flattenResolved(
-  resolved: ResolvedWorkspace,
-  root: WorkspaceManifest,
-): WorkspaceManifest {
-  return { ...root, repositories: resolved.repositories };
 }
 
 /**
@@ -880,15 +845,10 @@ export async function run(args: string[]): Promise<number> {
   // errors when it is missing or malformed, so they also skip the shared
   // load below.
   if (opts.command === "add" || opts.command === "remove") {
-    const path = opts.manifestPath
-      ? resolve(Deno.cwd(), opts.manifestPath)
-      : await findDefaultManifestPath();
-    return await runManifestEdit(opts, path);
+    return await runManifestEdit(opts, await resolveManifestPath(opts));
   }
 
-  const manifestPath = opts.manifestPath
-    ? resolve(Deno.cwd(), opts.manifestPath)
-    : await findDefaultManifestPath();
+  const manifestPath = await resolveManifestPath(opts);
   const manifest = await loadManifest(manifestPath);
   const g = new SystemGit();
 
