@@ -13,10 +13,17 @@ export {
   CURRENT_SCHEMA_VERSION,
   loadManifest,
   manifestPaths,
-  resolveRepositoryPath,
   validateManifest,
 } from "./manifest.ts";
 export type { ManifestPaths } from "./manifest.ts";
+export { resolveRepository, resolveWorkspace } from "./resolve.ts";
+export type {
+  Repository,
+  ResolvedRepository,
+  ResolvedWorkspace,
+  Workspace,
+  WorkspaceContext,
+} from "./resolve.ts";
 export {
   classifyState,
   collectStatus,

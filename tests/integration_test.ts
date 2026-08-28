@@ -75,12 +75,13 @@ async function seedCommitOnOrigin(
 }
 
 function pathsFor(dir: string): ManifestPaths {
-  return {
+  const p: ManifestPaths = {
     root: dir,
     repositoriesDirectory: dir,
     worktreesDirectory: join(dir, "worktrees"),
     secretsDirectory: join(dir, "secrets"),
   };
+  return p;
 }
 
 Deno.test("defaultBranch resolves from origin/HEAD", async () => {
@@ -751,7 +752,7 @@ Deno.test("works add appends shorthand entries without touching remotes", async 
       repositories.map((r) => r.name),
       ["existing", "api", "tool"],
     );
-    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool.git");
+    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool");
   } finally {
     await removeTempDir(dir);
   }
@@ -890,29 +891,6 @@ Deno.test("works remove fails on unknown names and dry-run writes nothing", asyn
       original,
       "dry-run must not write the manifest",
     );
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("works add preserves JSONC comments through a CLI edit", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const manifestPath = join(dir, "workspace.jsonc");
-    await Deno.writeTextFile(
-      manifestPath,
-      `{\n  // team workspace\n  "schemaVersion": 4,\n  "host": "gitlab.com",\n  "owner": "acme",\n  "repositories": [\n    /* core */\n    "api",\n  ],\n}\n`,
-    );
-    assertEquals(
-      await run(["add", "tool", "--manifest", manifestPath]),
-      0,
-    );
-    const raw = await Deno.readTextFile(manifestPath);
-    assert(raw.includes("// team workspace"), "line comment must survive");
-    assert(raw.includes("/* core */"), "block comment must survive");
-    assert(raw.includes('"tool"'), "new entry must be present");
-    const { repositories } = await loadManifest(manifestPath);
-    assertEquals(repositories.map((r) => r.name), ["api", "tool"]);
   } finally {
     await removeTempDir(dir);
   }

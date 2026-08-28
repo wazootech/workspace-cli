@@ -1,5 +1,4 @@
 import { dirname, isAbsolute, normalize, resolve } from "@std/path";
-import { parse as parseJsonc } from "@std/jsonc";
 import { exists } from "@std/fs";
 import type {
   RepositoryEntry,
@@ -7,13 +6,14 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
+import { resolveRepository } from "./resolve.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
 export const DEFAULT_MANIFEST_FILENAMES = ["workspace"];
 
 /** Supported manifest formats by file extension, in discovery priority order. */
-export const MANIFEST_EXTENSIONS = [".json", ".jsonc"];
+export const MANIFEST_EXTENSIONS = [".json"];
 
 export interface ManifestPaths {
   root: string;
@@ -44,69 +44,69 @@ export async function findDefaultManifestPath(
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
-function parseManifestText(manifestPath: string, raw: string): unknown {
+/** Raw repository entry — shorthand string or unvalidated object. */
+type RawRepositoryEntry = string | Record<string, unknown>;
+
+/**
+ * Raw manifest shape as produced by JSON parsing. Repository entries
+ * are either shorthand strings or unvalidated objects — normalization
+ * resolves them into typed RepositoryEntry values.
+ */
+export interface RawManifest {
+  schemaVersion?: number;
+  owner?: string;
+  host?: string;
+  workspaceRoot?: string;
+  repositoriesDirectory?: string;
+  worktreesDirectory?: string;
+  secretsDirectory?: string;
+  repositories: Array<string | RawRepositoryEntry>;
+}
+
+function parseManifestText(manifestPath: string, raw: string): RawManifest {
   const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
     .toLowerCase();
+  if (extension !== ".json") {
+    throw new Error(
+      `Unsupported manifest format "${extension}" (supported: .json)`,
+    );
+  }
   let parsed: unknown;
   try {
-    switch (extension) {
-      case ".json":
-        parsed = JSON.parse(raw);
-        break;
-      case ".jsonc":
-        parsed = parseJsonc(raw);
-        break;
-      default:
-        throw new Error(
-          `Unsupported manifest format "${extension}" (supported: ${
-            MANIFEST_EXTENSIONS.join(", ")
-          })`,
-        );
-    }
+    parsed = JSON.parse(raw);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse manifest ${manifestPath}: ${message}`);
   }
   if (
     typeof parsed !== "object" || parsed === null ||
-    !Array.isArray((parsed as { repositories?: unknown }).repositories)
+    !Array.isArray((parsed as Record<string, unknown>).repositories)
   ) {
     throw new Error(
       `Manifest ${manifestPath} must be an object with a repositories array`,
     );
   }
-  return parsed;
+  return parsed as RawManifest;
 }
-
-/**
- * Entry keys removed in schema v4.1, rejected with pointed migration
- * messages instead of being silently ignored.
- */
-const EVICTED_ENTRY_KEYS = [
-  "path",
-  "groups",
-  "localFiles",
-  "manifest",
-] as const;
 
 /**
  * Normalize a parsed manifest document into a WorkspaceManifest. Expands
  * shorthand repository entries — bare strings, "owner/name" strings, and
  * { name, owner } objects — against the manifest's host (default
- * github.com), and rejects keys removed in schema v4 with pointed migration
- * messages.
+ * github.com).
  */
 export function normalizeManifest(
-  parsed: unknown,
+  parsed: RawManifest,
   manifestPath: string,
 ): WorkspaceManifest {
-  const doc = parsed as Record<string, unknown>;
-  if (doc.vaultDirectory !== undefined) {
+  const doc = parsed;
+  const raw = doc as unknown as Record<string, unknown>;
+  if (raw.vaultDirectory !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "vaultDirectory" was renamed to "secretsDirectory" in schema v4.`,
     );
   }
-  if (doc.workspaces !== undefined) {
+  if (raw.workspaces !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "workspaces" was removed in schema v4. Declare each child workspace's repositories directly in the parent manifest.`,
     );
@@ -127,75 +127,58 @@ export function normalizeManifest(
     );
   }
 
-  const repositories = (doc.repositories as unknown[]).map((entry, index) => {
+  const resolve = (
+    at: string,
+    repo: string | {
+      name: string;
+      host?: string;
+      owner?: string;
+      url?: string;
+    },
+  ) => {
+    try {
+      return resolveRepository({ host, owner }, repo);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${at}: ${message}`);
+    }
+  };
+
+  const repositories = doc.repositories.map((entry, index) => {
     const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
-      return expandShorthand(at, entry, owner, host);
+      return resolve(at, entry);
     }
-    const record = entry as Record<string, unknown>;
-    for (const key of EVICTED_ENTRY_KEYS) {
-      if (record[key] !== undefined) {
-        throw new Error(
-          `${at} sets "${key}", which is not supported in schema v4. Entries are either bare strings or { "name", "url" }.`,
-        );
-      }
+    if (entry.owner === undefined) {
+      return {
+        name: typeof entry.name === "string" ? entry.name : "",
+        url: typeof entry.url === "string" ? entry.url : "",
+      };
     }
-    if (record.owner === undefined) {
-      return entry as RepositoryEntry;
-    }
-    if (record.url !== undefined && record.url !== "") {
+    if (entry.url !== undefined && entry.url !== "") {
       throw new Error(
         `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
       );
     }
-    const entryOwner = record.owner;
-    if (typeof entryOwner !== "string" || entryOwner === "") {
+    if (typeof entry.owner !== "string" || entry.owner === "") {
       throw new Error(`${at}: "owner" must be a non-empty string.`);
     }
-    return expandShorthand(
-      at,
-      typeof record.name === "string" ? record.name : "",
-      typeof entryOwner === "string" ? entryOwner : undefined,
-      host,
-    );
+    return resolve(at, {
+      name: typeof entry.name === "string" ? entry.name : "",
+      host: typeof entry.host === "string" ? entry.host : undefined,
+      owner: entry.owner,
+      url: typeof entry.url === "string" ? entry.url : undefined,
+    });
   });
-  return { ...(doc as Partial<WorkspaceManifest>), repositories };
-}
-
-/** Expand a shorthand ("name" or "owner/name") to a full repository entry. */
-export function expandShorthand(
-  at: string,
-  rawName: string,
-  fallbackOwner: string | undefined,
-  host: string,
-): RepositoryEntry {
-  let name = rawName;
-  let entryOwner = fallbackOwner;
-  const slashCount = (rawName.match(/\//g) ?? []).length;
-  if (slashCount > 1) {
-    throw new Error(
-      `${at} ("${rawName}") contains multiple slashes; use exactly "owner/name".`,
-    );
-  }
-  if (slashCount === 1) {
-    const [inlineOwner, ...rest] = rawName.split("/");
-    name = rest.join("/");
-    if (!inlineOwner || !name) {
-      throw new Error(
-        `${at} ("${rawName}") must be "owner/name" with both halves non-empty.`,
-      );
-    }
-    entryOwner = inlineOwner;
-  }
-  if (!entryOwner) {
-    throw new Error(
-      `${at} ("${rawName}") is a shorthand, which requires "owner" so it can expand to https://${host}/<owner>/${name}.`,
-    );
-  }
-  validateSafeName(name, "Repository name");
   return {
-    name,
-    url: `https://${host}/${entryOwner}/${name}.git`,
+    schemaVersion: doc.schemaVersion,
+    owner: doc.owner,
+    host: doc.host,
+    workspaceRoot: doc.workspaceRoot,
+    repositoriesDirectory: doc.repositoriesDirectory,
+    worktreesDirectory: doc.worktreesDirectory,
+    secretsDirectory: doc.secretsDirectory,
+    repositories,
   };
 }
 
@@ -264,14 +247,19 @@ export function validateManifestText(
   return normalized;
 }
 
+/**
+ * Resolve the on-disk path for a repository entry. Uses a pre-set
+ * `resolvedPath` when available, otherwise computes it from the
+ * workspace's repositories directory.
+ */
 export function resolveRepositoryPath(
-  repository: RepositoryEntry,
+  repo: { name: string; resolvedPath?: string },
   paths: ManifestPaths,
 ): string {
-  if (repository.resolvedPath !== undefined) {
-    return normalize(resolve(repository.resolvedPath));
+  if (repo.resolvedPath !== undefined) {
+    return normalize(resolve(repo.resolvedPath));
   }
-  return normalize(resolve(paths.repositoriesDirectory, repository.name));
+  return normalize(resolve(paths.repositoriesDirectory, repo.name));
 }
 
 export function manifestPaths(
@@ -293,12 +281,13 @@ export function manifestPaths(
       : normalize(resolve(root, value));
   };
 
-  return {
+  const paths: ManifestPaths = {
     root,
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
     worktreesDirectory: dirOption(manifest.worktreesDirectory, "worktrees"),
     secretsDirectory: dirOption(manifest.secretsDirectory, "secrets"),
   };
+  return paths;
 }
 
 export async function loadManifest(

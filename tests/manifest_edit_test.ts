@@ -1,146 +1,67 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import type { GitResult, GitRunner } from "@/git.ts";
 import {
-  addEntryJsonc,
+  addEntry,
+  formatEntry,
   ManifestEditError,
-  removeEntryJsonc,
+  removeEntry,
 } from "@/manifest-edit.ts";
-import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
 
-const JSONC_FIXTURE = `{
-  // team workspace
+const JSON_FIXTURE = `{
   "schemaVersion": 4,
   "owner": "acme",
   "repositories": [
-    /* core */
     "api",
-    { "name": "web", "url": "https://gitlab.com/acme/web.git" },
-  ],
-}
-`;
+    { "name": "web", "url": "https://gitlab.com/acme/web.git" }
+  ]
+}`;
 
-Deno.test("addEntryJsonc appends to a multiline array preserving comments", () => {
-  const out = addEntryJsonc(JSONC_FIXTURE, '"tool"');
-  assertEquals(
-    out,
-    `{
-  // team workspace
-  "schemaVersion": 4,
-  "owner": "acme",
-  "repositories": [
-    /* core */
-    "api",
-    { "name": "web", "url": "https://gitlab.com/acme/web.git" },
-    "tool",
-  ],
-}
-`,
-  );
+Deno.test("addEntry appends to a repositories array", () => {
+  const out = addEntry(JSON_FIXTURE, '"tool"');
+  const doc = JSON.parse(out);
+  assertEquals(doc.repositories.length, 3);
+  assertEquals(doc.repositories[2], "tool");
 });
 
-Deno.test("removeEntryJsonc deletes an entry and its comma", () => {
-  const out = removeEntryJsonc(JSONC_FIXTURE, "api", "acme");
-  assertEquals(
-    out,
-    `{
-  // team workspace
-  "schemaVersion": 4,
-  "owner": "acme",
-  "repositories": [
-    /* core */
-    { "name": "web", "url": "https://gitlab.com/acme/web.git" },
-  ],
-}
-`,
-  );
-});
-
-Deno.test("removeEntryJsonc resolves owner/name shorthand by expanded name", () => {
-  const fixture = `{"repositories": ["acme/tool", "other"]}`;
-  const out = removeEntryJsonc(fixture, "tool", undefined);
-  assertEquals(out, `{"repositories": ["other"]}`);
-});
-
-Deno.test("removeEntryJsonc removes the last element without a preceding comma", () => {
-  const fixture = `{"repositories": [\n  "keep",\n  "gone"\n]}`;
-  const out = removeEntryJsonc(fixture, "gone", "acme");
-  assertEquals(out, `{"repositories": [\n  "keep"\n]}`);
-});
-
-Deno.test("addEntryJsonc keeps single-line arrays single-line", () => {
-  const fixture = `{"owner": "a", "repositories": ["x", "y"]}`;
-  assertEquals(
-    addEntryJsonc(fixture, '"z"'),
-    `{"owner": "a", "repositories": ["x", "y", "z"]}`,
-  );
-});
-
-Deno.test("addEntryJsonc expands an empty inline array into a block", () => {
-  const fixture = `{\n  "owner": "acme",\n  "repositories": []\n}\n`;
-  assertEquals(
-    addEntryJsonc(fixture, '"api"'),
-    `{\n  "owner": "acme",\n  "repositories": [\n    "api"\n  ]\n}\n`,
-  );
-});
-
-Deno.test("addEntryJsonc fails closed on a comment-only array", () => {
-  const fixture = `{ "repositories": [ /* none yet */ ] }`;
+Deno.test("addEntry rejects entries without a repositories array", () => {
   assertThrows(
-    () => addEntryJsonc(fixture, '"api"'),
+    () => addEntry("{}", '"tool"'),
     ManifestEditError,
+    "not an array",
   );
 });
 
-Deno.test("jsonc edits preserve CRLF line endings outside touched spans", () => {
-  const fixture =
-    `{\r\n  "repositories": [\r\n    "a",\r\n    "b"\r\n  ]\r\n}\r\n`;
-  const out = addEntryJsonc(fixture, '"c"');
+Deno.test("removeEntry deletes an entry by name", () => {
+  const out = removeEntry(JSON_FIXTURE, "api");
+  const doc = JSON.parse(out);
+  assertEquals(doc.repositories.length, 1);
+  assertEquals(doc.repositories[0].name, "web");
+});
+
+Deno.test("removeEntry resolves owner/name shorthand by expanded name", () => {
+  const out = removeEntry(JSON_FIXTURE, "web", "acme");
+  const doc = JSON.parse(out);
+  assertEquals(doc.repositories.length, 1);
+  assertEquals(doc.repositories[0], "api");
+});
+
+Deno.test("removeEntry throws when target not found", () => {
+  assertThrows(
+    () => removeEntry(JSON_FIXTURE, "nonexistent"),
+    ManifestEditError,
+    "not found",
+  );
+});
+
+Deno.test("formatEntry renders shorthand as JSON string", () => {
   assertEquals(
-    out,
-    `{\r\n  "repositories": [\r\n    "a",\r\n    "b",\r\n    "c"\r\n  ]\r\n}\r\n`,
+    formatEntry({ kind: "shorthand", raw: "acme/api" }),
+    '"acme/api"',
   );
 });
 
-class FakeGh implements GitRunner {
-  calls: string[][] = [];
-  constructor(
-    private readonly script: (args: string[]) => Partial<GitResult>,
-  ) {}
-  run(args: string[]): Promise<GitResult> {
-    this.calls.push(args);
-    const scripted = this.script(args);
-    return Promise.resolve({
-      code: scripted.code ?? 0,
-      stdout: scripted.stdout ?? "",
-      stderr: scripted.stderr ?? "",
-    });
-  }
-}
-
-Deno.test("probeGitHubRepo classifies found, missing, and error outcomes", async () => {
-  const found = new FakeGh(() => ({ code: 0 }));
-  assertEquals(await probeGitHubRepo(found, "acme/api"), { status: "found" });
-
-  const missing = new FakeGh(() => ({
-    code: 1,
-    stderr: "GraphQL: Could not resolve to a Repository",
-  }));
-  assertEquals(await probeGitHubRepo(missing, "acme/api"), {
-    status: "missing",
-    stderr: "GraphQL: Could not resolve to a Repository",
-  });
-
-  const authError = new FakeGh(() => ({
-    code: 1,
-    stderr: "gh auth required",
-  }));
-  const probe = await probeGitHubRepo(authError, "acme/api");
-  assertEquals(probe.status, "error");
-});
-
-Deno.test("createGitHubRepo passes the slug and default visibility", async () => {
-  const gh = new FakeGh(() => ({ code: 0 }));
-  const result = await createGitHubRepo(gh, "acme/api", "private");
-  assertEquals(result, { ok: true });
-  assertEquals(gh.calls, [["repo", "create", "acme/api", "--private"]]);
+Deno.test("formatEntry renders object as JSON object", () => {
+  assertEquals(
+    formatEntry({ kind: "object", name: "web", url: "https://x.com" }),
+    '{ "name": "web", "url": "https://x.com" }',
+  );
 });

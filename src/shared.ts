@@ -2,10 +2,10 @@ import { resolve } from "@std/path";
 import { exists } from "@std/fs";
 import { findDefaultManifestPath, loadManifest } from "./manifest.ts";
 import {
-  addEntryJsonc,
-  formatEntryJsonc,
+  addEntry,
+  formatEntry,
   ManifestEditError,
-  removeEntryJsonc,
+  removeEntry,
 } from "./manifest-edit.ts";
 import type { NewEntry } from "./manifest-edit.ts";
 import type { ResolvedWorkspace, WorkspaceManifest } from "./types.ts";
@@ -78,10 +78,6 @@ export function manifestExtension(manifestPath: string): string {
   return manifestPath.slice(manifestPath.lastIndexOf(".")).toLowerCase();
 }
 
-export function isJsonLike(extension: string): boolean {
-  return extension === ".json" || extension === ".jsonc";
-}
-
 /**
  * Apply a surgical add/remove edit to the repositories array of a manifest,
  * returning the rewritten text or undefined when the edit is rejected.
@@ -97,14 +93,14 @@ export function applyEntryEdit(
   const owner = manifest.owner;
   const host = manifest.host ?? "github.com";
   try {
-    if (isJsonLike(extension)) {
-      return mode === "add"
-        ? addEntryJsonc(raw, formatEntryJsonc(entry!))
-        : removeEntryJsonc(raw, targetName, owner, host);
+    if (extension !== ".json") {
+      throw new ManifestEditError(
+        `Unsupported manifest format "${extension}" for editing`,
+      );
     }
-    throw new ManifestEditError(
-      `Unsupported manifest format "${extension}" for editing`,
-    );
+    return mode === "add"
+      ? addEntry(raw, formatEntry(entry!))
+      : removeEntry(raw, targetName, owner, host);
   } catch (error) {
     if (error instanceof ManifestEditError) {
       console.error(error.message);
@@ -135,9 +131,9 @@ export async function loadEditableManifest(
     return { ok: false, code: 2 };
   }
   const extension = manifestExtension(manifestPath);
-  if (!isJsonLike(extension)) {
+  if (extension !== ".json") {
     console.error(
-      `Unsupported manifest format "${extension}" for editing (supported: .json, .jsonc)`,
+      `Unsupported manifest format "${extension}" for editing (supported: .json)`,
     );
     return { ok: false, code: 2 };
   }

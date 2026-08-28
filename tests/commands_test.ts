@@ -5,7 +5,6 @@ import type { WorkspaceManifest } from "@/types.ts";
 
 import {
   flattenResolved,
-  isJsonLike,
   manifestExtension,
   printRows,
   scopeManifest,
@@ -80,15 +79,7 @@ Deno.test("flattenResolved: combines resolved repos with root manifest", () => {
 
 Deno.test("manifestExtension: extracts file extension", () => {
   assertEquals(manifestExtension("/path/workspace.json"), ".json");
-  assertEquals(manifestExtension("/path/workspace.jsonc"), ".jsonc");
   assertEquals(manifestExtension("/path/manifest.JSON"), ".json");
-});
-
-Deno.test("isJsonLike: recognises json and jsonc", () => {
-  assertEquals(isJsonLike(".json"), true);
-  assertEquals(isJsonLike(".jsonc"), true);
-  assertEquals(isJsonLike(".yaml"), false);
-  assertEquals(isJsonLike(".toml"), false);
 });
 
 // ---------------------------------------------------------------------------

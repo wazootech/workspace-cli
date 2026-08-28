@@ -58,7 +58,7 @@ Usage:
   works validate
 
 Options:
-  --manifest <path>   Manifest path (default: workspace.json / workspace.jsonc)
+  --manifest <path>   Manifest path (default: workspace.json)
   --host <host>       init: hostname for shorthand expansion (default: github.com)
   --owner <owner>     init: owner for shorthand entries
   --url <url>         add: explicit clone URL (writes an object entry)

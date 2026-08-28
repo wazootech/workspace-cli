@@ -5,6 +5,7 @@ import {
   findExistingManifest,
   MANIFEST_EXTENSIONS,
   normalizeManifest,
+  type RawManifest,
   validateManifest,
 } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
@@ -30,8 +31,9 @@ export async function run(opts: CliOptions): Promise<number> {
     return 2;
   }
 
-  const doc: Record<string, unknown> = {
+  const doc: RawManifest = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
+    repositories: opts.positional,
   };
   if (opts.host !== undefined) {
     doc.host = opts.host;
@@ -39,7 +41,6 @@ export async function run(opts: CliOptions): Promise<number> {
   if (opts.owner !== undefined) {
     doc.owner = opts.owner;
   }
-  doc.repositories = opts.positional;
 
   try {
     const normalized = normalizeManifest(doc, target);
