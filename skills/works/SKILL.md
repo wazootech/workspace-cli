@@ -207,6 +207,11 @@ The map is the source of truth for which of those two happened.
 
 ## Guardrails
 
+- **Worktree isolation.** Never edit `repos/<repo>` directly for feature work.
+  If the agent's cwd is inside `repos/<repo>`, stop and create a worktree first:
+  `works worktree add <repo> <feature-slug>`, then `cd` into it. This applies to
+  every external skill (including `/implement`) — the Pipeline step 2 is not
+  optional.
 - **Never mutate user work.** `works update` never resets, rebases, stashes, or
   rewrites history. It skips dirty and feature branches. Respect that contract;
   do not work around it with raw git destructive commands.
