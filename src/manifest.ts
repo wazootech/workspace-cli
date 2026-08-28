@@ -136,46 +136,48 @@ export function normalizeManifest(
     );
   }
 
-  const repositories = doc.repositories.map((entry, index) => {
-    const at = `Manifest ${manifestPath}: repositories[${index}]`;
-    if (typeof entry === "string") {
-      try {
-        return resolveRepository({ host, owner }, entry);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`${at}: ${message}`);
-      }
-    }
-    const record = entry;
-    if (record.owner === undefined) {
-      return {
-        name: typeof record.name === "string" ? record.name : "",
-        url: typeof record.url === "string" ? record.url : "",
-      };
-    }
-    if (record.url !== undefined && record.url !== "") {
-      throw new Error(
-        `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
-      );
-    }
-    const entryOwner = record.owner;
-    if (typeof entryOwner !== "string" || entryOwner === "") {
-      throw new Error(`${at}: "owner" must be a non-empty string.`);
-    }
+  const resolve = (
+    at: string,
+    repo: string | {
+      name: string;
+      host?: string;
+      owner?: string;
+      url?: string;
+    },
+  ) => {
     try {
-      return resolveRepository(
-        { host, owner },
-        {
-          name: typeof record.name === "string" ? record.name : "",
-          host: typeof record.host === "string" ? record.host : undefined,
-          owner: entryOwner,
-          url: typeof record.url === "string" ? record.url : undefined,
-        },
-      );
+      return resolveRepository({ host, owner }, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`${at}: ${message}`);
     }
+  };
+
+  const repositories = doc.repositories.map((entry, index) => {
+    const at = `Manifest ${manifestPath}: repositories[${index}]`;
+    if (typeof entry === "string") {
+      return resolve(at, entry);
+    }
+    if (entry.owner === undefined) {
+      return {
+        name: typeof entry.name === "string" ? entry.name : "",
+        url: typeof entry.url === "string" ? entry.url : "",
+      };
+    }
+    if (entry.url !== undefined && entry.url !== "") {
+      throw new Error(
+        `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
+      );
+    }
+    if (typeof entry.owner !== "string" || entry.owner === "") {
+      throw new Error(`${at}: "owner" must be a non-empty string.`);
+    }
+    return resolve(at, {
+      name: typeof entry.name === "string" ? entry.name : "",
+      host: typeof entry.host === "string" ? entry.host : undefined,
+      owner: entry.owner,
+      url: typeof entry.url === "string" ? entry.url : undefined,
+    });
   });
   return {
     schemaVersion: doc.schemaVersion,
