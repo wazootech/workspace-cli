@@ -1,27 +1,16 @@
-import { dirname, join, resolve } from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
-import { syncEnv } from "./env.ts";
-import { clone, defaultBranch } from "./git.ts";
-import type { GitRunner } from "./git.ts";
+import { exists } from "@std/fs";
 import { SystemGit } from "./git.ts";
 import {
-  CURRENT_SCHEMA_VERSION,
-  DEFAULT_MANIFEST_FILENAMES,
   detectConflicts,
   expandShorthand,
-  findExistingManifest,
-  listWorkspaces,
   loadManifest,
-  MANIFEST_EXTENSIONS,
   manifestPaths,
-  normalizeManifest,
   resolveRepositoryPath,
   resolveWorkspaceTree,
-  validateManifest,
   validateManifestText,
   validateSafeName,
 } from "./manifest.ts";
-import type { ManifestPaths } from "./manifest.ts";
 import {
   addEntryJsonc,
   formatEntryJsonc,
@@ -30,20 +19,18 @@ import {
 } from "./manifest-edit.ts";
 import type { NewEntry } from "./manifest-edit.ts";
 import { createGitHubRepo, probeGitHubRepo } from "./remote.ts";
-import { exists } from "@std/fs";
-import { collectStatus, hasErrors } from "./status.ts";
-import type { WorkspaceManifest } from "./types.ts";
 import { flattenResolved, printRows, resolveManifestPath } from "./shared.ts";
 import type { CliOptions } from "./shared.ts";
-import { runUpdate } from "./update.ts";
-import {
-  addWorktree,
-  branchExists,
-  defaultBranchStartPoint,
-  listWorktrees,
-  removeWorktree,
-  staleness,
-} from "./worktrees.ts";
+import type { WorkspaceManifest } from "./types.ts";
+
+import * as checkCmd from "./commands/check.ts";
+import * as envCmd from "./commands/env.ts";
+import * as initCmd from "./commands/init.ts";
+import * as installCmd from "./commands/install.ts";
+import * as updateCmd from "./commands/update.ts";
+import * as validateCmd from "./commands/validate.ts";
+import * as worktreeCmd from "./commands/worktree.ts";
+import * as workspacesCmd from "./commands/workspaces.ts";
 
 const COMMANDS = [
   "check",
@@ -150,377 +137,6 @@ function parseCliArgs(args: string[]): CliOptions {
       : positional.slice(1),
     workspace: parsed.workspace,
   };
-}
-
-async function runWorktree(
-  opts: CliOptions,
-  manifest: WorkspaceManifest,
-  paths: ManifestPaths,
-  g: GitRunner,
-): Promise<number> {
-  switch (opts.subcommand) {
-    case "list": {
-      const rows: {
-        repo: string;
-        path: string;
-        branch?: string;
-        bare: boolean;
-        detached: boolean;
-        stale?: boolean;
-        reason?: string;
-      }[] = [];
-      for (const repository of manifest.repositories) {
-        const repoPath = resolveRepositoryPath(repository, paths);
-        if (!(await exists(repoPath))) {
-          continue;
-        }
-        const defaultName = opts.stale
-          ? await defaultBranch(g, repoPath)
-          : undefined;
-        for (const wt of await listWorktrees(g, repoPath)) {
-          const row: (typeof rows)[number] = {
-            repo: repository.name,
-            path: wt.path,
-            branch: wt.branch,
-            bare: wt.bare,
-            detached: wt.detached,
-          };
-          if (opts.stale) {
-            const s = await staleness(g, repoPath, wt, defaultName);
-            row.stale = s.stale;
-            if (s.reason) {
-              row.reason = s.reason;
-            }
-          }
-          rows.push(row);
-        }
-      }
-      const filtered = opts.stale ? rows.filter((r) => r.stale) : rows;
-      if (opts.json) {
-        console.log(JSON.stringify(filtered, null, 2));
-      } else {
-        console.table(filtered);
-      }
-      return 0;
-    }
-    case "add": {
-      const [repoName, feature, startPoint] = opts.positional;
-      if (!repoName || !feature) {
-        console.error(
-          "Usage: works worktree add <repo> <feature> [<commit-ish>]",
-        );
-        return 2;
-      }
-      const repository = manifest.repositories.find((r) => r.name === repoName);
-      if (!repository) {
-        console.error(`Unknown repository: ${repoName}`);
-        return 2;
-      }
-      const repoPath = resolveRepositoryPath(repository, paths);
-      if (!(await exists(repoPath))) {
-        console.error(`Repository not cloned: ${repoName}`);
-        return 2;
-      }
-      const worktreePath = join(paths.worktreesDirectory, repoName, feature);
-      if (await exists(worktreePath)) {
-        console.error(`Worktree path already exists: ${worktreePath}`);
-        return 2;
-      }
-      const reattach = await branchExists(g, repoPath, feature);
-      let startPointArg: string | undefined = startPoint;
-      if (reattach) {
-        console.warn(
-          `Branch ${feature} already exists; attaching existing branch`,
-        );
-      } else {
-        startPointArg ??= await defaultBranchStartPoint(g, repoPath);
-        if (!startPointArg) {
-          console.error(
-            "Cannot resolve a default-branch baseline (no origin/HEAD); pass an explicit <commit-ish>",
-          );
-          return 2;
-        }
-      }
-      const result = await addWorktree(
-        g,
-        repoPath,
-        worktreePath,
-        feature,
-        startPointArg,
-      );
-      if (result.code !== 0) {
-        console.error(result.stderr);
-        return 1;
-      }
-      console.log(`Created worktree ${worktreePath} on branch ${feature}`);
-      return 0;
-    }
-    case "remove": {
-      const [repoName, feature] = opts.positional;
-      if (!repoName || !feature) {
-        console.error("Usage: works worktree remove <repo> <feature>");
-        return 2;
-      }
-      const repository = manifest.repositories.find((r) => r.name === repoName);
-      if (!repository) {
-        console.error(`Unknown repository: ${repoName}`);
-        return 2;
-      }
-      const repoPath = resolveRepositoryPath(repository, paths);
-      if (!(await exists(repoPath))) {
-        console.error(`Repository not cloned: ${repoName}`);
-        return 2;
-      }
-      const worktreePath = join(paths.worktreesDirectory, repoName, feature);
-      const result = await removeWorktree(g, repoPath, worktreePath);
-      if (result.code !== 0) {
-        console.error(result.stderr);
-        return 1;
-      }
-      await Deno.remove(join(paths.worktreesDirectory, repoName), {
-        recursive: false,
-      }).catch(() => {});
-      console.log(`Removed worktree ${worktreePath}`);
-      return 0;
-    }
-    default:
-      console.error("Usage: works worktree add|list|remove");
-      return 2;
-  }
-}
-
-async function cloneMissing(
-  g: GitRunner,
-  manifest: WorkspaceManifest,
-  paths: ManifestPaths,
-  targets: string[] = [],
-): Promise<{ name: string; state: string; detail?: string }[]> {
-  await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
-  let repositories = manifest.repositories;
-  if (targets.length > 0) {
-    const validNames = new Set(manifest.repositories.map((r) => r.name));
-    for (const name of targets) {
-      if (!validNames.has(name)) {
-        return [{
-          name,
-          state: "UNKNOWN_REPO",
-          detail: `Repository "${name}" not found in manifest`,
-        }];
-      }
-    }
-    const targetSet = new Set(targets);
-    repositories = repositories.filter((r) => targetSet.has(r.name));
-  }
-  const rows: { name: string; state: string; detail?: string }[] = [];
-  for (const repository of repositories) {
-    const repoPath = resolveRepositoryPath(repository, paths);
-    if (await exists(repoPath)) {
-      if (await exists(join(repoPath, ".git"))) {
-        rows.push({ name: repository.name, state: "EXISTS" });
-      } else {
-        rows.push({
-          name: repository.name,
-          state: "PATH_BLOCKED",
-          detail: "Path exists but is not a Git repository",
-        });
-      }
-      continue;
-    }
-    if (!repository.url) {
-      throw new Error(
-        `Repository "${repository.name}" is missing its clone url`,
-      );
-    }
-    const result = await clone(g, repository.url, repoPath);
-    rows.push(
-      result.code === 0 ? { name: repository.name, state: "CLONED" } : {
-        name: repository.name,
-        state: "CLONE_FAILED",
-        detail: result.stderr.trim() || `Exit code ${result.code}`,
-      },
-    );
-  }
-  return rows;
-}
-
-async function runCommand(
-  opts: CliOptions,
-  manifest: WorkspaceManifest,
-  paths: ManifestPaths,
-  g: GitRunner,
-): Promise<number> {
-  switch (opts.command) {
-    case "check": {
-      const repos = opts.workspace
-        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
-        : manifest.repositories;
-      const scopedManifest = { ...manifest, repositories: repos };
-      const rows = await collectStatus(g, scopedManifest, paths);
-      if (opts.json) {
-        console.log(JSON.stringify(rows, null, 2));
-      } else {
-        console.table(rows);
-      }
-      return hasErrors(rows) ? 1 : 0;
-    }
-    case "install": {
-      // Install runs through the converging fixpoint in runInstall
-      // before runCommand is reached; this case only handles misuse.
-      console.error(
-        "Usage: works install [<repo...>] [--json] [--workspace <name>]",
-      );
-      return 2;
-    }
-    case "update": {
-      const repos = opts.workspace
-        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
-        : manifest.repositories;
-      const scopedManifest = { ...manifest, repositories: repos };
-      const rows = await runUpdate(g, scopedManifest, paths);
-      if (opts.json) {
-        console.log(JSON.stringify(rows, null, 2));
-      } else {
-        console.table(rows);
-      }
-      return 0;
-    }
-    case "worktree": {
-      const repos = opts.workspace
-        ? manifest.repositories.filter((r) => r.workspace === opts.workspace)
-        : manifest.repositories;
-      const scopedManifest = { ...manifest, repositories: repos };
-      return await runWorktree(opts, scopedManifest, paths, g);
-    }
-    case "env": {
-      if (opts.subcommand !== "sync") {
-        console.error("Usage: works env sync [--dry-run] [--json]");
-        return 2;
-      }
-      const rows = await syncEnv(g, manifest, paths, { dryRun: opts.dryRun });
-      if (opts.json) {
-        console.log(JSON.stringify(rows, null, 2));
-      } else {
-        console.table(rows);
-      }
-      const hasFailed = rows.some((r) => r.action === "FAILED");
-      return hasFailed ? 1 : 0;
-    }
-    case "validate": {
-      validateManifest(manifest);
-      console.log(
-        `Manifest valid: ${manifest.repositories.length} repositories.`,
-      );
-      return 0;
-    }
-    default:
-      return 2;
-  }
-}
-
-type InstallRow = { name: string; state: string; detail?: string };
-
-function isBadInstallRow(row: InstallRow): boolean {
-  return (
-    row.state === "CLONE_FAILED" ||
-    row.state === "PATH_BLOCKED" ||
-    row.state === "INVALID" ||
-    row.state === "UNKNOWN_REPO"
-  );
-}
-
-/**
- * Resolve the workspace tree, clone missing repositories, and print results.
- */
-async function runInstall(
-  opts: CliOptions,
-  manifest: WorkspaceManifest,
-  manifestPath: string,
-  g: GitRunner,
-): Promise<number> {
-  const targets = opts.subcommand ? [opts.subcommand, ...opts.positional] : [];
-  const paths = manifestPaths(manifest, manifestPath);
-
-  const resolved = resolveWorkspaceTree(manifest, manifestPath);
-  const flat = flattenResolved(resolved, manifest);
-
-  const scoped = opts.workspace
-    ? {
-      ...flat,
-      repositories: flat.repositories.filter(
-        (r) => r.workspace === opts.workspace,
-      ),
-    }
-    : flat;
-
-  const rows = await cloneMissing(g, scoped, paths, targets);
-  printRows(rows, opts.json);
-
-  const failed = rows.some(isBadInstallRow);
-  if (!failed) {
-    console.error(
-      `NOTE: Fresh clones do not contain files listed in .gitignore.
-Required setup steps may include:
-  - Running npm install / deno install / pip install etc. in each repo
-  - Copying .env files from secrets/ (run: works env sync)
-  - Any repo-specific setup documented in each repo's README`,
-    );
-  }
-  return failed ? 1 : 0;
-}
-
-/**
- * Scaffold a brand-new workspace: write a fresh manifest (schema v4) with
- * optional host/owner and seeded shorthand entries, create the standard
- * directories, and point the user at `works install`. Fails closed when any
- * manifest already exists in the target directory; seeds are validated through
- * the same normalize/validate pipeline as an existing manifest before
- * anything is written.
- */
-async function runInitScaffold(opts: CliOptions): Promise<number> {
-  const cwd = Deno.cwd();
-  const target = opts.manifestPath
-    ? resolve(cwd, opts.manifestPath)
-    : resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
-  const targetDir = dirname(target);
-
-  const existing = await findExistingManifest(targetDir);
-  if (existing) {
-    console.error(`Refusing to overwrite existing manifest: ${existing}`);
-    return 2;
-  }
-
-  const doc: Record<string, unknown> = {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-  };
-  if (opts.host !== undefined) {
-    doc.host = opts.host;
-  }
-  if (opts.owner !== undefined) {
-    doc.owner = opts.owner;
-  }
-  doc.repositories = opts.positional;
-
-  try {
-    const normalized = normalizeManifest(doc, target);
-    validateManifest(normalized);
-  } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : String(error),
-    );
-    return 2;
-  }
-
-  await Deno.mkdir(join(targetDir, "repos"), { recursive: true });
-  await Deno.mkdir(join(targetDir, "worktrees"), { recursive: true });
-  await Deno.mkdir(join(targetDir, "secrets"), { recursive: true });
-  await Deno.writeTextFile(target, JSON.stringify(doc, null, 2) + "\n");
-
-  console.log(`Created ${target} (schema v${CURRENT_SCHEMA_VERSION})`);
-  console.log("Created repos/, worktrees/, secrets/");
-  if (opts.positional.length > 0) {
-    console.log("Next: run `works install` to clone the listed repositories.");
-  }
-  return 0;
 }
 
 interface EditRow {
@@ -838,7 +454,7 @@ export async function run(args: string[]): Promise<number> {
   // init scaffolds a brand-new workspace; it must not require an existing
   // manifest, so it short-circuits before manifest loading.
   if (opts.command === "init") {
-    return await runInitScaffold(opts);
+    return await initCmd.run(opts);
   }
 
   // add/remove edit the manifest file itself and produce their own friendly
@@ -853,7 +469,7 @@ export async function run(args: string[]): Promise<number> {
   const g = new SystemGit();
 
   if (opts.command === "install") {
-    return await runInstall(opts, manifest, manifestPath, g);
+    return await installCmd.run(opts, manifest, manifestPath, g);
   }
 
   // Every other command resolves once; detected sub-workspaces reflect
@@ -872,17 +488,30 @@ export async function run(args: string[]): Promise<number> {
     return 2;
   }
 
-  const resolvedManifest = flattenResolved(resolvedTree, manifest);
-
   // Handle the workspaces command with resolved data.
   if (opts.command === "workspaces") {
-    const workspaces = listWorkspaces(resolvedTree);
-    printRows(workspaces, opts.json);
-    return 0;
+    return await workspacesCmd.run(opts, resolvedTree);
   }
 
+  if (opts.command === "validate") {
+    return await validateCmd.run(manifest);
+  }
+
+  const resolvedManifest = flattenResolved(resolvedTree, manifest);
   const paths = manifestPaths(manifest, manifestPath);
-  return await runCommand(opts, resolvedManifest, paths, g);
+
+  switch (opts.command) {
+    case "check":
+      return await checkCmd.run(opts, resolvedManifest, paths, g);
+    case "update":
+      return await updateCmd.run(opts, resolvedManifest, paths, g);
+    case "worktree":
+      return await worktreeCmd.run(opts, resolvedManifest, paths, g);
+    case "env":
+      return await envCmd.run(opts, resolvedManifest, paths, g);
+    default:
+      return 2;
+  }
 }
 
 export async function main(): Promise<number> {
