@@ -39,7 +39,7 @@ async function runAdd(
   }
 
   const result = opts.url !== undefined
-    ? await resolveUrlEntry(opts, manifest)
+    ? resolveUrlEntry(opts)
     : await resolveShorthandEntry(opts, manifest);
 
   if (result === undefined) return 2;
@@ -84,10 +84,9 @@ interface ResolvedEntry {
   rows: EditRow[];
 }
 
-async function resolveUrlEntry(
+function resolveUrlEntry(
   opts: CliOptions,
-  manifest: WorkspaceManifest,
-): Promise<ResolvedEntry | undefined> {
+): ResolvedEntry | undefined {
   if (opts.create) {
     console.error(
       "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
