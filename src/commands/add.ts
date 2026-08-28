@@ -118,11 +118,7 @@ async function resolveShorthandEntry(
   const host = manifest.host ?? "github.com";
   let expanded;
   try {
-    expanded = resolveRepository({
-      host,
-      owner: manifest.owner,
-      repositories: manifest.repositories,
-    }, shorthand);
+    expanded = resolveRepository({ host, owner: manifest.owner }, shorthand);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return undefined;

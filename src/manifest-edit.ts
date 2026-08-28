@@ -6,6 +6,56 @@
  */
 import { resolveRepository } from "./resolve.ts";
 
+// --- Shared JSONC state helpers ---
+
+interface JsoncState {
+  i: number;
+  inLineComment: boolean;
+  inBlockComment: boolean;
+  strStart: number;
+  quote: string;
+  escaped: boolean;
+}
+
+function skipLineComment(raw: string, state: JsoncState): void {
+  while (state.i < raw.length && raw[state.i] !== "\n") state.i++;
+  state.inLineComment = false;
+}
+
+function skipBlockComment(raw: string, state: JsoncState): void {
+  while (state.i < raw.length) {
+    if (raw[state.i] === "*" && raw[state.i + 1] === "/") {
+      state.i += 2;
+      state.inBlockComment = false;
+      return;
+    }
+    state.i++;
+  }
+}
+
+function skipString(raw: string, state: JsoncState): string | null {
+  const start = state.i;
+  state.strStart = start;
+  state.escaped = false;
+  state.i++;
+  while (state.i < raw.length) {
+    const ch = raw[state.i];
+    if (state.escaped) {
+      state.escaped = false;
+    } else if (ch === "\\") {
+      state.escaped = true;
+    } else if (ch === state.quote) {
+      const token = raw.slice(start, state.i);
+      state.strStart = -1;
+      state.i++;
+      return token;
+    }
+    state.i++;
+  }
+  state.strStart = -1;
+  return null;
+}
+
 export class ManifestEditError extends Error {}
 
 /** Entry forms accepted by add/remove, mirroring schema v4 authoring. */
@@ -66,73 +116,65 @@ function locateJsoncRepositoriesArray(raw: string): ArrayScan {
 }
 
 function findJsoncKeyArrayOpen(raw: string): number {
-  let i = 0;
+  const s: JsoncState = {
+    i: 0,
+    inLineComment: false,
+    inBlockComment: false,
+    strStart: -1,
+    quote: "",
+    escaped: false,
+  };
   let depth = 0;
-  let strStart = -1;
-  let quote = "";
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-  while (i < raw.length) {
-    const ch = raw[i];
-    const next = raw[i + 1];
-    if (lineComment) {
-      if (ch === "\n") lineComment = false;
-      i++;
+  while (s.i < raw.length) {
+    const ch = raw[s.i];
+    const next = raw[s.i + 1];
+    if (s.inLineComment) {
+      skipLineComment(raw, s);
       continue;
     }
-    if (blockComment) {
-      if (ch === "*" && next === "/") {
-        blockComment = false;
-        i += 2;
-        continue;
-      }
-      i++;
+    if (s.inBlockComment) {
+      skipBlockComment(raw, s);
       continue;
     }
-    if (strStart !== -1) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === quote) {
-        const token = raw.slice(strStart + 1, i);
-        strStart = -1;
-        if (depth === 1 && token === "repositories") {
-          let j = i + 1;
-          while (j < raw.length && /\s/.test(raw[j])) j++;
-          if (raw[j] !== ":") continue;
-          j++;
-          while (j < raw.length && /\s/.test(raw[j])) j++;
-          if (raw[j] !== "[") {
-            throw new ManifestEditError(
-              `"repositories" is not an array in this manifest`,
-            );
-          }
-          return j;
+    if (s.strStart !== -1) {
+      const token = skipString(raw, s);
+      if (
+        s.strStart === -1 && depth === 1 && token === "repositories"
+      ) {
+        let j = s.i;
+        while (j < raw.length && /\s/.test(raw[j])) j++;
+        if (raw[j] !== ":") continue;
+        j++;
+        while (j < raw.length && /\s/.test(raw[j])) j++;
+        if (raw[j] !== "[") {
+          throw new ManifestEditError(
+            `"repositories" is not an array in this manifest`,
+          );
         }
+        return j;
       }
-      i++;
       continue;
     }
     if (ch === "/" && next === "/") {
-      lineComment = true;
-      i += 2;
+      s.inLineComment = true;
+      s.i += 2;
       continue;
     }
     if (ch === "/" && next === "*") {
-      blockComment = true;
-      i += 2;
+      s.inBlockComment = true;
+      s.i += 2;
       continue;
     }
     if (ch === '"' || ch === "'") {
-      strStart = i;
-      quote = ch;
-      escaped = false;
-      i++;
+      s.strStart = s.i;
+      s.quote = ch;
+      s.escaped = false;
+      s.i++;
       continue;
     }
     if (ch === "{") depth++;
     else if (ch === "}") depth--;
-    i++;
+    s.i++;
   }
   throw new ManifestEditError(
     `No "repositories" array found in manifest`,
@@ -140,15 +182,15 @@ function findJsoncKeyArrayOpen(raw: string): number {
 }
 
 function scanBracketSpan(raw: string, start: number): ArrayScan {
-  // The array's own opening bracket is boundary, not content: begin inside
-  // it so element spans never include it.
-  let i = start + 1;
+  const s: JsoncState = {
+    i: start + 1,
+    inLineComment: false,
+    inBlockComment: false,
+    strStart: -1,
+    quote: "",
+    escaped: false,
+  };
   let depth = 1;
-  let strStart = -1;
-  let quote = "";
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
   const elements: ArrayScan["elements"] = [];
   let elStart = -1;
   let elEnd = -1;
@@ -167,78 +209,72 @@ function scanBracketSpan(raw: string, start: number): ArrayScan {
     elEnd = -1;
   };
 
-  while (i < raw.length) {
-    const ch = raw[i];
-    const next = raw[i + 1];
-    if (lineComment) {
-      if (ch === "\n") lineComment = false;
-      i++;
+  while (s.i < raw.length) {
+    const ch = raw[s.i];
+    const next = raw[s.i + 1];
+    if (s.inLineComment) {
+      skipLineComment(raw, s);
       continue;
     }
-    if (blockComment) {
-      if (ch === "*" && next === "/") {
-        blockComment = false;
-        i += 2;
-        continue;
-      }
-      i++;
+    if (s.inBlockComment) {
+      skipBlockComment(raw, s);
       continue;
     }
-    if (strStart !== -1) {
-      mark(i);
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === quote) strStart = -1;
-      i++;
+    if (s.strStart !== -1) {
+      mark(s.i);
+      if (s.escaped) s.escaped = false;
+      else if (ch === "\\") s.escaped = true;
+      else if (ch === s.quote) s.strStart = -1;
+      s.i++;
       continue;
     }
     if (ch === "/" && next === "/") {
-      lineComment = true;
-      i += 2;
+      s.inLineComment = true;
+      s.i += 2;
       continue;
     }
     if (ch === "/" && next === "*") {
-      blockComment = true;
-      i += 2;
+      s.inBlockComment = true;
+      s.i += 2;
       continue;
     }
     if (ch === '"' || ch === "'") {
-      strStart = i;
-      quote = ch;
-      escaped = false;
-      mark(i);
-      i++;
+      s.strStart = s.i;
+      s.quote = ch;
+      s.escaped = false;
+      mark(s.i);
+      s.i++;
       continue;
     }
     if (ch === "[" || ch === "{") {
       depth++;
-      mark(i);
-      i++;
+      mark(s.i);
+      s.i++;
       continue;
     }
     if (ch === "]") {
       if (depth === 1) {
         flush();
-        return { arrayStart: start, arrayEnd: i, elements };
+        return { arrayStart: start, arrayEnd: s.i, elements };
       }
       depth--;
-      mark(i);
-      i++;
+      mark(s.i);
+      s.i++;
       continue;
     }
     if (ch === "}") {
       depth--;
-      mark(i);
-      i++;
+      mark(s.i);
+      s.i++;
       continue;
     }
     if (ch === "," && depth === 1) {
       flush();
-      i++;
+      s.i++;
       continue;
     }
-    mark(i);
-    i++;
+    mark(s.i);
+    s.i++;
   }
   throw new ManifestEditError(`Unterminated repositories array`);
 }
@@ -346,7 +382,7 @@ function parsedEntryName(
     // Unexpandable scalars (no resolvable owner) simply never match a
     // removal target; removal must not explode on unrelated entries.
     try {
-      return resolveRepository({ host, owner, repositories: [] }, parsed).name;
+      return resolveRepository({ host, owner }, parsed).name;
     } catch {
       return "";
     }

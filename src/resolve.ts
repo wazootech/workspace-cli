@@ -5,9 +5,12 @@ const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
 // Types
 // -----------------------------------------------------------------------------
 
-export interface Workspace {
+export interface WorkspaceContext {
   host?: string;
   owner?: string;
+}
+
+export interface Workspace extends WorkspaceContext {
   repositories: Array<string | Repository>;
 }
 
@@ -65,7 +68,7 @@ function normalizeHost(host: string = DEFAULT_HOST): string {
 // -----------------------------------------------------------------------------
 
 export function resolveRepository(
-  workspace: Workspace,
+  workspace: WorkspaceContext,
   repository: string | Repository,
 ): ResolvedRepository {
   // Stage 1: Normalize input type

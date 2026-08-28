@@ -22,6 +22,7 @@ export type {
   ResolvedRepository,
   ResolvedWorkspace,
   Workspace,
+  WorkspaceContext,
 } from "./resolve.ts";
 export {
   classifyState,

@@ -46,21 +46,21 @@ Deno.test("parseRepository", async (t) => {
 Deno.test("resolveRepository", async (t) => {
   await t.step("expands bare string with workspace owner", () => {
     assertEquals(
-      resolveRepository({ owner: "acme", repositories: [] }, "api"),
+      resolveRepository({ owner: "acme" }, "api"),
       { name: "api", url: "https://github.com/acme/api" },
     );
   });
 
   await t.step("expands owner/name inline shorthand", () => {
     assertEquals(
-      resolveRepository({ owner: "acme", repositories: [] }, "other/repo"),
+      resolveRepository({ owner: "acme" }, "other/repo"),
       { name: "repo", url: "https://github.com/other/repo" },
     );
   });
 
   await t.step("inline owner overrides workspace owner", () => {
     assertEquals(
-      resolveRepository({ owner: "acme", repositories: [] }, {
+      resolveRepository({ owner: "acme" }, {
         name: "repo",
         owner: "other",
       }),
@@ -71,7 +71,7 @@ Deno.test("resolveRepository", async (t) => {
   await t.step("passthrough explicit url", () => {
     assertEquals(
       resolveRepository(
-        { owner: "acme", repositories: [] },
+        { owner: "acme" },
         { name: "custom", url: "https://gitlab.com/x/y.git" },
       ),
       { name: "custom", url: "https://gitlab.com/x/y.git" },
@@ -80,7 +80,7 @@ Deno.test("resolveRepository", async (t) => {
 
   await t.step("uses custom host from repository", () => {
     assertEquals(
-      resolveRepository({ owner: "acme", repositories: [] }, {
+      resolveRepository({ owner: "acme" }, {
         name: "api",
         host: "gitlab.com",
       }),
@@ -91,7 +91,7 @@ Deno.test("resolveRepository", async (t) => {
   await t.step("normalizes bare hostname to https", () => {
     assertEquals(
       resolveRepository(
-        { host: "github.com", owner: "acme", repositories: [] },
+        { host: "github.com", owner: "acme" },
         "api",
       ),
       { name: "api", url: "https://github.com/acme/api" },
@@ -99,23 +99,17 @@ Deno.test("resolveRepository", async (t) => {
   });
 
   const errorCases: {
-    workspace: {
-      host?: string;
-      owner?: string;
-      repositories: Array<
-        string | { name: string; host?: string; owner?: string; url?: string }
-      >;
-    };
+    workspace: { host?: string; owner?: string };
     repo: string | { name: string; url?: string };
     pattern: string;
   }[] = [
     {
-      workspace: { repositories: [] },
+      workspace: {},
       repo: "api",
       pattern: "Invalid repository owner",
     },
     {
-      workspace: { owner: "acme", repositories: [] },
+      workspace: { owner: "acme" },
       repo: { name: "", url: undefined },
       pattern: "Invalid repository name",
     },
