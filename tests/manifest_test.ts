@@ -11,11 +11,6 @@ import {
   validateManifest,
   validateManifestText,
 } from "@/manifest.ts";
-import {
-  parseRepository,
-  resolveRepository,
-  resolveWorkspace,
-} from "@/resolve.ts";
 import { validateSafeName } from "@/validate.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
@@ -779,44 +774,32 @@ Deno.test("manifestPaths resolves relative secretsDirectory", () => {
 });
 
 // ---------------------------------------------------------------------------
-// validateSafeName — direct tests
+// validateSafeName — table-driven
+
+Deno.test("validateSafeName", async (t) => {
+  const validCases = ["my-repo", "repo_name", "a.b", "123"];
+  for (const name of validCases) {
+    await t.step(`accepts "${name}"`, () => {
+      validateSafeName(name);
+    });
+  }
+
+  const errorCases: { input: string; pattern: string }[] = [
+    { input: "", pattern: "cannot be empty" },
+    { input: "../etc", pattern: "path traversal" },
+    { input: ".", pattern: "path traversal" },
+    { input: "foo/../bar", pattern: "path traversal" },
+    { input: "foo\\bar", pattern: "path traversal" },
+  ];
+
+  for (const { input, pattern } of errorCases) {
+    await t.step(`rejects "${input}"`, () => {
+      assertThrows(() => validateSafeName(input), Error, pattern);
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
-
-Deno.test("validateSafeName accepts a valid name", () => {
-  validateSafeName("my-repo");
-});
-
-Deno.test("validateSafeName rejects empty string", () => {
-  assertThrows(() => validateSafeName(""), Error, "cannot be empty");
-});
-
-Deno.test("validateSafeName rejects dot-dot traversal", () => {
-  assertThrows(
-    () => validateSafeName("../etc"),
-    Error,
-    "path traversal",
-  );
-});
-
-Deno.test("validateSafeName rejects single dot", () => {
-  assertThrows(() => validateSafeName("."), Error, "path traversal");
-});
-
-Deno.test("validateSafeName rejects name with embedded dot-dot", () => {
-  assertThrows(
-    () => validateSafeName("foo/../bar"),
-    Error,
-    "path traversal",
-  );
-});
-
-Deno.test("validateSafeName rejects name with backslash", () => {
-  assertThrows(
-    () => validateSafeName("foo\\bar"),
-    Error,
-    "path traversal",
-  );
-});
 
 // ---------------------------------------------------------------------------
 // detectConflicts — additional edge cases
@@ -881,135 +864,3 @@ Deno.test("listWorkspaces groups repos by workspace name", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolve.ts — parseRepository
-// ---------------------------------------------------------------------------
-
-Deno.test("parseRepository parses bare name", () => {
-  assertEquals(parseRepository("api"), { name: "api" });
-});
-
-Deno.test("parseRepository parses owner/name", () => {
-  assertEquals(parseRepository("acme/api"), { owner: "acme", name: "api" });
-});
-
-Deno.test("parseRepository rejects multiple slashes", () => {
-  assertThrows(
-    () => parseRepository("a/b/c"),
-    Error,
-    "Unable to parse repository string",
-  );
-});
-
-Deno.test("parseRepository rejects empty owner half", () => {
-  assertThrows(
-    () => parseRepository("/api"),
-    Error,
-    "Unable to parse repository string",
-  );
-});
-
-Deno.test("parseRepository rejects empty name half", () => {
-  assertThrows(
-    () => parseRepository("acme/"),
-    Error,
-    "Unable to parse repository string",
-  );
-});
-
-// ---------------------------------------------------------------------------
-// resolve.ts — resolveRepository
-// ---------------------------------------------------------------------------
-
-Deno.test("resolveRepository expands bare string with workspace owner", () => {
-  const result = resolveRepository(
-    { owner: "acme" },
-    "api",
-  );
-  assertEquals(result, { name: "api", url: "https://github.com/acme/api" });
-});
-
-Deno.test("resolveRepository expands owner/name inline shorthand", () => {
-  const result = resolveRepository(
-    { owner: "acme" },
-    "other/repo",
-  );
-  assertEquals(result, { name: "repo", url: "https://github.com/other/repo" });
-});
-
-Deno.test("resolveRepository inline owner overrides workspace owner", () => {
-  const result = resolveRepository(
-    { owner: "acme" },
-    { name: "repo", owner: "other" },
-  );
-  assertEquals(result, { name: "repo", url: "https://github.com/other/repo" });
-});
-
-Deno.test("resolveRepository passthrough explicit url", () => {
-  const result = resolveRepository(
-    { owner: "acme" },
-    { name: "custom", url: "https://gitlab.com/x/y.git" },
-  );
-  assertEquals(result, { name: "custom", url: "https://gitlab.com/x/y.git" });
-});
-
-Deno.test("resolveRepository uses custom host from repository", () => {
-  const result = resolveRepository(
-    { owner: "acme" },
-    { name: "api", host: "gitlab.com" },
-  );
-  assertEquals(result, { name: "api", url: "https://gitlab.com/acme/api" });
-});
-
-Deno.test("resolveRepository normalizes bare hostname to https", () => {
-  const result = resolveRepository(
-    { host: "github.com", owner: "acme" },
-    "api",
-  );
-  assertEquals(result, { name: "api", url: "https://github.com/acme/api" });
-});
-
-Deno.test("resolveRepository throws on missing owner", () => {
-  assertThrows(
-    () => resolveRepository({}, "api"),
-    Error,
-    "Invalid repository owner",
-  );
-});
-
-Deno.test("resolveRepository throws on invalid name", () => {
-  assertThrows(
-    () => resolveRepository({ owner: "acme" }, { name: "", url: undefined }),
-    Error,
-    "Invalid repository name",
-  );
-});
-
-// ---------------------------------------------------------------------------
-// resolve.ts — resolveWorkspace
-// ---------------------------------------------------------------------------
-
-Deno.test("resolveWorkspace maps all repositories", () => {
-  const result = resolveWorkspace({
-    owner: "acme",
-    repositories: ["api", "other/repo"],
-  });
-  assertEquals(result.repositories.length, 2);
-  assertEquals(result.repositories[0], {
-    name: "api",
-    url: "https://github.com/acme/api",
-  });
-  assertEquals(result.repositories[1], {
-    name: "repo",
-    url: "https://github.com/other/repo",
-  });
-});
-
-Deno.test("resolveWorkspace preserves host and owner", () => {
-  const result = resolveWorkspace({
-    host: "gitlab.com",
-    owner: "acme",
-    repositories: ["api"],
-  });
-  assertEquals(result.host, "gitlab.com");
-  assertEquals(result.owner, "acme");
-});
