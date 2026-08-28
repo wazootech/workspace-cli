@@ -3,7 +3,7 @@ import {
   parseRepository,
   resolveRepository,
   resolveWorkspace,
-} from "../src/resolve.ts";
+} from "@/resolve.ts";
 
 // ---------------------------------------------------------------------------
 // parseRepository
