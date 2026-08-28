@@ -38,66 +38,12 @@ async function runAdd(
     return 2;
   }
 
-  let entry: NewEntry;
-  let entryName: string;
-  const rows: EditRow[] = [];
+  const result = opts.url !== undefined
+    ? await resolveUrlEntry(opts, manifest)
+    : await resolveShorthandEntry(opts, manifest);
 
-  if (opts.url !== undefined) {
-    if (opts.create) {
-      console.error(
-        "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
-      );
-      return 2;
-    }
-    const explicit = opts.name ?? opts.positional[0];
-    if (explicit !== undefined) {
-      entryName = explicit;
-    } else {
-      try {
-        entryName = deriveNameFromUrl(opts.url);
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : String(error));
-        return 2;
-      }
-    }
-    try {
-      validateSafeName(entryName, "Repository name");
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      return 2;
-    }
-    entry = { kind: "object", name: entryName, url: opts.url };
-  } else {
-    const shorthand = opts.positional[0];
-    if (!shorthand) {
-      console.error("Usage: works add [<name>] [--url <url>] [--name <n>]");
-      return 2;
-    }
-    const host = manifest.host ?? "github.com";
-    let expanded;
-    try {
-      expanded = resolveRepository({ host, owner: manifest.owner }, shorthand);
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      return 2;
-    }
-    entryName = expanded.name;
-
-    if (host === "github.com") {
-      const slug = expanded.url
-        .replace(/^https:\/\/github\.com\//, "")
-        .replace(/\.git$/, "");
-      const ghOutcome = await ensureGitHubRepo(ghRunner(), slug, opts);
-      if (typeof ghOutcome === "string") {
-        console.error(ghOutcome);
-        return 1;
-      }
-      if (ghOutcome === "created") {
-        rows.push({ name: entryName, action: "REMOTE_CREATED" });
-      }
-    }
-    entry = { kind: "shorthand", raw: shorthand };
-  }
+  if (result === undefined) return 2;
+  const { entry, entryName, rows } = result;
 
   const duplicate = manifest.repositories.find((r) => r.name === entryName);
   if (duplicate) {
@@ -132,6 +78,86 @@ async function runAdd(
   return 0;
 }
 
+interface ResolvedEntry {
+  entry: NewEntry;
+  entryName: string;
+  rows: EditRow[];
+}
+
+async function resolveUrlEntry(
+  opts: CliOptions,
+  manifest: WorkspaceManifest,
+): Promise<ResolvedEntry | undefined> {
+  if (opts.create) {
+    console.error(
+      "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
+    );
+    return undefined;
+  }
+
+  const entryName = opts.name ?? opts.positional[0] ??
+    deriveNameFromUrl(opts.url!);
+  if (!tryValidateName(entryName)) return undefined;
+
+  return {
+    entry: { kind: "object", name: entryName, url: opts.url! },
+    entryName,
+    rows: [],
+  };
+}
+
+async function resolveShorthandEntry(
+  opts: CliOptions,
+  manifest: WorkspaceManifest,
+): Promise<ResolvedEntry | undefined> {
+  const shorthand = opts.positional[0];
+  if (!shorthand) {
+    console.error("Usage: works add [<name>] [--url <url>] [--name <n>]");
+    return undefined;
+  }
+
+  const host = manifest.host ?? "github.com";
+  let expanded;
+  try {
+    expanded = resolveRepository({ host, owner: manifest.owner }, shorthand);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return undefined;
+  }
+
+  const rows: EditRow[] = [];
+  if (host === "github.com") {
+    const slug = new URL(expanded.url).pathname.replace(/^\//, "").replace(
+      /\.git$/,
+      "",
+    );
+    const ghOutcome = await ensureGitHubRepo(ghRunner(), slug, opts);
+    if (typeof ghOutcome === "string") {
+      console.error(ghOutcome);
+      return undefined;
+    }
+    if (ghOutcome.status === "created") {
+      rows.push({ name: expanded.name, action: "REMOTE_CREATED" });
+    }
+  }
+
+  return {
+    entry: { kind: "shorthand", raw: shorthand },
+    entryName: expanded.name,
+    rows,
+  };
+}
+
+function tryValidateName(name: string): boolean {
+  try {
+    validateSafeName(name, "Repository name");
+    return true;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
 let cachedGh: SystemGit | undefined;
 
 function ghRunner(): SystemGit {
@@ -139,15 +165,15 @@ function ghRunner(): SystemGit {
   return cachedGh;
 }
 
-/**
- * Probe (and optionally create) the GitHub repository for a shorthand entry.
- * Returns "found", "created", or an error message string.
- */
+interface GitHubProbeResult {
+  status: "found" | "created";
+}
+
 async function ensureGitHubRepo(
   gh: SystemGit,
   slug: string,
   opts: CliOptions,
-): Promise<"found" | "created" | string> {
+): Promise<GitHubProbeResult | string> {
   let visibility: "public" | "private" | undefined;
   if (opts.visibility !== undefined) {
     if (!opts.create) {
@@ -158,13 +184,15 @@ async function ensureGitHubRepo(
     }
     visibility = opts.visibility;
   }
+
   let probe: Awaited<ReturnType<typeof probeGitHubRepo>>;
   try {
     probe = await probeGitHubRepo(gh, slug);
   } catch {
     return `gh CLI is not available; install it or add "${slug}" manually with --url`;
   }
-  if (probe.status === "found") return "found";
+
+  if (probe.status === "found") return { status: "found" };
   if (probe.status === "missing") {
     if (!opts.create) {
       return `not found: ${slug} does not exist on GitHub; rerun with --create to create it`;
@@ -174,7 +202,7 @@ async function ensureGitHubRepo(
       if (!created.ok) {
         return `failed to create ${slug}: ${created.stderr ?? ""}`.trimEnd();
       }
-      return "created";
+      return { status: "created" };
     } catch {
       return `gh CLI is not available; cannot create ${slug}`;
     }
