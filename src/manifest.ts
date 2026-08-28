@@ -7,7 +7,7 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
-import { resolveRepository } from "./resolve.ts";
+import { resolveRepository, type Workspace } from "./resolve.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -140,7 +140,11 @@ export function normalizeManifest(
     const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
       try {
-        return resolveRepository({ host, owner }, entry);
+        return resolveRepository({
+          host,
+          owner,
+          repositories: doc.repositories as Workspace["repositories"],
+        }, entry);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`${at}: ${message}`);
@@ -164,7 +168,11 @@ export function normalizeManifest(
     }
     try {
       return resolveRepository(
-        { host, owner },
+        {
+          host,
+          owner,
+          repositories: doc.repositories as Workspace["repositories"],
+        },
         {
           name: typeof record.name === "string" ? record.name : "",
           host: typeof record.host === "string" ? record.host : undefined,

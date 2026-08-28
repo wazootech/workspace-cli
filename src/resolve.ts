@@ -1,25 +1,13 @@
-/**
- * Pure resolution logic for workspace repository entries.
- *
- * Given a workspace context (host, owner) and a raw repository entry
- * (string or object), resolve it to a concrete name and URL. No side
- * effects, no filesystem access, no manifest awareness.
- */
-
 export const DEFAULT_HOST = "https://github.com";
-const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9._-]+$/;
+const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
-/** Workspace context used for resolution fallbacks. */
-export interface WorkspaceContext {
+export interface Workspace {
   host?: string;
   owner?: string;
-}
-
-export interface Workspace extends WorkspaceContext {
   repositories: Array<string | Repository>;
 }
 
@@ -45,7 +33,7 @@ export interface ResolvedWorkspace {
 // Primitives
 // -----------------------------------------------------------------------------
 
-/** Single validation primitive for host/name segments. */
+/** 1. Single validation primitive */
 function assertValidSegment(
   value: string | undefined,
   label: string,
@@ -56,12 +44,7 @@ function assertValidSegment(
   return value;
 }
 
-/**
- * Pure structural parser — zero validation side-effects.
- *
- * Parses "owner/name" into a Repository object. If there is no `/`, the
- * string is assumed to be a bare repository name.
- */
+/** 2. Pure structural parser - zero validation side-effects */
 export function parseRepository(repository: string): Repository {
   const parts = repository.split("/");
   if (parts.length > 2 || parts.some((p) => !p)) {
@@ -72,7 +55,7 @@ export function parseRepository(repository: string): Repository {
     : { name: parts[0] };
 }
 
-/** Normalize a host to a full URL (adds https:// if missing). */
+/** 3. Normalizer helper for host URLs */
 function normalizeHost(host: string = DEFAULT_HOST): string {
   return host.includes("://") ? host : `https://${host}`;
 }
@@ -81,17 +64,8 @@ function normalizeHost(host: string = DEFAULT_HOST): string {
 // Main Resolvers
 // -----------------------------------------------------------------------------
 
-/**
- * Resolve a single repository entry to a concrete name and URL.
- *
- * Resolution follows a staged pipeline:
- * 1. Normalize input type (string → Repository object via parseRepository)
- * 2. Validate name early (required regardless of URL presence)
- * 3. Escape hatch for explicit custom URLs
- * 4. Cascading host/owner fallbacks + boundary validation
- */
 export function resolveRepository(
-  workspace: WorkspaceContext,
+  workspace: Workspace,
   repository: string | Repository,
 ): ResolvedRepository {
   // Stage 1: Normalize input type
@@ -120,9 +94,6 @@ export function resolveRepository(
   };
 }
 
-/**
- * Resolve all repositories in a workspace.
- */
 export function resolveWorkspace(workspace: Workspace): ResolvedWorkspace {
   return {
     host: workspace.host,

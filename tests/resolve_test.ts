@@ -46,21 +46,24 @@ Deno.test("parseRepository", async (t) => {
 Deno.test("resolveRepository", async (t) => {
   await t.step("expands bare string with workspace owner", () => {
     assertEquals(
-      resolveRepository({ owner: "acme" }, "api"),
+      resolveRepository({ owner: "acme", repositories: [] }, "api"),
       { name: "api", url: "https://github.com/acme/api" },
     );
   });
 
   await t.step("expands owner/name inline shorthand", () => {
     assertEquals(
-      resolveRepository({ owner: "acme" }, "other/repo"),
+      resolveRepository({ owner: "acme", repositories: [] }, "other/repo"),
       { name: "repo", url: "https://github.com/other/repo" },
     );
   });
 
   await t.step("inline owner overrides workspace owner", () => {
     assertEquals(
-      resolveRepository({ owner: "acme" }, { name: "repo", owner: "other" }),
+      resolveRepository({ owner: "acme", repositories: [] }, {
+        name: "repo",
+        owner: "other",
+      }),
       { name: "repo", url: "https://github.com/other/repo" },
     );
   });
@@ -68,7 +71,7 @@ Deno.test("resolveRepository", async (t) => {
   await t.step("passthrough explicit url", () => {
     assertEquals(
       resolveRepository(
-        { owner: "acme" },
+        { owner: "acme", repositories: [] },
         { name: "custom", url: "https://gitlab.com/x/y.git" },
       ),
       { name: "custom", url: "https://gitlab.com/x/y.git" },
@@ -77,26 +80,42 @@ Deno.test("resolveRepository", async (t) => {
 
   await t.step("uses custom host from repository", () => {
     assertEquals(
-      resolveRepository({ owner: "acme" }, { name: "api", host: "gitlab.com" }),
+      resolveRepository({ owner: "acme", repositories: [] }, {
+        name: "api",
+        host: "gitlab.com",
+      }),
       { name: "api", url: "https://gitlab.com/acme/api" },
     );
   });
 
   await t.step("normalizes bare hostname to https", () => {
     assertEquals(
-      resolveRepository({ host: "github.com", owner: "acme" }, "api"),
+      resolveRepository(
+        { host: "github.com", owner: "acme", repositories: [] },
+        "api",
+      ),
       { name: "api", url: "https://github.com/acme/api" },
     );
   });
 
   const errorCases: {
-    workspace: { host?: string; owner?: string };
+    workspace: {
+      host?: string;
+      owner?: string;
+      repositories: Array<
+        string | { name: string; host?: string; owner?: string; url?: string }
+      >;
+    };
     repo: string | { name: string; url?: string };
     pattern: string;
   }[] = [
-    { workspace: {}, repo: "api", pattern: "Invalid repository owner" },
     {
-      workspace: { owner: "acme" },
+      workspace: { repositories: [] },
+      repo: "api",
+      pattern: "Invalid repository owner",
+    },
+    {
+      workspace: { owner: "acme", repositories: [] },
       repo: { name: "", url: undefined },
       pattern: "Invalid repository name",
     },

@@ -220,17 +220,17 @@ Deno.test("loadManifest expands bare-string entries against owner", async () => 
       JSON.stringify({
         schemaVersion: 4,
         owner: "ethanthatonekid",
-        repositories: ["etok.me", "memsdk"],
+        repositories: ["etok", "memsdk"],
       }),
     );
 
     const manifest = await loadManifest(manifestPath);
     assertEquals(manifest.owner, "ethanthatonekid");
     assertEquals(manifest.repositories.length, 2);
-    assertEquals(manifest.repositories[0].name, "etok.me");
+    assertEquals(manifest.repositories[0].name, "etok");
     assertEquals(
       manifest.repositories[0].url,
-      "https://github.com/ethanthatonekid/etok.me",
+      "https://github.com/ethanthatonekid/etok",
     );
     assertEquals(
       manifest.repositories[1].url,
@@ -247,7 +247,7 @@ Deno.test("loadManifest rejects a bare-string entry without an owner", async () 
     const manifestPath = join(tempDir, "repos.json");
     await Deno.writeTextFile(
       manifestPath,
-      JSON.stringify({ repositories: ["etok.me"] }),
+      JSON.stringify({ repositories: ["etok"] }),
     );
     await assertRejects(
       () => loadManifest(manifestPath),
@@ -311,7 +311,7 @@ Deno.test("loadManifest lets inline owner override the top-level owner", async (
       manifestPath,
       JSON.stringify({
         owner: "ethanthatonekid",
-        repositories: ["wazootech/memsdk", "etok.me"],
+        repositories: ["wazootech/memsdk", "etok"],
       }),
     );
 
@@ -322,7 +322,7 @@ Deno.test("loadManifest lets inline owner override the top-level owner", async (
     );
     assertEquals(
       manifest.repositories[1].url,
-      "https://github.com/ethanthatonekid/etok.me",
+      "https://github.com/ethanthatonekid/etok",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

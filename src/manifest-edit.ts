@@ -346,7 +346,7 @@ function parsedEntryName(
     // Unexpandable scalars (no resolvable owner) simply never match a
     // removal target; removal must not explode on unrelated entries.
     try {
-      return resolveRepository({ host, owner }, parsed).name;
+      return resolveRepository({ host, owner, repositories: [] }, parsed).name;
     } catch {
       return "";
     }
