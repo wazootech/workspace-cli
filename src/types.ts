@@ -1,3 +1,9 @@
+/** Minimal workspace context needed for repository resolution. */
+export interface WorkspaceContext {
+  host?: string;
+  owner?: string;
+}
+
 export interface RepositoryEntry {
   name: string;
   /** Clone URL. Any Git host; shorthand entries expand to GitHub-style HTTPS. */

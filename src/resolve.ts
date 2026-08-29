@@ -1,31 +1,13 @@
+import type { RepositoryEntry, WorkspaceContext } from "./types.ts";
+
 export const DEFAULT_HOST = "https://github.com";
 const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
-
-export interface WorkspaceContext {
-  host?: string;
-  owner?: string;
-}
-
-export interface Workspace extends WorkspaceContext {
-  repositories: Array<string | Repository>;
-}
 
 export interface Repository {
   host?: string;
   owner?: string;
   name: string;
   url?: string;
-}
-
-export interface ResolvedRepository {
-  name: string;
-  url: string;
-}
-
-export interface ResolvedWorkspace {
-  host?: string;
-  owner?: string;
-  repositories: ResolvedRepository[];
 }
 
 /** Throw if the value is empty or contains invalid characters. */
@@ -57,12 +39,12 @@ function normalizeHost(host: string = DEFAULT_HOST): string {
 
 /**
  * Resolve a repository string or object against a workspace context,
- * producing a name and full URL.
+ * producing a fully typed RepositoryEntry with name and URL.
  */
 export function resolveRepository(
   workspace: WorkspaceContext,
   repository: string | Repository,
-): ResolvedRepository {
+): RepositoryEntry {
   const repo = typeof repository === "string"
     ? parseRepository(repository)
     : repository;
@@ -83,16 +65,5 @@ export function resolveRepository(
   return {
     name,
     url: `${host}/${owner}/${name}`,
-  };
-}
-
-/** Resolve all repositories in a workspace against its host and owner. */
-export function resolveWorkspace(workspace: Workspace): ResolvedWorkspace {
-  return {
-    host: workspace.host,
-    owner: workspace.owner,
-    repositories: workspace.repositories.map((repo) =>
-      resolveRepository(workspace, repo)
-    ),
   };
 }

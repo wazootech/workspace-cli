@@ -6,7 +6,7 @@ import type {
   WorkspaceConflict,
   WorkspaceManifest,
 } from "./types.ts";
-import { resolveRepository } from "./resolve.ts";
+import { type Repository, resolveRepository } from "./resolve.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -127,15 +127,10 @@ export function normalizeManifest(
     );
   }
 
-  const resolve = (
+  const resolveEntry = (
     at: string,
-    repo: string | {
-      name: string;
-      host?: string;
-      owner?: string;
-      url?: string;
-    },
-  ) => {
+    repo: string | Repository,
+  ): RepositoryEntry => {
     try {
       return resolveRepository({ host, owner }, repo);
     } catch (error) {
@@ -147,7 +142,7 @@ export function normalizeManifest(
   const repositories = doc.repositories.map((entry, index) => {
     const at = `Manifest ${manifestPath}: repositories[${index}]`;
     if (typeof entry === "string") {
-      return resolve(at, entry);
+      return resolveEntry(at, entry);
     }
     if (entry.owner === undefined) {
       return {
@@ -163,7 +158,7 @@ export function normalizeManifest(
     if (typeof entry.owner !== "string" || entry.owner === "") {
       throw new Error(`${at}: "owner" must be a non-empty string.`);
     }
-    return resolve(at, {
+    return resolveEntry(at, {
       name: typeof entry.name === "string" ? entry.name : "",
       host: typeof entry.host === "string" ? entry.host : undefined,
       owner: entry.owner,
