@@ -45,14 +45,14 @@ function usage(): void {
 Usage:
   works check [--json] [--workspace <name>]
   works init [--host <host>] [--owner <owner>] [<repo...>]
-  works install [<repo...>] [--json] [--workspace <name>]
-  works i [<repo...>] [--json] [--workspace <name>]      (alias for install)
+  works install [<repo...>] [--json] [--workspace <name>] [--dry-run]
+  works i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
   works add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
   works remove <repo>
-  works update [--json] [--workspace <name>]
-  works worktree add <repo> <feature> [<commit-ish>]
+  works update [--json] [--workspace <name>] [--dry-run]
+  works worktree add <repo> <feature> [<commit-ish>] [--dry-run]
   works worktree list [--stale] [--json] [--workspace <name>]
-  works worktree remove <repo> <feature>
+  works worktree remove <repo> <feature> [--dry-run]
   works workspaces [--json]
   works env sync [--dry-run] [--json]
   works validate
@@ -67,7 +67,7 @@ Options:
   --visibility <v>    add: visibility used with --create (private|public; default private)
   --json              Machine-readable output
   --stale             Filter worktrees fully merged into origin/<default> (or missing branch)
-  --dry-run           Preview environment sync operations without modifying files
+  --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
 
 Worktree Commands:
