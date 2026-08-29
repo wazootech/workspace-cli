@@ -1,6 +1,9 @@
 import type { RepositoryEntry, WorkspaceContext } from "./types.ts";
 
 export const DEFAULT_HOST = "https://github.com";
+
+/** Default host as a bare hostname (no protocol), for string comparisons. */
+export const BARE_DEFAULT_HOST = DEFAULT_HOST.replace(/^https?:\/\//, "");
 const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
 
 export interface Repository {
