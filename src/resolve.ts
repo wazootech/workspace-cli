@@ -1,10 +1,6 @@
 export const DEFAULT_HOST = "https://github.com";
 const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
 
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
-
 export interface WorkspaceContext {
   host?: string;
   owner?: string;
@@ -32,11 +28,7 @@ export interface ResolvedWorkspace {
   repositories: ResolvedRepository[];
 }
 
-// -----------------------------------------------------------------------------
-// Primitives
-// -----------------------------------------------------------------------------
-
-/** 1. Single validation primitive */
+/** Throw if the value is empty or contains invalid characters. */
 function assertValidSegment(
   value: string | undefined,
   label: string,
@@ -47,7 +39,7 @@ function assertValidSegment(
   return value;
 }
 
-/** 2. Pure structural parser - zero validation side-effects */
+/** Parse a bare or "owner/name" string into a Repository. */
 export function parseRepository(repository: string): Repository {
   const parts = repository.split("/");
   if (parts.length > 2 || parts.some((p) => !p)) {
@@ -58,33 +50,30 @@ export function parseRepository(repository: string): Repository {
     : { name: parts[0] };
 }
 
-/** 3. Normalizer helper for host URLs */
+/** Ensure the host has a protocol prefix. */
 function normalizeHost(host: string = DEFAULT_HOST): string {
   return host.includes("://") ? host : `https://${host}`;
 }
 
-// -----------------------------------------------------------------------------
-// Main Resolvers
-// -----------------------------------------------------------------------------
-
+/**
+ * Resolve a repository string or object against a workspace context,
+ * producing a name and full URL.
+ */
 export function resolveRepository(
   workspace: WorkspaceContext,
   repository: string | Repository,
 ): ResolvedRepository {
-  // Stage 1: Normalize input type
   const repo = typeof repository === "string"
     ? parseRepository(repository)
     : repository;
 
-  // Stage 2: Validate name early (required regardless of URL presence)
   const name = assertValidSegment(repo.name, "repository name");
 
-  // Stage 3: Escape hatch for explicit custom URLs
+  // Explicit URL bypasses host/owner resolution.
   if (repo.url) {
     return { name, url: repo.url };
   }
 
-  // Stage 4: Cascading fallbacks + boundary validation
   const owner = assertValidSegment(
     repo.owner ?? workspace.owner,
     "repository owner",
@@ -97,6 +86,7 @@ export function resolveRepository(
   };
 }
 
+/** Resolve all repositories in a workspace against its host and owner. */
 export function resolveWorkspace(workspace: Workspace): ResolvedWorkspace {
   return {
     host: workspace.host,
