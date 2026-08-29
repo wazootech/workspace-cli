@@ -1,7 +1,7 @@
 import { SystemGit } from "@/git.ts";
 import { BARE_DEFAULT_HOST, resolveRepository } from "@/resolve.ts";
 import { validateManifestText, validateSafeName } from "@/manifest.ts";
-import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
+import { createGitHubRepo } from "@/remote.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
 import {
   applyEntryEdit,
@@ -111,6 +111,11 @@ async function resolveEntry(
     return undefined;
   }
 
+  if (opts.visibility !== undefined && !opts.create) {
+    console.error("--visibility is only valid together with --create");
+    return undefined;
+  }
+
   const host = manifest.host ?? BARE_DEFAULT_HOST;
   let expanded;
   try {
@@ -123,20 +128,35 @@ async function resolveEntry(
   if (!tryValidateName(expanded.name)) return undefined;
 
   const rows: EditRow[] = [];
-  if (supportsGitHubProbe(host)) {
-    const slug = new URL(expanded.url).pathname.replace(/^\//, "").replace(
-      /\.git$/,
-      "",
-    );
-    const ghOutcome = await ensureGitHubRepo(ghRunner(), slug, opts);
-    if (typeof ghOutcome === "string") {
-      console.error(ghOutcome);
+
+  // --create: probe remote via git ls-remote, then create via gh if missing.
+  if (opts.create) {
+    if (!supportsGitHubProbe(host)) {
+      console.error(
+        `--create is only supported for GitHub-hosted repositories (host: ${host})`,
+      );
       return undefined;
     }
-    if (ghOutcome.status === "created") {
-      rows.push({ name: expanded.name, action: "REMOTE_CREATED" });
+    const git = new SystemGit();
+    const exists = await probeRemote(git, expanded.url);
+    if (!exists) {
+      const slug = new URL(expanded.url).pathname.replace(/^\//, "").replace(
+        /\.git$/,
+        "",
+      );
+      const ghOutcome = await createGitHubRepoWithFallback(slug, opts);
+      if (typeof ghOutcome === "string") {
+        console.error(ghOutcome);
+        return undefined;
+      }
+      if (ghOutcome.status === "created") {
+        rows.push({ name: expanded.name, action: "REMOTE_CREATED" });
+      }
     }
   }
+
+  // Without --create: expand shorthand and add to manifest. No remote probe.
+  // Remote validation is the user's responsibility or handled by `works install`.
 
   return {
     entry: { kind: "shorthand", raw: shorthand },
@@ -145,8 +165,17 @@ async function resolveEntry(
   };
 }
 
+/** Check if a remote URL exists via git ls-remote. */
+async function probeRemote(
+  git: SystemGit,
+  url: string,
+): Promise<boolean> {
+  const result = await git.run(["ls-remote", "--exit-code", url]);
+  return result.code === 0;
+}
+
 /**
- * Whether the given host supports GitHub probe/create via the `gh` CLI.
+ * Whether the given host supports GitHub creation via the `gh` CLI.
  * Extensible for GitHub Enterprise instances in the future.
  */
 function supportsGitHubProbe(host: string): boolean {
@@ -174,45 +203,31 @@ interface GitHubProbeResult {
   status: "found" | "created";
 }
 
-async function ensureGitHubRepo(
-  gh: SystemGit,
+async function createGitHubRepoWithFallback(
   slug: string,
   opts: CliOptions,
 ): Promise<GitHubProbeResult | string> {
   let visibility: "public" | "private" | undefined;
   if (opts.visibility !== undefined) {
-    if (!opts.create) {
-      return "--visibility is only valid together with --create";
-    }
     if (opts.visibility !== "public" && opts.visibility !== "private") {
       return `--visibility must be "public" or "private", got "${opts.visibility}"`;
     }
     visibility = opts.visibility;
   }
 
-  let probe: Awaited<ReturnType<typeof probeGitHubRepo>>;
   try {
-    probe = await probeGitHubRepo(gh, slug);
+    const created = await createGitHubRepo(
+      ghRunner(),
+      slug,
+      visibility ?? "private",
+    );
+    if (!created.ok) {
+      return `failed to create ${slug}: ${created.stderr ?? ""}`.trimEnd();
+    }
+    return { status: "created" };
   } catch {
-    return `gh CLI is not available; install it or add "${slug}" manually with --url`;
+    return `gh CLI is not available; cannot create ${slug}. Install gh or add manually with --url`;
   }
-
-  if (probe.status === "found") return { status: "found" };
-  if (probe.status === "missing") {
-    if (!opts.create) {
-      return `not found: ${slug} does not exist on GitHub; rerun with --create to create it`;
-    }
-    try {
-      const created = await createGitHubRepo(gh, slug, visibility ?? "private");
-      if (!created.ok) {
-        return `failed to create ${slug}: ${created.stderr ?? ""}`.trimEnd();
-      }
-      return { status: "created" };
-    } catch {
-      return `gh CLI is not available; cannot create ${slug}`;
-    }
-  }
-  return `could not check ${slug}: ${probe.stderr ?? ""}`.trimEnd();
 }
 
 function deriveNameFromUrl(url: string): string {
