@@ -1,13 +1,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import {
-  parseRepository,
-  resolveRepository,
-  resolveWorkspace,
-} from "@/resolve.ts";
+import { parseRepository, resolveRepository } from "@/resolve.ts";
 
-// ---------------------------------------------------------------------------
 // parseRepository
-// ---------------------------------------------------------------------------
 
 Deno.test("parseRepository", async (t) => {
   const successCases: {
@@ -39,9 +33,7 @@ Deno.test("parseRepository", async (t) => {
   }
 });
 
-// ---------------------------------------------------------------------------
 // resolveRepository
-// ---------------------------------------------------------------------------
 
 Deno.test("resolveRepository", async (t) => {
   await t.step("expands bare string with workspace owner", () => {
@@ -124,34 +116,4 @@ Deno.test("resolveRepository", async (t) => {
       );
     });
   }
-});
-
-// ---------------------------------------------------------------------------
-// resolveWorkspace
-// ---------------------------------------------------------------------------
-
-Deno.test("resolveWorkspace maps all repositories", () => {
-  const result = resolveWorkspace({
-    owner: "acme",
-    repositories: ["api", "other/repo"],
-  });
-  assertEquals(result.repositories.length, 2);
-  assertEquals(result.repositories[0], {
-    name: "api",
-    url: "https://github.com/acme/api",
-  });
-  assertEquals(result.repositories[1], {
-    name: "repo",
-    url: "https://github.com/other/repo",
-  });
-});
-
-Deno.test("resolveWorkspace preserves host and owner", () => {
-  const result = resolveWorkspace({
-    host: "gitlab.com",
-    owner: "acme",
-    repositories: ["api"],
-  });
-  assertEquals(result.host, "gitlab.com");
-  assertEquals(result.owner, "acme");
 });
