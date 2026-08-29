@@ -3,7 +3,7 @@
  * Pure text-in/text-out: functions return the new document text or throw
  * ManifestEditError without side effects.
  */
-import { resolveRepository } from "./resolve.ts";
+import { BARE_DEFAULT_HOST, resolveRepository } from "./resolve.ts";
 
 export class ManifestEditError extends Error {}
 
@@ -45,7 +45,7 @@ export function removeEntry(
   raw: string,
   targetName: string,
   owner?: string,
-  host = "github.com",
+  host = BARE_DEFAULT_HOST,
 ): string {
   const doc = JSON.parse(raw);
   if (!Array.isArray(doc.repositories)) {
