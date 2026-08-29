@@ -38,9 +38,7 @@ async function runAdd(
     return 2;
   }
 
-  const result = opts.url !== undefined
-    ? resolveUrlEntry(opts)
-    : await resolveShorthandEntry(opts, manifest);
+  const result = await resolveEntry(opts, manifest);
 
   if (result === undefined) return 2;
   const { entry, entryName, rows } = result;
@@ -84,31 +82,29 @@ interface ResolvedEntry {
   rows: EditRow[];
 }
 
-function resolveUrlEntry(
-  opts: CliOptions,
-): ResolvedEntry | undefined {
-  if (opts.create) {
-    console.error(
-      "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
-    );
-    return undefined;
-  }
-
-  const entryName = opts.name ?? opts.positional[0] ??
-    deriveNameFromUrl(opts.url!);
-  if (!tryValidateName(entryName)) return undefined;
-
-  return {
-    entry: { kind: "object", name: entryName, url: opts.url! },
-    entryName,
-    rows: [],
-  };
-}
-
-async function resolveShorthandEntry(
+async function resolveEntry(
   opts: CliOptions,
   manifest: WorkspaceManifest,
 ): Promise<ResolvedEntry | undefined> {
+  if (opts.url !== undefined) {
+    if (opts.create) {
+      console.error(
+        "--create applies to GitHub shorthand entries only; an explicit --url already names its remote",
+      );
+      return undefined;
+    }
+
+    const entryName = opts.name ?? opts.positional[0] ??
+      deriveNameFromUrl(opts.url!);
+    if (!tryValidateName(entryName)) return undefined;
+
+    return {
+      entry: { kind: "object", name: entryName, url: opts.url! },
+      entryName,
+      rows: [],
+    };
+  }
+
   const shorthand = opts.positional[0];
   if (!shorthand) {
     console.error("Usage: works add [<name>] [--url <url>] [--name <n>]");
@@ -123,6 +119,8 @@ async function resolveShorthandEntry(
     console.error(error instanceof Error ? error.message : String(error));
     return undefined;
   }
+
+  if (!tryValidateName(expanded.name)) return undefined;
 
   const rows: EditRow[] = [];
   if (host === "github.com") {
