@@ -111,6 +111,11 @@ async function resolveEntry(
     return undefined;
   }
 
+  if (opts.visibility !== undefined && !opts.create) {
+    console.error("--visibility is only valid together with --create");
+    return undefined;
+  }
+
   const host = manifest.host ?? BARE_DEFAULT_HOST;
   let expanded;
   try {
