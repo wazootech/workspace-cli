@@ -17,7 +17,7 @@ export {
 } from "./manifest.ts";
 export type { ManifestPaths } from "./manifest.ts";
 export { resolveRepository } from "./resolve.ts";
-export type { Repository, WorkspaceContext } from "./resolve.ts";
+export type { Repository } from "./resolve.ts";
 export {
   classifyState,
   collectStatus,
@@ -30,6 +30,7 @@ export type {
   RepoState,
   RepoStatus,
   UpdateAction,
+  WorkspaceContext,
   WorkspaceManifest,
   Worktree,
 } from "./types.ts";

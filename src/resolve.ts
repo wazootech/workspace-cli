@@ -1,10 +1,7 @@
+import type { RepositoryEntry, WorkspaceContext } from "./types.ts";
+
 export const DEFAULT_HOST = "https://github.com";
 const VALID_SEGMENT_REGEX = /^[a-zA-Z0-9-]+$/;
-
-export interface WorkspaceContext {
-  host?: string;
-  owner?: string;
-}
 
 export interface Repository {
   host?: string;
@@ -42,12 +39,12 @@ function normalizeHost(host: string = DEFAULT_HOST): string {
 
 /**
  * Resolve a repository string or object against a workspace context,
- * producing a name and full URL.
+ * producing a fully typed RepositoryEntry with name and URL.
  */
 export function resolveRepository(
   workspace: WorkspaceContext,
   repository: string | Repository,
-): { name: string; url: string } {
+): RepositoryEntry {
   const repo = typeof repository === "string"
     ? parseRepository(repository)
     : repository;
