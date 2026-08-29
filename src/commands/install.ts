@@ -28,8 +28,11 @@ async function cloneMissing(
   manifest: WorkspaceManifest,
   paths: ManifestPaths,
   targets: string[] = [],
+  { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<InstallRow[]> {
-  await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+  if (!dryRun) {
+    await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+  }
   let repositories = manifest.repositories;
   if (targets.length > 0) {
     const validNames = new Set(manifest.repositories.map((r) => r.name));
@@ -64,6 +67,10 @@ async function cloneMissing(
       throw new Error(
         `Repository "${repository.name}" is missing its clone url`,
       );
+    }
+    if (dryRun) {
+      rows.push({ name: repository.name, state: "WOULD_CLONE" });
+      continue;
     }
     const result = await clone(g, repository.url, repoPath);
     rows.push(
@@ -101,17 +108,15 @@ export async function run(
     }
     : flat;
 
-  const rows = await cloneMissing(g, scoped, paths, targets);
+  const rows = await cloneMissing(g, scoped, paths, targets, {
+    dryRun: opts.dryRun,
+  });
   printRows(rows, opts.json);
 
   const failed = rows.some(isBadInstallRow);
-  if (!failed) {
+  if (!failed && !opts.dryRun) {
     console.error(
-      `NOTE: Fresh clones do not contain files listed in .gitignore.
-Required setup steps may include:
-  - Running npm install / deno install / pip install etc. in each repo
-  - Copying .env files from secrets/ (run: works env sync)
-  - Any repo-specific setup documented in each repo's README`,
+      `NOTE: Fresh clones do not contain files listed in .gitignore.\nRequired setup steps may include:\n  - Running npm install / deno install / pip install etc. in each repo\n  - Copying .env files from secrets/ (run: works env sync)\n  - Any repo-specific setup documented in each repo's README`,
     );
   }
   return failed ? 1 : 0;

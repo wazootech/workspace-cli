@@ -17,6 +17,7 @@ export async function planUpdate(
   g: GitRunner,
   repositories: RepositoryEntry[],
   paths: ManifestPaths,
+  { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<UpdateAction[]> {
   const actions: UpdateAction[] = [];
   for (const repository of repositories) {
@@ -72,6 +73,16 @@ export async function planUpdate(
       continue;
     }
 
+    // Dry-run: skip network calls (fetch) and mutations (merge).
+    if (dryRun) {
+      actions.push({
+        kind: "WOULD_FAST_FORWARD",
+        name: repository.name,
+        detail: `origin/${defaultBranchName}`,
+      });
+      continue;
+    }
+
     if (!(await fetch(g, repoPath))) {
       actions.push({ kind: "FETCH_FAILED", name: repository.name });
       continue;
@@ -122,6 +133,7 @@ export async function runUpdate(
   g: GitRunner,
   manifest: { repositories: RepositoryEntry[] },
   paths: ManifestPaths,
+  { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<UpdateAction[]> {
-  return await planUpdate(g, manifest.repositories, paths);
+  return await planUpdate(g, manifest.repositories, paths, { dryRun });
 }

@@ -1,3 +1,54 @@
+export type UpdateAction =
+  | { kind: "MISSING" | "INVALID"; name: string }
+  | {
+    kind:
+      | "SKIP_DIRTY"
+      | "SKIP_FEATURE"
+      | "SKIP_NO_DEFAULT"
+      | "SKIP_AHEAD"
+      | "CURRENT"
+      | "FETCH_FAILED"
+      | "FAST_FORWARD_FAILED"
+      | "WOULD_FAST_FORWARD";
+    name: string;
+    detail?: string;
+  }
+  | { kind: "FAST_FORWARD"; name: string; commits: number };
+
+export type RepoState =
+  | "MISSING"
+  | "INVALID"
+  | "PATH_BLOCKED"
+  | "DIRTY"
+  | "WORKTREE_DIRTY"
+  | "FEATURE_CLEAN"
+  | "DIVERGED"
+  | "CLEAN"
+  | "UNKNOWN"
+  | "ERROR";
+
+export interface RepoStatus {
+  name: string;
+  path: string;
+  branch?: string;
+  defaultBranch?: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  state: RepoState;
+  detail?: string;
+  isWorktree?: boolean;
+  worktreePath?: string;
+}
+
+export interface Worktree {
+  path: string;
+  branch?: string;
+  head?: string;
+  bare: boolean;
+  detached: boolean;
+}
+
 /** Minimal workspace context needed for repository resolution. */
 export interface WorkspaceContext {
   host?: string;
@@ -48,53 +99,3 @@ export interface WorkspaceConflict {
   repoName: string;
   claimedBy: string[];
 }
-
-export type RepoState =
-  | "MISSING"
-  | "INVALID"
-  | "PATH_BLOCKED"
-  | "DIRTY"
-  | "WORKTREE_DIRTY"
-  | "FEATURE_CLEAN"
-  | "DIVERGED"
-  | "CLEAN"
-  | "UNKNOWN"
-  | "ERROR";
-
-export interface RepoStatus {
-  name: string;
-  path: string;
-  branch?: string;
-  defaultBranch?: string;
-  upstream?: string;
-  ahead?: number;
-  behind?: number;
-  state: RepoState;
-  detail?: string;
-  isWorktree?: boolean;
-  worktreePath?: string;
-}
-
-export interface Worktree {
-  path: string;
-  branch?: string;
-  head?: string;
-  bare: boolean;
-  detached: boolean;
-}
-
-export type UpdateAction =
-  | { kind: "MISSING" | "INVALID"; name: string }
-  | {
-    kind:
-      | "SKIP_DIRTY"
-      | "SKIP_FEATURE"
-      | "SKIP_NO_DEFAULT"
-      | "SKIP_AHEAD"
-      | "CURRENT"
-      | "FETCH_FAILED"
-      | "FAST_FORWARD_FAILED";
-    name: string;
-    detail?: string;
-  }
-  | { kind: "FAST_FORWARD"; name: string; commits: number };

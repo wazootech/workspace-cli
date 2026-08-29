@@ -12,7 +12,7 @@ export async function run(
   g: GitRunner,
 ): Promise<number> {
   const scoped = scopeManifest(opts, manifest);
-  const rows = await runUpdate(g, scoped, paths);
+  const rows = await runUpdate(g, scoped, paths, { dryRun: opts.dryRun });
   printRows(rows, opts.json);
   return 0;
 }

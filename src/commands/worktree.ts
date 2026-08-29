@@ -101,6 +101,12 @@ export async function run(
           return 2;
         }
       }
+      if (opts.dryRun) {
+        console.log(
+          `Would create worktree ${worktreePath} on branch ${feature}`,
+        );
+        return 0;
+      }
       const result = await addWorktree(
         g,
         repoPath,
@@ -132,6 +138,10 @@ export async function run(
         return 2;
       }
       const worktreePath = join(paths.worktreesDirectory, repoName, feature);
+      if (opts.dryRun) {
+        console.log(`Would remove worktree ${worktreePath}`);
+        return 0;
+      }
       const result = await removeWorktree(g, repoPath, worktreePath);
       if (result.code !== 0) {
         console.error(result.stderr);
