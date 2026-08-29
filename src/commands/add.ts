@@ -1,5 +1,5 @@
 import { SystemGit } from "@/git.ts";
-import { resolveRepository } from "@/resolve.ts";
+import { BARE_DEFAULT_HOST, resolveRepository } from "@/resolve.ts";
 import { validateManifestText, validateSafeName } from "@/manifest.ts";
 import { createGitHubRepo, probeGitHubRepo } from "@/remote.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
@@ -111,7 +111,7 @@ async function resolveEntry(
     return undefined;
   }
 
-  const host = manifest.host ?? "github.com";
+  const host = manifest.host ?? BARE_DEFAULT_HOST;
   let expanded;
   try {
     expanded = resolveRepository({ host, owner: manifest.owner }, shorthand);
@@ -123,7 +123,7 @@ async function resolveEntry(
   if (!tryValidateName(expanded.name)) return undefined;
 
   const rows: EditRow[] = [];
-  if (host === "github.com") {
+  if (supportsGitHubProbe(host)) {
     const slug = new URL(expanded.url).pathname.replace(/^\//, "").replace(
       /\.git$/,
       "",
@@ -143,6 +143,14 @@ async function resolveEntry(
     entryName: expanded.name,
     rows,
   };
+}
+
+/**
+ * Whether the given host supports GitHub probe/create via the `gh` CLI.
+ * Extensible for GitHub Enterprise instances in the future.
+ */
+function supportsGitHubProbe(host: string): boolean {
+  return host === BARE_DEFAULT_HOST;
 }
 
 function tryValidateName(name: string): boolean {
