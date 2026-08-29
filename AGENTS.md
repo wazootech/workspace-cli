@@ -5,6 +5,29 @@
 `wazootech/workspace-cli` — the `works` binary. A thin, git-native CLI for
 managing the Wazoo multi-repo workspace without submodules. See `README.md`.
 
+## Parent workspace rules
+
+This repo lives inside `repos/workspace-cli/` in a multi-repo workspace. The
+workspace root's `AGENTS.md` defines hard boundaries that apply here:
+
+**Worktree isolation (hard boundary):** All feature work must happen in a
+worktree (`worktrees/<repo>/<feature>`). Never create branches or commit
+directly inside `repos/<repo>`. If your cwd is inside `repos/<repo>/`, stop and
+create a worktree first:
+
+```sh
+cd <workspace-root>
+works worktree add workspace-cli <feature-slug>
+cd worktrees/workspace-cli/<feature-slug>
+```
+
+This applies to all skills and agents, not just the `works` pipeline. Code
+changes from `/review`, `/investigate`, `/qa`, or any other skill must also go
+through a worktree.
+
+See `../AGENTS.md` (workspace root) for the full rules including workspace root
+resolution, worktree path construction, and cleanup procedures.
+
 ## Conventions
 
 - Deno 2, TypeScript, strict mode. `@std` packages are the only allowed
