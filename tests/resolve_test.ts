@@ -117,3 +117,94 @@ Deno.test("resolveRepository", async (t) => {
     });
   }
 });
+
+Deno.test("resolveRepository accepts dotted, underscored, and hyphenated repo names", async (t) => {
+  const names = [
+    ".github",
+    "docs.wazoo.dev",
+    "wazoo.dev",
+    "my_repo",
+    "a.b-c_d.e",
+    "foo.bar",
+  ];
+  for (const name of names) {
+    await t.step(`accepts "${name}"`, () => {
+      const entry = resolveRepository({ owner: "acme" }, name);
+      assertEquals(entry.name, name);
+      assertEquals(entry.url, `https://github.com/acme/${name}`);
+    });
+  }
+});
+
+Deno.test("resolveRepository accepts dotted repo name in owner/name shorthand", () => {
+  const entry = resolveRepository({}, "acme/docs.wazoo.dev");
+  assertEquals(entry.name, "docs.wazoo.dev");
+  assertEquals(entry.url, "https://github.com/acme/docs.wazoo.dev");
+});
+
+Deno.test("resolveRepository rejects dotted owner segments", () => {
+  assertThrows(
+    () => resolveRepository({}, "acme.inc/api"),
+    Error,
+    "Invalid repository owner",
+  );
+});
+
+Deno.test("resolveRepository rejects reserved and malformed repo names", async (t) => {
+  const errorCases: { repo: string; pattern: string }[] = [
+    { repo: ".", pattern: "reserved" },
+    { repo: "..", pattern: "reserved" },
+    { repo: "ends-with.git", pattern: "cannot end with .git" },
+    { repo: "a b", pattern: "invalid characters" },
+    { repo: "caf\u00e9", pattern: "invalid characters" },
+  ];
+  for (const { repo, pattern } of errorCases) {
+    await t.step(`rejects "${repo}"`, () => {
+      assertThrows(
+        () => resolveRepository({ owner: "acme" }, repo),
+        Error,
+        pattern,
+      );
+    });
+  }
+});
+
+Deno.test("resolveRepository rejects path traversal via owner segment", () => {
+  assertThrows(
+    () => resolveRepository({ owner: "acme" }, "../traversal"),
+    Error,
+    "Invalid repository owner",
+  );
+});
+
+Deno.test("resolveRepository rejects invalid owner segments", async (t) => {
+  const errorCases: { owner: string; pattern: string }[] = [
+    { owner: "-owner", pattern: "Invalid repository owner" },
+    { owner: "owner-", pattern: "Invalid repository owner" },
+    { owner: "my--org", pattern: "Invalid repository owner" },
+    { owner: "owner_underscore", pattern: "Invalid repository owner" },
+    { owner: "owner.dot", pattern: "Invalid repository owner" },
+  ];
+  for (const { owner, pattern } of errorCases) {
+    await t.step(`rejects owner "${owner}"`, () => {
+      assertThrows(
+        () => resolveRepository({ owner }, "api"),
+        Error,
+        pattern,
+      );
+    });
+  }
+});
+
+Deno.test("resolveRepository enforces name and owner length caps", () => {
+  assertThrows(
+    () => resolveRepository({ owner: "acme" }, "x".repeat(101)),
+    Error,
+    "max 100 characters",
+  );
+  assertThrows(
+    () => resolveRepository({ owner: "o".repeat(40) }, "api"),
+    Error,
+    "max 39 characters",
+  );
+});
