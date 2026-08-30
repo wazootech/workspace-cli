@@ -84,6 +84,24 @@ function pathsFor(dir: string): ManifestPaths {
   return p;
 }
 
+/** Capture stdout output from console.log calls. */
+function captureStdout() {
+  let output = "";
+  const original = console.log;
+  // deno-lint-ignore no-explicit-any
+  console.log = (...args: any[]) => {
+    output += args.map(String).join(" ") + "\n";
+  };
+  return {
+    stop() {
+      console.log = original;
+    },
+    output() {
+      return output;
+    },
+  };
+}
+
 Deno.test("defaultBranch resolves from origin/HEAD", async () => {
   const dir = await Deno.makeTempDir();
   try {
@@ -951,6 +969,99 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
       await exists(join(checkout, ".env")),
       false,
       "File should not be copied during dry-run",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace path prints repo path via CLI", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "acme",
+        repositories: ["a"],
+        workspaceRoot: dir,
+      }),
+    );
+    const stdout = captureStdout();
+    const code = await run([
+      "path",
+      "a",
+      "--manifest",
+      manifestPath,
+    ]);
+    stdout.stop();
+    assertEquals(code, 0);
+    const output = stdout.output().trim();
+    assert(
+      output.endsWith(join("repos", "a")),
+      `expected path ending with repos/a, got: ${output}`,
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace path returns exit 1 for no match", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "acme",
+        repositories: ["a"],
+        workspaceRoot: dir,
+      }),
+    );
+    const code = await run([
+      "path",
+      "nonexistent",
+      "--manifest",
+      manifestPath,
+    ]);
+    assertEquals(code, 1);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace path --feature prints worktree path", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "acme",
+        repositories: ["a"],
+        workspaceRoot: dir,
+      }),
+    );
+    const stdout = captureStdout();
+    const code = await run([
+      "path",
+      "a",
+      "my-feature",
+      "--manifest",
+      manifestPath,
+    ]);
+    stdout.stop();
+    assertEquals(code, 0);
+    const output = stdout.output().trim();
+    assert(
+      output.includes(join("worktrees", "a", "my-feature")),
+      `expected worktrees/a/my-feature, got: ${output}`,
     );
   } finally {
     await removeTempDir(dir);
