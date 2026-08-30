@@ -156,7 +156,7 @@ async function resolveEntry(
   }
 
   // Without --create: expand shorthand and add to manifest. No remote probe.
-  // Remote validation is the user's responsibility or handled by `wspace install`.
+  // Remote validation is the user's responsibility or handled by `works install`.
 
   return {
     entry: { kind: "shorthand", raw: shorthand },

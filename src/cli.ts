@@ -14,7 +14,6 @@ import * as checkCmd from "./commands/check.ts";
 import * as envCmd from "./commands/env.ts";
 import * as initCmd from "./commands/init.ts";
 import * as installCmd from "./commands/install.ts";
-import * as pathCmd from "./commands/path.ts";
 import * as removeCmd from "./commands/remove.ts";
 import * as updateCmd from "./commands/update.ts";
 import * as validateCmd from "./commands/validate.ts";
@@ -27,7 +26,6 @@ const COMMANDS = [
   "install",
   "add",
   "remove",
-  "path",
   "update",
   "worktree",
   "workspaces",
@@ -51,7 +49,6 @@ wspace check [--json] [--workspace <name>]
   wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
   wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
   wspace remove <repo>
-  wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
   wspace worktree add <repo> <feature> [<commit-ish>] [--dry-run]
   wspace worktree list [--stale] [--json] [--workspace <name>]
@@ -72,10 +69,6 @@ Options:
   --stale             Filter worktrees fully merged into origin/<default> (or missing branch)
   --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
-
-Path Command:
-  path                Fuzzy-find a workspace directory (repo, worktree, sub-workspace).
-                        Use in command substitution: cd "$(wspace path workspace-cli)"
 
 Worktree Commands:
   worktree add       Creates a worktree at worktrees/<repo>/<feature> on branch <feature>.
@@ -188,8 +181,6 @@ export async function run(args: string[]): Promise<number> {
   switch (opts.command) {
     case "check":
       return await checkCmd.run(opts, resolvedManifest, paths, g);
-    case "path":
-      return pathCmd.run(opts, resolvedManifest, paths);
     case "update":
       return await updateCmd.run(opts, resolvedManifest, paths, g);
     case "worktree":
