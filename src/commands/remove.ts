@@ -37,7 +37,7 @@ async function runRemove(
   }
   const target = opts.positional[0];
   if (!target || opts.positional.length > 1) {
-    console.error("Usage: works remove <repo>");
+    console.error("Usage: wspace remove <repo>");
     return 2;
   }
   const existing = manifest.repositories.find((r) => r.name === target);

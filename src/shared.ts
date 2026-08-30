@@ -126,7 +126,7 @@ export async function loadEditableManifest(
   const manifestPath = await resolveManifestPath(opts);
   if (!(await exists(manifestPath))) {
     console.error(
-      `No manifest found at ${manifestPath}; run \`works init\` first`,
+      `No manifest found at ${manifestPath}; run \`wspace init\` first`,
     );
     return { ok: false, code: 2 };
   }

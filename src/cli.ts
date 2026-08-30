@@ -40,22 +40,22 @@ const COMMAND_ALIASES: Record<string, string> = {
 class CliHelp extends Error {}
 
 function usage(): void {
-  console.log(`workspace-cli (works)
+  console.log(`workspace-cli (wspace)
 
 Usage:
-  works check [--json] [--workspace <name>]
-  works init [--host <host>] [--owner <owner>] [<repo...>]
-  works install [<repo...>] [--json] [--workspace <name>] [--dry-run]
-  works i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
-  works add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
-  works remove <repo>
-  works update [--json] [--workspace <name>] [--dry-run]
-  works worktree add <repo> <feature> [<commit-ish>] [--dry-run]
-  works worktree list [--stale] [--json] [--workspace <name>]
-  works worktree remove <repo> <feature> [--dry-run]
-  works workspaces [--json]
-  works env sync [--dry-run] [--json]
-  works validate
+wspace check [--json] [--workspace <name>]
+  wspace init [--host <host>] [--owner <owner>] [<repo...>]
+  wspace install [<repo...>] [--json] [--workspace <name>] [--dry-run]
+  wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
+  wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
+  wspace remove <repo>
+  wspace update [--json] [--workspace <name>] [--dry-run]
+  wspace worktree add <repo> <feature> [<commit-ish>] [--dry-run]
+  wspace worktree list [--stale] [--json] [--workspace <name>]
+  wspace worktree remove <repo> <feature> [--dry-run]
+  wspace workspaces [--json]
+  wspace env sync [--dry-run] [--json]
+  wspace validate
 
 Options:
   --manifest <path>   Manifest path (default: workspace.json)

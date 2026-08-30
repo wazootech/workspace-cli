@@ -65,7 +65,7 @@ export interface RepositoryEntry {
   workspace?: string;
 }
 
-/** A workspace manifest: the config document the works CLI reads. */
+/** A workspace manifest: the config document the wspace CLI reads. */
 export interface WorkspaceManifest {
   schemaVersion?: number;
   /**

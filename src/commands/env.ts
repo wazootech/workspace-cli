@@ -12,7 +12,7 @@ export async function run(
   g: GitRunner,
 ): Promise<number> {
   if (opts.subcommand !== "sync") {
-    console.error("Usage: works env sync [--dry-run] [--json]");
+    console.error("Usage: wspace env sync [--dry-run] [--json]");
     return 2;
   }
   const rows = await syncEnv(g, manifest, paths, { dryRun: opts.dryRun });

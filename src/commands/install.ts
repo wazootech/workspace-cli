@@ -116,7 +116,11 @@ export async function run(
   const failed = rows.some(isBadInstallRow);
   if (!failed && !opts.dryRun) {
     console.error(
-      `NOTE: Fresh clones do not contain files listed in .gitignore.\nRequired setup steps may include:\n  - Running npm install / deno install / pip install etc. in each repo\n  - Copying .env files from secrets/ (run: works env sync)\n  - Any repo-specific setup documented in each repo's README`,
+      `NOTE: Fresh clones do not contain files listed in .gitignore.
+Required setup steps may include:
+  - Running npm install / deno install / pip install etc. in each repo
+  - Copying .env files from secrets/ (run: wspace env sync)
+  - Any repo-specific setup documented in each repo's README`,
     );
   }
   return failed ? 1 : 0;

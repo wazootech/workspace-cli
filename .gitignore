@@ -2,8 +2,8 @@
 **/.test.json
 
 # Built binary
-/works
-/works.exe
+/wspace
+/wspace.exe
 
 # OS noise
 .DS_Store

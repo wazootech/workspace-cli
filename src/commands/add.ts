@@ -71,7 +71,7 @@ async function runAdd(
   printRows(rows, opts.json);
   if (!opts.dryRun) {
     await Deno.writeTextFile(manifestPath, newText);
-    console.log(`Next: run \`works install ${entryName}\` to clone it.`);
+    console.log(`Next: run \`wspace install ${entryName}\` to clone it.`);
   }
   return 0;
 }
@@ -107,7 +107,7 @@ async function resolveEntry(
 
   const shorthand = opts.positional[0];
   if (!shorthand) {
-    console.error("Usage: works add [<name>] [--url <url>] [--name <n>]");
+    console.error("Usage: wspace add [<name>] [--url <url>] [--name <n>]");
     return undefined;
   }
 
