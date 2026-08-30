@@ -1,5 +1,5 @@
-import { join, relative } from "@std/path";
-import { existsSync } from "@std/fs";
+import { relative } from "@std/path";
+import { walk } from "@std/fs/walk";
 import type { ManifestPaths } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import type { WorkspaceManifest } from "@/types.ts";
@@ -25,71 +25,73 @@ export function score(name: string, query: string): number {
 }
 
 /**
- * Walk a directory up to `depth` levels deep, returning directories that
- * match the query. depth=1 means immediate children only.
+ * Skip patterns: hidden dirs, node_modules, .git.
  */
-function searchDir(
+const SKIP = [/^\./, /node_modules/, /^\.git$/];
+
+/**
+ * Walk a directory using @std/fs/walk, returning directories that match
+ * the query. maxDepth controls how deep to search.
+ */
+async function searchDir(
   dir: string,
   query: string,
   workspaceRoot: string,
-  maxResults: number,
-  depth = 1,
-): PathResult[] {
-  if (!existsSync(dir) || depth < 1) return [];
+  maxDepth: number,
+): Promise<PathResult[]> {
   const results: PathResult[] = [];
   try {
-    for (const entry of Deno.readDirSync(dir)) {
-      if (results.length >= maxResults) break;
-      if (!entry.isDirectory) continue;
-      if (entry.name.startsWith(".")) continue;
-      if (entry.name === "node_modules") continue;
-      if (entry.name === ".git") continue;
-      const fullPath = join(dir, entry.name);
+    for await (
+      const entry of walk(dir, {
+        maxDepth,
+        includeFiles: false,
+        skip: SKIP,
+      })
+    ) {
+      if (entry.path === dir) continue; // skip root itself
       if (score(entry.name, query) >= 0) {
         results.push({
           name: entry.name,
-          path: fullPath,
-          rel: relative(workspaceRoot, fullPath),
+          path: entry.path,
+          rel: relative(workspaceRoot, entry.path),
         });
-      }
-      if (depth > 1) {
-        results.push(
-          ...searchDir(
-            fullPath,
-            query,
-            workspaceRoot,
-            maxResults - results.length,
-            depth - 1,
-          ),
-        );
       }
     }
   } catch {
-    // Permission errors, etc.
+    // Directory doesn't exist or permission error.
   }
   return results;
 }
 
 /**
  * Search for directories matching the query across the workspace tree.
- * Priority order: repos/ first, then worktrees/, then any other top-level
- * children (nested sub-workspaces).
+ * Uses @std/fs/walk to traverse repos/, worktrees/, and nested
+ * sub-workspace directories.
  */
-function searchWorkspace(
+async function searchWorkspace(
   query: string,
   paths: ManifestPaths,
-): PathResult[] {
+): Promise<PathResult[]> {
   const all: PathResult[] = [];
 
-  // 1. repos/ — the primary directory
-  all.push(...searchDir(paths.repositoriesDirectory, query, paths.root, 50));
+  // 1. repos/ — immediate children (depth 1)
+  all.push(
+    ...await searchDir(
+      paths.repositoriesDirectory,
+      query,
+      paths.root,
+      1,
+    ),
+  );
 
-  // 2. worktrees/ — feature branches are two levels deep (repo/feature)
-  all.push(...searchDir(paths.worktreesDirectory, query, paths.root, 20, 2));
+  // 2. worktrees/ — two levels deep (repo/feature)
+  all.push(
+    ...await searchDir(paths.worktreesDirectory, query, paths.root, 2),
+  );
 
   // 3. Top-level directories not in repos/worktrees/secrets
-  //    (handles nested sub-workspaces that are directories, not manifests)
-  if (existsSync(paths.root)) {
+  //    (handles nested sub-workspaces)
+  try {
     const skip = new Set([
       "repos",
       "worktrees",
@@ -97,17 +99,26 @@ function searchWorkspace(
       "node_modules",
       ".git",
     ]);
-    try {
-      for (const entry of Deno.readDirSync(paths.root)) {
-        if (!entry.isDirectory || skip.has(entry.name)) continue;
-        if (entry.name.startsWith(".")) continue;
-        all.push(
-          ...searchDir(join(paths.root, entry.name), query, paths.root, 20),
-        );
-      }
-    } catch {
-      // Permission errors.
+    for await (
+      const entry of walk(paths.root, {
+        maxDepth: 1,
+        includeFiles: false,
+        skip: SKIP,
+      })
+    ) {
+      if (entry.path === paths.root) continue;
+      if (!entry.isDirectory || skip.has(entry.name)) continue;
+      all.push(
+        ...await searchDir(
+          entry.path,
+          query,
+          paths.root,
+          1,
+        ),
+      );
     }
+  } catch {
+    // Root doesn't exist.
   }
 
   return all;
@@ -126,11 +137,11 @@ function sortResults(results: PathResult[], query: string): PathResult[] {
   });
 }
 
-export function run(
+export async function run(
   opts: CliOptions,
   _manifest: WorkspaceManifest,
   paths: ManifestPaths,
-): number {
+): Promise<number> {
   const query = opts.positional[0];
   if (!query) {
     console.error(
@@ -139,7 +150,7 @@ export function run(
     return 2;
   }
 
-  const raw = searchWorkspace(query, paths);
+  const raw = await searchWorkspace(query, paths);
   const results = sortResults(raw, query);
 
   if (results.length === 0) {

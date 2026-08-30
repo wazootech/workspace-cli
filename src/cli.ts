@@ -189,7 +189,7 @@ export async function run(args: string[]): Promise<number> {
     case "check":
       return await checkCmd.run(opts, resolvedManifest, paths, g);
     case "path":
-      return pathCmd.run(opts, resolvedManifest, paths);
+      return await pathCmd.run(opts, resolvedManifest, paths);
     case "update":
       return await updateCmd.run(opts, resolvedManifest, paths, g);
     case "worktree":
