@@ -22,7 +22,7 @@ import {
 const g = new SystemGit();
 
 async function configure(dir: string): Promise<void> {
-  await g.run(["config", "user.email", "works-test@example.com"], dir);
+  await g.run(["config", "user.email", "wspace-test@example.com"], dir);
   await g.run(["config", "user.name", "WSC Test"], dir);
   await g.run(["config", "commit.gpgsign", "false"], dir);
 }
@@ -330,7 +330,7 @@ Deno.test("update skips when default branch is checked out in a worktree", async
   }
 });
 
-Deno.test("works install clones missing repositories", async () => {
+Deno.test("wspace install clones missing repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
@@ -369,7 +369,7 @@ Deno.test("works install clones missing repositories", async () => {
   }
 });
 
-Deno.test("works install clones only specified subset of repositories", async () => {
+Deno.test("wspace install clones only specified subset of repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
@@ -409,7 +409,7 @@ Deno.test("works install clones only specified subset of repositories", async ()
   }
 });
 
-Deno.test("works check reports CLEAN via CLI", async () => {
+Deno.test("wspace check reports CLEAN via CLI", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
@@ -548,7 +548,7 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
   }
 });
 
-Deno.test("works install fails when destination exists but is not a Git repo", async () => {
+Deno.test("wspace install fails when destination exists but is not a Git repo", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const nonGitPath = join(dir, "repos", "blocked");
@@ -565,14 +565,14 @@ Deno.test("works install fails when destination exists but is not a Git repo", a
     assertEquals(
       code,
       1,
-      "works install should exit non-zero when path is blocked",
+      "wspace install should exit non-zero when path is blocked",
     );
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("works init scaffolds a manifest and standard directories", async () => {
+Deno.test("wspace init scaffolds a manifest and standard directories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
@@ -609,7 +609,7 @@ Deno.test("works init scaffolds a manifest and standard directories", async () =
   }
 });
 
-Deno.test("works init refuses when a manifest already exists", async () => {
+Deno.test("wspace init refuses when a manifest already exists", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
@@ -636,7 +636,7 @@ Deno.test("works init refuses when a manifest already exists", async () => {
   }
 });
 
-Deno.test("works init fails closed on invalid seeds without writing anything", async () => {
+Deno.test("wspace init fails closed on invalid seeds without writing anything", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const missingOwner = await run([
@@ -672,7 +672,7 @@ Deno.test("works init fails closed on invalid seeds without writing anything", a
   }
 });
 
-Deno.test("init-scaffolded manifest feeds works install end-to-end", async () => {
+Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () => {
   const dir = await Deno.makeTempDir();
   try {
     // Local bare origin standing in for github.com/acme/api.
@@ -724,7 +724,7 @@ Deno.test("init-scaffolded manifest feeds works install end-to-end", async () =>
   }
 });
 
-Deno.test("works add appends shorthand entries without touching remotes", async () => {
+Deno.test("wspace add appends shorthand entries without touching remotes", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
@@ -758,7 +758,7 @@ Deno.test("works add appends shorthand entries without touching remotes", async 
   }
 });
 
-Deno.test("works add --url derives the name from the URL basename", async () => {
+Deno.test("wspace add --url derives the name from the URL basename", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
@@ -798,7 +798,7 @@ Deno.test("works add --url derives the name from the URL basename", async () => 
   }
 });
 
-Deno.test("works add rejects duplicates and missing manifests fail closed", async () => {
+Deno.test("wspace add rejects duplicates and missing manifests fail closed", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const missing = join(dir, "workspace.json");
@@ -830,7 +830,7 @@ Deno.test("works add rejects duplicates and missing manifests fail closed", asyn
   }
 });
 
-Deno.test("works remove deletes the entry but keeps the checkout on disk", async () => {
+Deno.test("wspace remove deletes the entry but keeps the checkout on disk", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
@@ -859,7 +859,7 @@ Deno.test("works remove deletes the entry but keeps the checkout on disk", async
   }
 });
 
-Deno.test("works remove fails on unknown names and dry-run writes nothing", async () => {
+Deno.test("wspace remove fails on unknown names and dry-run writes nothing", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
@@ -1028,7 +1028,7 @@ Deno.test("loadManifest rejects a legacy vaultDirectory through the CLI path", a
   }
 });
 
-Deno.test("works i alias clones missing repositories", async () => {
+Deno.test("wspace i alias clones missing repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");

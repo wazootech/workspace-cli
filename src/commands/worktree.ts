@@ -67,7 +67,7 @@ export async function run(
       const [repoName, feature, startPoint] = opts.positional;
       if (!repoName || !feature) {
         console.error(
-          "Usage: works worktree add <repo> <feature> [<commit-ish>]",
+          "Usage: wspace worktree add <repo> <feature> [<commit-ish>]",
         );
         return 2;
       }
@@ -124,7 +124,7 @@ export async function run(
     case "remove": {
       const [repoName, feature] = opts.positional;
       if (!repoName || !feature) {
-        console.error("Usage: works worktree remove <repo> <feature>");
+        console.error("Usage: wspace worktree remove <repo> <feature>");
         return 2;
       }
       const repository = scoped.repositories.find((r) => r.name === repoName);
@@ -154,7 +154,7 @@ export async function run(
       return 0;
     }
     default:
-      console.error("Usage: works worktree add|list|remove");
+      console.error("Usage: wspace worktree add|list|remove");
       return 2;
   }
 }

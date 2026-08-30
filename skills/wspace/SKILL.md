@@ -1,9 +1,9 @@
 ---
-name: works
-description: 'Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any works command, or pushing a goal to completion.'
+name: wspace
+description: 'Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any wspace command, or pushing a goal to completion.'
 ---
 
-# `works` workspace skill
+# `wspace` workspace skill
 
 Drive multi-repo development in the Wazoo workspace: discover state in one round
 trip, isolate each task in a Git worktree, validate with native commands, and
@@ -34,7 +34,7 @@ discovery strategy that the launch context allows, in this order:
    prompt context. Run one chained `cd <target_dir> && git status`.
 3. **Root discovery** (1 round trip): When starting at the root without a
    target, do not probe subdirectories. Run one diagnostic query —
-   `works check --json` or `works worktree list` — to learn every repository's
+   `wspace check --json` or `wspace worktree list` — to learn every repository's
    state in a single round trip.
 
 Batching is the standing rule: gather state in one shell call, never as per-repo
@@ -45,13 +45,13 @@ Batching is the standing rule: gather state in one shell call, never as per-repo
 Complete one logical change per pass through this sequence. Each step ends on a
 checkable condition before the next begins.
 
-1. **Anchor the baseline.** From the workspace root, run `works check` and
+1. **Anchor the baseline.** From the workspace root, run `wspace check` and
    confirm the target repo is `CLEAN` or `FEATURE_CLEAN`. Refresh clean default
-   branches with `works update` when the baseline may be stale.
+   branches with `wspace update` when the baseline may be stale.
 2. **Isolate the task.** Create a worktree for the feature:
-   `works worktree add <repo> <feature>`. Never edit `repos/<repo>` directly;
+   `wspace worktree add <repo> <feature>`. Never edit `repos/<repo>` directly;
    work inside `worktrees/<repo>/<feature>/`. Sync local credentials with
-   `works env sync` when the repo needs them.
+   `wspace env sync` when the repo needs them.
 3. **Implement.** Make the change inside the worktree. Commit one logical change
    at a time; do not stack unrelated work.
 4. **Validate with commands, not deliberation.** Run the repo's native check
@@ -62,7 +62,7 @@ checkable condition before the next begins.
    worktree. Watch the workflow to completion; do not merge while it is pending
    or failing.
 6. **Clean up.** After merge, remove the worktree:
-   `works worktree remove <repo> <feature>` and prune stale references. Leave
+   `wspace worktree remove <repo> <feature>` and prune stale references. Leave
    the worktree clean before moving to the next task.
 
 ## Goal loop
@@ -209,16 +209,16 @@ The map is the source of truth for which of those two happened.
 
 - **Worktree isolation.** Never edit `repos/<repo>` directly for feature work.
   If the agent's cwd is inside `repos/<repo>`, stop and create a worktree first:
-  `works worktree add <repo> <feature-slug>`, then `cd` into it. This applies to
-  every external skill (including `/implement`) — the Pipeline step 2 is not
+  `wspace worktree add <repo> <feature-slug>`, then `cd` into it. This applies
+  to every external skill (including `/implement`) — the Pipeline step 2 is not
   optional.
-- **Never mutate user work.** `works update` never resets, rebases, stashes, or
+- **Never mutate user work.** `wspace update` never resets, rebases, stashes, or
   rewrites history. It skips dirty and feature branches. Respect that contract;
   do not work around it with raw git destructive commands.
 - **Root anchor.** All paths resolve relative to the directory containing the
   manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
 - **Central secret vault.** Never write `.env` files directly in `repos/` or
-  `worktrees/`. Edit `secrets/<repo>/` and run `works env sync`.
+  `worktrees/`. Edit `secrets/<repo>/` and run `wspace env sync`.
 - **Tip-diff before stranded-work claims.** `FEATURE_CLEAN` plus "commits ahead"
   usually means a squash merge detached the branch, not that work is lost.
   Confirm with `git diff origin/main HEAD` and apply the root AGENTS.md
