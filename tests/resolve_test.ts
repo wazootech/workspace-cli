@@ -11,6 +11,11 @@ Deno.test("parseRepository", async (t) => {
     { input: "api", expected: { name: "api" } },
     { input: "acme/api", expected: { owner: "acme", name: "api" } },
     { input: "my-org/my-repo", expected: { owner: "my-org", name: "my-repo" } },
+    { input: ".github", expected: { name: ".github" } },
+    {
+      input: "acme/docs.wazoo.dev",
+      expected: { owner: "acme", name: "docs.wazoo.dev" },
+    },
   ];
 
   for (const { input, expected } of successCases) {
@@ -87,6 +92,58 @@ Deno.test("resolveRepository", async (t) => {
         "api",
       ),
       { name: "api", url: "https://github.com/acme/api" },
+    );
+  });
+
+  await t.step("accepts dotted repo name (.github)", () => {
+    assertEquals(
+      resolveRepository({ owner: "acme" }, ".github"),
+      { name: ".github", url: "https://github.com/acme/.github" },
+    );
+  });
+
+  await t.step(
+    "accepts multi-segment dotted repo name (docs.wazoo.dev)",
+    () => {
+      assertEquals(
+        resolveRepository({ owner: "acme" }, "docs.wazoo.dev"),
+        {
+          name: "docs.wazoo.dev",
+          url: "https://github.com/acme/docs.wazoo.dev",
+        },
+      );
+    },
+  );
+
+  await t.step("rejects double-dot path traversal in name", () => {
+    assertThrows(
+      () => resolveRepository({ owner: "acme" }, "foo..bar"),
+      Error,
+      "Invalid repository name",
+    );
+  });
+
+  await t.step("rejects leading .. in name", () => {
+    assertThrows(
+      () => resolveRepository({ owner: "acme" }, "..secret"),
+      Error,
+      "Invalid repository name",
+    );
+  });
+
+  await t.step("rejects trailing .. in name", () => {
+    assertThrows(
+      () => resolveRepository({ owner: "acme" }, "secret.."),
+      Error,
+      "Invalid repository name",
+    );
+  });
+
+  await t.step("rejects dotted owner", () => {
+    assertThrows(
+      () => resolveRepository({}, { name: "repo", owner: "bad.org" }),
+      Error,
+      "Invalid repository owner",
     );
   });
 
