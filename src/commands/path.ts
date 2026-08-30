@@ -25,103 +25,63 @@ export function score(name: string, query: string): number {
 }
 
 /**
- * Skip patterns: hidden dirs, node_modules, .git.
- */
-const SKIP = [/^\./, /node_modules/, /^\.git$/];
-
-/**
- * Walk a directory using @std/fs/walk, returning directories that match
- * the query. maxDepth controls how deep to search.
- */
-async function searchDir(
-  dir: string,
-  query: string,
-  workspaceRoot: string,
-  maxDepth: number,
-): Promise<PathResult[]> {
-  const results: PathResult[] = [];
-  try {
-    for await (
-      const entry of walk(dir, {
-        maxDepth,
-        includeFiles: false,
-        skip: SKIP,
-      })
-    ) {
-      if (entry.path === dir) continue; // skip root itself
-      if (score(entry.name, query) >= 0) {
-        results.push({
-          name: entry.name,
-          path: entry.path,
-          rel: relative(workspaceRoot, entry.path),
-        });
-      }
-    }
-  } catch {
-    // Directory doesn't exist or permission error.
-  }
-  return results;
-}
-
-/**
- * Search for directories matching the query across the workspace tree.
- * Uses @std/fs/walk to traverse repos/, worktrees/, and nested
- * sub-workspace directories.
+ * Walk the workspace tree in a single pass, returning directories that
+ * match the query.
+ *
+ * Depth rules (from workspace root):
+ * - repos/children: depth 1 only (repo names)
+ * - worktrees/children: depth 2 (repo/feature)
+ * - other top-level dirs: depth 1 (nested sub-workspaces)
  */
 async function searchWorkspace(
   query: string,
   paths: ManifestPaths,
 ): Promise<PathResult[]> {
-  const all: PathResult[] = [];
+  const results: PathResult[] = [];
+  const rootLen = paths.root.length;
 
-  // 1. repos/ — immediate children (depth 1)
-  all.push(
-    ...await searchDir(
-      paths.repositoriesDirectory,
-      query,
-      paths.root,
-      1,
-    ),
-  );
+  // Depth limits per top-level directory (relative to that dir, not root).
+  // repos: 1 (repo names only), worktrees: 2 (repo/feature),
+  // other: 1 (nested sub-workspace dirs).
+  const depthLimit = new Map([
+    ["repos", 1],
+    ["worktrees", 2],
+    ["secrets", 1],
+  ]);
 
-  // 2. worktrees/ — two levels deep (repo/feature)
-  all.push(
-    ...await searchDir(paths.worktreesDirectory, query, paths.root, 2),
-  );
-
-  // 3. Top-level directories not in repos/worktrees/secrets
-  //    (handles nested sub-workspaces)
   try {
-    const skip = new Set([
-      "repos",
-      "worktrees",
-      "secrets",
-      "node_modules",
-      ".git",
-    ]);
     for await (
       const entry of walk(paths.root, {
-        maxDepth: 1,
+        maxDepth: 3,
         includeFiles: false,
-        skip: SKIP,
+        skip: [/^\./, /node_modules/, /^\.git$/],
       })
     ) {
       if (entry.path === paths.root) continue;
-      if (!entry.isDirectory || skip.has(entry.name)) continue;
-      all.push(
-        ...await searchDir(
-          entry.path,
-          query,
-          paths.root,
-          1,
-        ),
-      );
+      if (!entry.isDirectory) continue;
+      // Prune: skip entries deeper than their top-level dir allows.
+      // Depth is from root; subtract 1 for the top-level dir itself.
+      const rel = entry.path.slice(rootLen + 1);
+      const segments = rel.split(/[\\/]/);
+      if (segments.length > 1) {
+        const topDir = segments[0];
+        const limit = depthLimit.get(topDir) ?? 1;
+        const depthFromDir = segments.length - 1;
+        if (depthFromDir > limit) continue;
+      }
+      if (score(entry.name, query) >= 0) {
+        results.push({
+          name: entry.name,
+          path: entry.path,
+          rel: relative(paths.root, entry.path),
+        });
+      }
     }
   } catch {
-    // Root doesn't exist.
+    // Root doesn't exist or permission error.
   }
 
-  return all;
+  return results;
 }
 
 /**
