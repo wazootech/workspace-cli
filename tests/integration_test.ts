@@ -975,34 +975,59 @@ Deno.test("env sync --dry-run previews sync without modifying filesystem", async
   }
 });
 
-Deno.test("wspace path prints repo path via CLI", async () => {
+Deno.test("wspace path finds repo in repos/", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "workspace.json");
+    const reposDir = join(dir, "repos");
+    await Deno.mkdir(join(reposDir, "my-api"), { recursive: true });
     await Deno.writeTextFile(
-      manifestPath,
+      join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
         owner: "acme",
-        repositories: ["a"],
+        repositories: ["my-api"],
         workspaceRoot: dir,
       }),
     );
     const stdout = captureStdout();
     const code = await run([
       "path",
-      "a",
+      "my-api",
       "--manifest",
-      manifestPath,
+      join(dir, "workspace.json"),
     ]);
     stdout.stop();
     assertEquals(code, 0);
-    const output = stdout.output().trim();
-    assert(
-      output.endsWith(join("repos", "a")),
-      `expected path ending with repos/a, got: ${output}`,
+    assertEquals(stdout.output().trim(), join(reposDir, "my-api"));
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace path finds worktree in worktrees/", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const wtDir = join(dir, "worktrees", "api", "split-commands");
+    await Deno.mkdir(wtDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(dir, "workspace.json"),
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "acme",
+        repositories: ["api"],
+        workspaceRoot: dir,
+      }),
     );
+    const stdout = captureStdout();
+    const code = await run([
+      "path",
+      "split-commands",
+      "--manifest",
+      join(dir, "workspace.json"),
+    ]);
+    stdout.stop();
+    assertEquals(code, 0);
+    assertEquals(stdout.output().trim(), wtDir);
   } finally {
     await removeTempDir(dir);
   }
@@ -1011,10 +1036,9 @@ Deno.test("wspace path prints repo path via CLI", async () => {
 Deno.test("wspace path returns exit 1 for no match", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "workspace.json");
+    await Deno.mkdir(join(dir, "repos", "a"), { recursive: true });
     await Deno.writeTextFile(
-      manifestPath,
+      join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
         owner: "acme",
@@ -1026,7 +1050,7 @@ Deno.test("wspace path returns exit 1 for no match", async () => {
       "path",
       "nonexistent",
       "--manifest",
-      manifestPath,
+      join(dir, "workspace.json"),
     ]);
     assertEquals(code, 1);
   } finally {
@@ -1034,35 +1058,58 @@ Deno.test("wspace path returns exit 1 for no match", async () => {
   }
 });
 
-Deno.test("wspace path --feature prints worktree path", async () => {
+Deno.test("wspace path returns exit 1 for ambiguous query", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    await makeRepoWithMain(dir, "a");
-    const manifestPath = join(dir, "workspace.json");
+    await Deno.mkdir(join(dir, "repos", "api"), { recursive: true });
+    await Deno.mkdir(join(dir, "repos", "api-client"), { recursive: true });
     await Deno.writeTextFile(
-      manifestPath,
+      join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
         owner: "acme",
-        repositories: ["a"],
+        repositories: ["api", "api-client"],
+        workspaceRoot: dir,
+      }),
+    );
+    const code = await run([
+      "path",
+      "api",
+      "--manifest",
+      join(dir, "workspace.json"),
+    ]);
+    assertEquals(code, 1);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("wspace path --json returns all matches", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.mkdir(join(dir, "repos", "api"), { recursive: true });
+    await Deno.mkdir(join(dir, "repos", "api-client"), { recursive: true });
+    await Deno.writeTextFile(
+      join(dir, "workspace.json"),
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "acme",
+        repositories: ["api", "api-client"],
         workspaceRoot: dir,
       }),
     );
     const stdout = captureStdout();
     const code = await run([
       "path",
-      "a",
-      "my-feature",
+      "api",
+      "--json",
       "--manifest",
-      manifestPath,
+      join(dir, "workspace.json"),
     ]);
     stdout.stop();
     assertEquals(code, 0);
-    const output = stdout.output().trim();
-    assert(
-      output.includes(join("worktrees", "a", "my-feature")),
-      `expected worktrees/a/my-feature, got: ${output}`,
-    );
+    const results = JSON.parse(stdout.output());
+    assertEquals(results.length, 2);
   } finally {
     await removeTempDir(dir);
   }

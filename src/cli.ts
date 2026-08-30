@@ -51,7 +51,7 @@ wspace check [--json] [--workspace <name>]
   wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
   wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
   wspace remove <repo>
-  wspace path <query> [<feature>] [--workspace <name>] [--json]
+  wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
   wspace worktree add <repo> <feature> [<commit-ish>] [--dry-run]
   wspace worktree list [--stale] [--json] [--workspace <name>]
@@ -74,9 +74,8 @@ Options:
   --workspace <name>  Scope command to a specific sub-workspace (by name)
 
 Path Command:
-  path                Print the path to a repo or worktree. Use in command substitution:
-                        cd "$(wspace path workspace-cli)"
-                        cd "$(wspace path workspace-cli --feature my-branch)"
+  path                Fuzzy-find a workspace directory (repo, worktree, sub-workspace).
+                        Use in command substitution: cd "$(wspace path workspace-cli)"
 
 Worktree Commands:
   worktree add       Creates a worktree at worktrees/<repo>/<feature> on branch <feature>.
