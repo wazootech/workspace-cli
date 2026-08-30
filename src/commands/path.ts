@@ -51,6 +51,7 @@ async function searchWorkspace(
 
   try {
     for await (
+      // maxDepth 3: worktrees are root/worktrees/<repo>/<feature> = depth 3
       const entry of walk(paths.root, {
         maxDepth: 3,
         includeFiles: false,
@@ -61,6 +62,7 @@ async function searchWorkspace(
       if (!entry.isDirectory) continue;
       // Prune: skip entries deeper than their top-level dir allows.
       // Depth is from root; subtract 1 for the top-level dir itself.
+      // +1 also skips the path separator (manifestPaths normalizes without trailing sep).
       const rel = entry.path.slice(rootLen + 1);
       const segments = rel.split(/[\\/]/);
       if (segments.length > 1) {
