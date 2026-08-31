@@ -6,8 +6,8 @@ keeps the working rules in one place and enforces them from the terminal.
 Run any command from anywhere inside the workspace. The CLI auto-detects the
 manifest by walking up from the current directory (like
 `git rev-parse --show-toplevel`). Discovery checks the base name `workspace`
-against the extensions `.json` and `.jsonc`, in that order. Pass
-`--manifest <path>` to override auto-detection.
+against the extension `.json`. Pass `--manifest <path>` to override
+auto-detection.
 
 ## Design principles
 

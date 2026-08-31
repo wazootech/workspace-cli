@@ -1,17 +1,9 @@
-import { join, normalize } from "@std/path";
+import { normalize } from "@std/path";
 import type { GitRunner } from "./git.ts";
-import {
-  branchAb,
-  currentBranch,
-  defaultBranch,
-  fastForwardMerge,
-  fetch,
-  isDirty,
-} from "./git.ts";
-import { exists } from "@std/fs";
-import { type ManifestPaths, resolveRepositoryPath } from "./manifest.ts";
+import { branchAb, fastForwardMerge, fetch } from "./git.ts";
+import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
 import type { RepositoryEntry, UpdateAction } from "./types.ts";
-import { listWorktrees } from "./worktrees.ts";
+import { inspectRepo } from "./repo-inspect.ts";
 
 export async function planUpdate(
   g: GitRunner,
@@ -22,18 +14,20 @@ export async function planUpdate(
   const actions: UpdateAction[] = [];
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
-    if (!(await exists(repoPath))) {
+    const inspection = await inspectRepo(g, repoPath);
+
+    if (!inspection.exists) {
       actions.push({ kind: "MISSING", name: repository.name });
       continue;
     }
-    if (!(await exists(join(repoPath, ".git")))) {
+    if (!inspection.isGit) {
       actions.push({ kind: "INVALID", name: repository.name });
       continue;
     }
 
-    const branch = await currentBranch(g, repoPath);
-    const defaultBranchName = await defaultBranch(g, repoPath);
-    const dirty = await isDirty(g, repoPath);
+    const branch = inspection.branch;
+    const defaultBranchName = inspection.defaultBranch;
+    const dirty = inspection.dirty;
 
     if (dirty) {
       actions.push({
@@ -60,8 +54,7 @@ export async function planUpdate(
       continue;
     }
 
-    const worktrees = await listWorktrees(g, repoPath);
-    const linkedWorktrees = worktrees.filter(
+    const linkedWorktrees = inspection.worktrees.filter(
       (w) => normalize(w.path) !== normalize(repoPath),
     );
     if (linkedWorktrees.some((w) => w.branch === defaultBranchName)) {
