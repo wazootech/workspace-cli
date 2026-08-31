@@ -156,13 +156,11 @@ export async function run(args: string[]): Promise<number> {
   const g = new SystemGit();
 
   switch (opts.command) {
-    case "install":
-      return await installCmd.run(opts, manifest, manifestPath, g);
     case "validate":
       return await validateCmd.run(manifest);
   }
 
-  // Every other command resolves once; detected sub-workspaces reflect
+  // Every command below resolves once; detected sub-workspaces reflect
   // whatever is currently on disk.
   const resolvedTree = resolveWorkspaceTree(manifest, manifestPath);
 
@@ -189,6 +187,8 @@ export async function run(args: string[]): Promise<number> {
   switch (opts.command) {
     case "check":
       return await checkCmd.run(opts, resolvedManifest, paths, g);
+    case "install":
+      return await installCmd.run(opts, resolvedManifest, paths, g);
     case "path":
       return await pathCmd.run(opts, resolvedManifest, paths);
     case "update":

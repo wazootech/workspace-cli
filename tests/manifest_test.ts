@@ -789,9 +789,9 @@ Deno.test("validateSafeName", async (t) => {
   }
 
   const errorCases: { input: string; pattern: string }[] = [
-    { input: "", pattern: "cannot be empty" },
+    { input: "", pattern: "Invalid repository name" },
     { input: "../etc", pattern: "path traversal" },
-    { input: ".", pattern: "path traversal" },
+    { input: ".", pattern: "reserved" },
     { input: "foo/../bar", pattern: "path traversal" },
     { input: "foo\\bar", pattern: "path traversal" },
   ];

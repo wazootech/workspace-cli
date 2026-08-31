@@ -9,6 +9,7 @@ import {
   printRows,
   scopeManifest,
 } from "@/shared.ts";
+import { manifestPaths } from "@/manifest-paths.ts";
 
 import * as initCmd from "@/commands/init.ts";
 import * as validateCmd from "@/commands/validate.ts";
@@ -485,7 +486,7 @@ Deno.test("install: clones all missing repos", async () => {
         dryRun: false,
       },
       localManifest,
-      manifestPathLocal,
+      manifestPaths(localManifest, manifestPathLocal),
       g,
     );
     assertEquals(code, 0);
@@ -530,7 +531,7 @@ Deno.test("install: only clones specified subset", async () => {
         dryRun: false,
       },
       manifest,
-      manifestPath,
+      manifestPaths(manifest, manifestPath),
       g,
     );
     assertEquals(code, 0);
@@ -568,7 +569,7 @@ Deno.test("install: unknown repo returns 1", async () => {
         dryRun: false,
       },
       manifest,
-      manifestPath,
+      manifestPaths(manifest, manifestPath),
       g,
     );
     assertEquals(code, 1);

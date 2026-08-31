@@ -2,24 +2,17 @@ import { exists } from "@std/fs";
 import { join } from "@std/path";
 import { clone } from "@/git.ts";
 import type { GitRunner } from "@/git.ts";
-import {
-  manifestPaths,
-  resolveRepositoryPath,
-  resolveWorkspaceTree,
-} from "@/manifest.ts";
-import type { ManifestPaths } from "@/manifest.ts";
-import type { CliOptions } from "@/shared.ts";
-import { flattenResolved, printRows } from "@/shared.ts";
+import { type ManifestPaths, resolveRepositoryPath } from "@/manifest-paths.ts";
+import type { CliOptions } from "@/cli-options.ts";
+import { printRows } from "@/output.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
 type InstallRow = { name: string; state: string; detail?: string };
 
 function isBadInstallRow(row: InstallRow): boolean {
   return (
-    row.state === "CLONE_FAILED" ||
-    row.state === "PATH_BLOCKED" ||
-    row.state === "INVALID" ||
-    row.state === "UNKNOWN_REPO"
+    row.state === "CLONE_FAILED" || row.state === "PATH_BLOCKED" ||
+    row.state === "INVALID" || row.state === "UNKNOWN_REPO"
   );
 }
 
@@ -85,28 +78,25 @@ async function cloneMissing(
 }
 
 /**
- * Resolve the workspace tree, clone missing repositories, and print results.
+ * Clone missing repositories from the pre-resolved manifest.
+ * Receives the resolved manifest and paths from cli.ts — no re-resolution.
  */
 export async function run(
   opts: CliOptions,
   manifest: WorkspaceManifest,
-  manifestPath: string,
+  paths: ManifestPaths,
   g: GitRunner,
 ): Promise<number> {
   const targets = opts.subcommand ? [opts.subcommand, ...opts.positional] : [];
-  const paths = manifestPaths(manifest, manifestPath);
-
-  const resolved = resolveWorkspaceTree(manifest, manifestPath);
-  const flat = flattenResolved(resolved, manifest);
 
   const scoped = opts.workspace
     ? {
-      ...flat,
-      repositories: flat.repositories.filter(
+      ...manifest,
+      repositories: manifest.repositories.filter(
         (r) => r.workspace === opts.workspace,
       ),
     }
-    : flat;
+    : manifest;
 
   const rows = await cloneMissing(g, scoped, paths, targets, {
     dryRun: opts.dryRun,
@@ -116,11 +106,7 @@ export async function run(
   const failed = rows.some(isBadInstallRow);
   if (!failed && !opts.dryRun) {
     console.error(
-      `NOTE: Fresh clones do not contain files listed in .gitignore.
-Required setup steps may include:
-  - Running npm install / deno install / pip install etc. in each repo
-  - Copying .env files from secrets/ (run: wspace env sync)
-  - Any repo-specific setup documented in each repo's README`,
+      `NOTE: Fresh clones do not contain files listed in .gitignore.\nRequired setup steps may include:\n  - Running npm install / deno install / pip install etc. in each repo\n  - Copying .env files from secrets/ (run: wspace env sync)\n  - Any repo-specific setup documented in each repo's README`,
     );
   }
   return failed ? 1 : 0;

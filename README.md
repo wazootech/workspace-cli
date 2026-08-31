@@ -50,10 +50,10 @@ Design principles:
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
-  with `--name` or a positional name). Edits are surgical: comments in `.jsonc`
-  manifests survive. GitHub shorthand entries are probed with `gh`; pass
-  `--create` to create a missing repository first (default private). Nothing is
-  cloned; run `wspace install <name>` afterwards.
+  with `--name` or a positional name). Edits are surgical manifests survive.
+  GitHub shorthand entries are probed with `gh`; pass `--create` to create a
+  missing repository first (default private). Nothing is cloned; run
+  `wspace install <name>` afterwards.
 - `wspace remove <repo>` — delete the entry whose effective name matches.
   Surgical edit; local checkouts are never deleted.
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
@@ -75,9 +75,8 @@ Design principles:
 
 ## Sub-workspaces
 
-The manifest is `workspace.json` (or `.jsonc`) in `.json` or `.jsonc` format
-(JSONC allows comments and trailing commas). Discovery is name-first, then
-extension.
+The manifest is `workspace.json` in `.json` format (JSONC allows comments and
+trailing commas). Discovery is name-first, then extension.
 
 Schema v4 keeps one `repositories` array with exactly two entry forms:
 
@@ -145,12 +144,12 @@ workspaces now compose automatically through detection. Entry fields `path`,
 `{ "name", "url" }`. `vaultDirectory` was renamed to `secretsDirectory`. All
 removals produce pointed errors instead of silent misbehavior.
 
-Manifest discovery has been simplified to `workspace.json` / `.jsonc` only. The
+Manifest discovery has been simplified to `workspace.json` only. The
 `wspace.json` and `repos.json` filename fallbacks and `.yaml` / `.yml` format
 support have been removed. Migrate by renaming your manifest file to
-`workspace.json` (or `workspace.jsonc`) and converting any YAML manifests to
-JSON. The CLI auto-detects the manifest by walking up from the current directory
-(like `git rev-parse --show-toplevel`). Pass `--manifest <path>` to override
+`workspace.json` and converting any YAML manifests to JSON. The CLI auto-detects
+the manifest by walking up from the current directory (like
+`git rev-parse --show-toplevel`). Pass `--manifest <path>` to override
 auto-detection.
 
 ## Agent skills
