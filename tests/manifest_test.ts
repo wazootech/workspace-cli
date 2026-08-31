@@ -3,6 +3,7 @@ import { dirname, join } from "@std/path";
 import {
   detectConflicts,
   findDefaultManifestPath,
+  findManifestWalkingUp,
   listWorkspaces,
   loadManifest,
   manifestPaths,
@@ -800,4 +801,53 @@ Deno.test("listWorkspaces groups repos by workspace name", () => {
   assertEquals(ws[0], { name: "(root)", repos: 1, child: false });
   assertEquals(ws[1], { name: "child-x", repos: 2, child: true });
   assertEquals(ws[2], { name: "child-y", repos: 1, child: true });
+});
+
+// --- findManifestWalkingUp tests ---
+
+Deno.test("findManifestWalkingUp finds manifest in current directory", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "workspace.json");
+    await Deno.writeTextFile(manifestPath, "{}\n");
+    assertEquals(await findManifestWalkingUp(tempDir), manifestPath);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("findManifestWalkingUp finds manifest in parent directory", async () => {
+  const parent = await Deno.makeTempDir();
+  const child = join(parent, "child", "nested");
+  await Deno.mkdir(child, { recursive: true });
+  try {
+    const manifestPath = join(parent, "workspace.json");
+    await Deno.writeTextFile(manifestPath, "{}\n");
+    assertEquals(await findManifestWalkingUp(child), manifestPath);
+  } finally {
+    await Deno.remove(parent, { recursive: true });
+  }
+});
+
+Deno.test("findManifestWalkingUp returns undefined when no manifest exists", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    assertEquals(await findManifestWalkingUp(tempDir), undefined);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("findDefaultManifestPath uses walk-up discovery", async () => {
+  const parent = await Deno.makeTempDir();
+  const child = join(parent, "subdir");
+  await Deno.mkdir(child, { recursive: true });
+  try {
+    // Manifest in parent, calling from child — walk-up should find it
+    const manifestPath = join(parent, "workspace.json");
+    await Deno.writeTextFile(manifestPath, "{}\n");
+    assertEquals(await findDefaultManifestPath(child), manifestPath);
+  } finally {
+    await Deno.remove(parent, { recursive: true });
+  }
 });

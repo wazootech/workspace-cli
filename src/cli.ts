@@ -61,7 +61,8 @@ wspace check [--json] [--workspace <name>]
   wspace validate
 
 Options:
-  --manifest <path>   Manifest path (default: workspace.json)
+  --manifest <path>   Manifest path override (default: auto-detected by walking
+                        up from cwd for workspace.json)
   --host <host>       init: hostname for shorthand expansion (default: github.com)
   --owner <owner>     init: owner for shorthand entries
   --url <url>         add: explicit clone URL (writes an object entry)

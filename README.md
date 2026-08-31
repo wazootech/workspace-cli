@@ -149,7 +149,9 @@ Manifest discovery has been simplified to `workspace.json` / `.jsonc` only. The
 `wspace.json` and `repos.json` filename fallbacks and `.yaml` / `.yml` format
 support have been removed. Migrate by renaming your manifest file to
 `workspace.json` (or `workspace.jsonc`) and converting any YAML manifests to
-JSON. Pass `--manifest <path>` to point at a manifest elsewhere.
+JSON. The CLI auto-detects the manifest by walking up from the current directory
+(like `git rev-parse --show-toplevel`). Pass `--manifest <path>` to override
+auto-detection.
 
 ## Agent skills
 
