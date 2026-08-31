@@ -1,6 +1,7 @@
 import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 import { type Repository, resolveRepository } from "./resolve.ts";
 import { CURRENT_SCHEMA_VERSION } from "./manifest-discovery.ts";
+import { validateRepoName } from "./names.ts";
 
 /** Raw repository entry — shorthand string or unvalidated object. */
 type RawRepositoryEntry = string | Record<string, unknown>;
@@ -138,18 +139,12 @@ export function normalizeManifest(
   };
 }
 
-export function validateSafeName(name: string, contextName = "Name"): void {
-  if (!name || typeof name !== "string" || name.trim() === "") {
-    throw new Error(`${contextName} cannot be empty`);
-  }
-  if (
-    name.includes("/") || name.includes("\\") || name === "." ||
-    name === ".." || name.includes("..")
-  ) {
-    throw new Error(
-      `${contextName} "${name}" contains invalid characters or path traversal`,
-    );
-  }
+/**
+ * Validate a repository name. Delegates to names.ts for GitHub-aligned rules.
+ * Kept as an alias for backwards compatibility.
+ */
+export function validateSafeName(name: string, _contextName = "Name"): void {
+  validateRepoName(name);
 }
 
 function requiredEntryMessage(repository: unknown): string {
@@ -163,7 +158,7 @@ function registerName(
   name: string,
   contextName: string,
 ): void {
-  validateSafeName(name, contextName);
+  validateRepoName(name);
   if (seen.has(name)) {
     throw new Error(`Duplicate ${contextName.toLowerCase()}: ${name}`);
   }

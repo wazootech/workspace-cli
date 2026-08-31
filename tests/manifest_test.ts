@@ -166,6 +166,60 @@ Deno.test("validateManifest rejects invalid repo names or traversal", () => {
   );
 });
 
+Deno.test("validateManifest accepts dotted and underscored repo names", () => {
+  const manifest: WorkspaceManifest = {
+    repositories: [
+      { name: ".github", url: "https://github.com/acme/.github.git" },
+      {
+        name: "docs.wazoo.dev",
+        url: "https://github.com/acme/docs.wazoo.dev.git",
+      },
+      { name: "my_repo", url: "https://github.com/acme/my_repo.git" },
+    ],
+  };
+  validateManifest(manifest);
+});
+
+Deno.test("validateManifest rejects .git suffix and reserved names", () => {
+  const badNames = ["ends-with.git", ".", ".."];
+  for (const name of badNames) {
+    assertThrows(
+      () =>
+        validateManifest({
+          repositories: [{ name, url: `https://github.com/acme/${name}.git` }],
+        }),
+      Error,
+    );
+  }
+});
+
+Deno.test("loadManifest accepts .github and dotted repo shorthand", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const manifestPath = join(tempDir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 4,
+        owner: "wazootech",
+        repositories: [".github", "docs.wazoo.dev", "wazoo.dev", "my_repo"],
+      }),
+    );
+
+    const manifest = await loadManifest(manifestPath);
+    assertEquals(manifest.repositories.length, 4);
+    assertEquals(manifest.repositories[0].name, ".github");
+    assertEquals(
+      manifest.repositories[0].url,
+      "https://github.com/wazootech/.github",
+    );
+    assertEquals(manifest.repositories[1].name, "docs.wazoo.dev");
+    assertEquals(manifest.repositories[3].name, "my_repo");
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("findDefaultManifestPath defaults to workspace.json", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
@@ -735,9 +789,9 @@ Deno.test("validateSafeName", async (t) => {
   }
 
   const errorCases: { input: string; pattern: string }[] = [
-    { input: "", pattern: "cannot be empty" },
+    { input: "", pattern: "Invalid repository name" },
     { input: "../etc", pattern: "path traversal" },
-    { input: ".", pattern: "path traversal" },
+    { input: ".", pattern: "reserved" },
     { input: "foo/../bar", pattern: "path traversal" },
     { input: "foo\\bar", pattern: "path traversal" },
   ];
