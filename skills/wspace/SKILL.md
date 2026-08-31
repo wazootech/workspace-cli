@@ -64,6 +64,10 @@ checkable condition before the next begins.
 6. **Clean up.** After merge, remove the worktree:
    `wspace worktree remove <repo> <feature>` and prune stale references. Leave
    the worktree clean before moving to the next task.
+7. **Reconcile state.** From the workspace root, run `wspace check` and confirm
+   the touched repo is `CLEAN` or `FEATURE_CLEAN` and that no new stray or
+   unmanaged repo appeared during the session (see **State reconcile** below).
+   Treat this as the mandatory end-of-session verification before moving on.
 
 ## Goal loop
 
@@ -223,3 +227,20 @@ The map is the source of truth for which of those two happened.
   usually means a squash merge detached the branch, not that work is lost.
   Confirm with `git diff origin/main HEAD` and apply the root AGENTS.md
   **Upstream verification** rules before planning around it.
+
+### State reconcile
+
+Reconcile workspace state at **both ends of every session** — it is the antidote
+to state that silently drifts while you work (strays cloned into the wrong
+directory, abandoned worktrees, uncommitted changes).
+
+- **At launch:** run `wspace check --json` (or `wspace worktree list`) once from
+  the workspace root to learn every repository's state in a single round trip —
+  do not probe subdirectories individually.
+- **Before finishing:** run `wspace check` again and confirm nothing new
+  appeared mid-session: no stray/unmanaged repo, and any repo you touched is
+  `CLEAN` or `FEATURE_CLEAN`.
+- Prefer `wspace check --json` over ad-hoc per-repo `ls`/`git status` probes.
+- `wspace check` reports unmanaged repos only inside `repos/`. Until the root
+  scan lands, manually confirm no git clone landed in the workspace root itself
+  (a stray at the root typically means the wrong working directory was used).

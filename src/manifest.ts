@@ -38,10 +38,34 @@ export async function findExistingManifest(
   return undefined;
 }
 
+/**
+ * Walk up from `startDir` toward the filesystem root, returning the first
+ * existing workspace manifest found. This mirrors the git rev-parse
+ * --show-toplevel pattern: workspace commands work from any subdirectory
+ * of the workspace without requiring an explicit --manifest flag.
+ *
+ * Returns undefined when no manifest is found before reaching the root
+ * (or the filesystem boundary).
+ */
+export async function findManifestWalkingUp(
+  startDir: string,
+): Promise<string | undefined> {
+  let dir = startDir;
+  while (true) {
+    const found = await findExistingManifest(dir);
+    if (found) return found;
+
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root reached
+    dir = parent;
+  }
+  return undefined;
+}
+
 export async function findDefaultManifestPath(
   cwd: string = Deno.cwd(),
 ): Promise<string> {
-  return (await findExistingManifest(cwd)) ??
+  return (await findManifestWalkingUp(cwd)) ??
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
 }
 
