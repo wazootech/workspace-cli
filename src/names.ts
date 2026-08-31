@@ -55,7 +55,7 @@ export function validateRepoName(name: string): string {
       `Invalid repository name: '${name}' contains invalid characters or path traversal (allowed: letters, digits, '.', '_', '-')`,
     );
   }
-  if (name === "." || name === "..") {
+  if (name === "." || name === ".." || name.includes("..")) {
     throw new Error(`Invalid repository name: '${name}' (reserved)`);
   }
   if (name.endsWith(".git")) {
