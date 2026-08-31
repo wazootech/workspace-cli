@@ -41,7 +41,7 @@ export function validateOwnerSegment(owner: string | undefined): string {
  * `-`, `_`, and `.`, max 100 characters. `.` and `..` are reserved, names
  * cannot end with `.git`, and path separators / traversal are rejected.
  */
-export function validateRepoName(name: string): string {
+export function validateRepositoryName(name: string): string {
   if (typeof name !== "string" || name === "") {
     throw new Error(`Invalid repository name: '${name}'`);
   }

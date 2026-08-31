@@ -1,5 +1,5 @@
 import type { RepositoryEntry, WorkspaceContext } from "./types.ts";
-import { validateOwnerSegment, validateRepoName } from "./names.ts";
+import { validateOwnerSegment, validateRepositoryName } from "./names.ts";
 
 export const DEFAULT_HOST = "https://github.com";
 
@@ -41,7 +41,7 @@ export function resolveRepository(
     ? parseRepository(repository)
     : repository;
 
-  const name = validateRepoName(repo.name);
+  const name = validateRepositoryName(repo.name);
 
   // Explicit URL bypasses host/owner resolution.
   if (repo.url) {

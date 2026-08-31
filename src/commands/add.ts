@@ -1,7 +1,7 @@
 import { SystemGit } from "@/git.ts";
 import { BARE_DEFAULT_HOST, resolveRepository } from "@/resolve.ts";
 import { validateManifestText } from "@/manifest.ts";
-import { validateRepoName } from "@/names.ts";
+import { validateRepositoryName } from "@/names.ts";
 import { createGitHubRepo } from "@/remote.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
 import {
@@ -185,7 +185,7 @@ function supportsGitHubProbe(host: string): boolean {
 
 function tryValidateName(name: string): boolean {
   try {
-    validateRepoName(name);
+    validateRepositoryName(name);
     return true;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

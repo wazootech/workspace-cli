@@ -1,7 +1,7 @@
 import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 import { type Repository, resolveRepository } from "./resolve.ts";
 import { CURRENT_SCHEMA_VERSION } from "./manifest-discovery.ts";
-import { validateRepoName } from "./names.ts";
+import { validateRepositoryName } from "./names.ts";
 
 /** Raw repository entry — shorthand string or unvalidated object. */
 type RawRepositoryEntry = string | Record<string, unknown>;
@@ -144,7 +144,7 @@ export function normalizeManifest(
  * Kept as an alias for backwards compatibility.
  */
 export function validateSafeName(name: string, _contextName = "Name"): void {
-  validateRepoName(name);
+  validateRepositoryName(name);
 }
 
 function requiredEntryMessage(repository: unknown): string {
@@ -158,7 +158,7 @@ function registerName(
   name: string,
   contextName: string,
 ): void {
-  validateRepoName(name);
+  validateRepositoryName(name);
   if (seen.has(name)) {
     throw new Error(`Duplicate ${contextName.toLowerCase()}: ${name}`);
   }
