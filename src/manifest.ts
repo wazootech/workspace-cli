@@ -7,7 +7,7 @@ import type {
   WorkspaceManifest,
 } from "./types.ts";
 import { type Repository, resolveRepository } from "./resolve.ts";
-import { validateRepoName } from "./names.ts";
+import { validateRepositoryName } from "./names.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -227,7 +227,7 @@ function registerName(
   name: string,
   contextName: string,
 ): void {
-  validateRepoName(name);
+  validateRepositoryName(name);
   if (seen.has(name)) {
     throw new Error(`Duplicate ${contextName.toLowerCase()}: ${name}`);
   }
