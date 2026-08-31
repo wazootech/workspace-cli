@@ -5,7 +5,7 @@
  *   hyphens, no leading/trailing hyphen, max 39 chars. Dots and underscores
  *   are not allowed.
  * - Repository names: ASCII alphanumerics plus `-`, `_`, `.`, max 100 chars.
- *   `.` and `..` are reserved, and names cannot end with `.git`.
+ *   `.` and `..` are reserved, and names cannot end with `.git` or `.wiki`.
  */
 
 export const MAX_OWNER_LENGTH = 39;
@@ -61,6 +61,14 @@ export function validateRepoName(name: string): string {
   if (name.endsWith(".git")) {
     throw new Error(
       `Invalid repository name: '${name}' (cannot end with .git)`,
+    );
+  }
+  // Community-tested: GitHub rejects ".wiki" suffix with
+  // "The repository REPO cannot end in .wiki". Not yet in official docs.
+  // https://github.com/github/docs/issues/44518
+  if (name.endsWith(".wiki")) {
+    throw new Error(
+      `Invalid repository name: '${name}' (cannot end with .wiki)`,
     );
   }
   return name;
