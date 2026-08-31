@@ -1,17 +1,10 @@
 import { join, normalize, relative, resolve } from "@std/path";
 import type { GitRunner } from "./git.ts";
-import {
-  branchAb,
-  configuredUpstream,
-  currentBranch,
-  defaultBranch,
-  hasRef,
-  isDirty,
-} from "./git.ts";
+import { branchAb, configuredUpstream, hasRef } from "./git.ts";
 import { exists } from "@std/fs";
-import { type ManifestPaths, resolveRepositoryPath } from "./manifest.ts";
+import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
-import { listWorktrees } from "./worktrees.ts";
+import { inspectRepo } from "./repo-inspect.ts";
 
 export interface ClassifyInput {
   dirty: boolean;
@@ -60,17 +53,19 @@ export async function repoStatus(
   repoPath: string,
 ): Promise<RepoStatus> {
   const base = { name: repository.name, path: repoPath };
-  if (!(await exists(repoPath))) {
+  const inspection = await inspectRepo(g, repoPath);
+
+  if (!inspection.exists) {
     return { ...base, state: "MISSING" };
   }
-  if (!(await exists(join(repoPath, ".git")))) {
+  if (!inspection.isGit) {
     return { ...base, state: "INVALID" };
   }
 
   try {
-    const branch = await currentBranch(g, repoPath);
-    const defaultBr = await defaultBranch(g, repoPath);
-    const dirty = await isDirty(g, repoPath);
+    const branch = inspection.branch;
+    const defaultBr = inspection.defaultBranch;
+    const dirty = inspection.dirty;
     const upstream = branch
       ? await configuredUpstream(g, repoPath, branch)
       : undefined;
@@ -164,9 +159,9 @@ export async function collectStatus(
     rows.push(mainStatus);
 
     if (mainStatus.state !== "MISSING" && mainStatus.state !== "INVALID") {
+      const inspection = await inspectRepo(g, repoPath);
       try {
-        const wts = await listWorktrees(g, repoPath);
-        for (const wt of wts) {
+        for (const wt of inspection.worktrees) {
           if (normalize(wt.path) === normalize(repoPath)) {
             continue;
           }
@@ -179,8 +174,8 @@ export async function collectStatus(
             wtDetail = "worktree directory missing";
           } else {
             try {
-              const dirty = await isDirty(g, wt.path);
-              if (dirty) {
+              const dirty = await inspectRepo(g, wt.path);
+              if (dirty.dirty) {
                 wtState = "WORKTREE_DIRTY";
                 wtDetail = "uncommitted changes";
               } else if (wt.detached) {
