@@ -10,23 +10,8 @@ managing the Wazoo multi-repo workspace without submodules. See `README.md`.
 This repo lives inside `repos/workspace-cli/` in a multi-repo workspace. The
 workspace root's `AGENTS.md` defines hard boundaries that apply here:
 
-**Worktree isolation (hard boundary):** All feature work must happen in a
-worktree (`worktrees/<repo>/<feature>`). Never create branches or commit
-directly inside `repos/<repo>`. If your cwd is inside `repos/<repo>/`, stop and
-create a worktree first:
-
-```sh
-cd <workspace-root>
-wspace worktree add workspace-cli <feature-slug>
-cd worktrees/workspace-cli/<feature-slug>
-```
-
-This applies to all skills and agents, not just the `wspace` pipeline. Code
-changes from `/review`, `/investigate`, `/qa`, or any other skill must also go
-through a worktree.
-
-See `../AGENTS.md` (workspace root) for the full rules including workspace root
-resolution, worktree path construction, and cleanup procedures.
+Feature work should use raw Git worktrees when isolation is needed; this CLI
+does not manage their location or lifecycle.
 
 ## Conventions
 
@@ -37,7 +22,7 @@ resolution, worktree path construction, and cleanup procedures.
 - Machine-readable git: use `--porcelain` output formats and `GitRunner` (an
   interface over `git`/`gh`/filesystem) so logic stays testable.
 - Commands never mutate user work: update fast-forwards clean default branches
-  only; worktree and env operations refuse dirty or feature-branch checkouts.
+  only and never resets, rebases, stashes, or rewrites history.
 - `wspace init` scaffolds a new workspace manifest and standard directories in
   an empty location; `wspace install` clones missing repositories from the
   manifest; `wspace add`/`remove` curate manifest entries surgically (comments

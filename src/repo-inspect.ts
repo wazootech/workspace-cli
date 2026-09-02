@@ -1,6 +1,11 @@
 import { join } from "@std/path";
 import type { GitRunner } from "./git.ts";
-import { currentBranch, defaultBranch, isDirty } from "./git.ts";
+import {
+  currentBranch,
+  defaultBranch,
+  hasDefaultBranchWorktree,
+  isDirty,
+} from "./git.ts";
 import { exists } from "@std/fs";
 
 /**
@@ -14,6 +19,7 @@ export interface RepoInspection {
   branch?: string;
   defaultBranch?: string;
   dirty: boolean;
+  defaultBranchCheckedOutInWorktree: boolean;
 }
 
 /**
@@ -26,15 +32,28 @@ export async function inspectRepo(
   repoPath: string,
 ): Promise<RepoInspection> {
   if (!(await exists(repoPath))) {
-    return { exists: false, isGit: false, dirty: false };
+    return {
+      exists: false,
+      isGit: false,
+      dirty: false,
+      defaultBranchCheckedOutInWorktree: false,
+    };
   }
   if (!(await exists(join(repoPath, ".git")))) {
-    return { exists: true, isGit: false, dirty: false };
+    return {
+      exists: true,
+      isGit: false,
+      dirty: false,
+      defaultBranchCheckedOutInWorktree: false,
+    };
   }
 
   const branch = await currentBranch(g, repoPath);
   const defaultBranchName = await defaultBranch(g, repoPath);
   const dirty = await isDirty(g, repoPath);
+  const defaultBranchCheckedOutInWorktree = defaultBranchName !== undefined &&
+    branch !== defaultBranchName &&
+    await hasDefaultBranchWorktree(g, repoPath, defaultBranchName);
 
   return {
     exists: true,
@@ -42,5 +61,6 @@ export async function inspectRepo(
     branch,
     defaultBranch: defaultBranchName,
     dirty,
+    defaultBranchCheckedOutInWorktree,
   };
 }

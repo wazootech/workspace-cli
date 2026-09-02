@@ -36,7 +36,8 @@ Schema version 4 keeps one `repositories[]` array with exactly two entry forms:
 
 Legacy keys removed in v4 produce migration errors: `workspaces[]` (composition
 is now automatic through detection), entry fields `path`, `groups`,
-`localFiles`, and `manifest`, and `vaultDirectory` (renamed to
+`localFiles`, and `manifest`. The removed management keys `vaultDirectory`,
+`worktreesDirectory`, and `secretsDirectory` are rejected.
 
 ## Local names
 
@@ -47,8 +48,7 @@ the composed tree - are errors. To use a different local label than the
 shorthand name, write the explicit form with your chosen `name` plus a full
 `url`. Child manifests are self-contained: their own `host` and `owner` apply.
 
-Recursion conventions: child manifests re-root their own directory defaults;
-reads the root `secrets/<repoName>/`.
+Recursion conventions: child manifests re-root their own directory defaults.
 
 ## Commands
 

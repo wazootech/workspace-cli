@@ -53,6 +53,15 @@ export async function planUpdate(
       continue;
     }
 
+    if (inspection.defaultBranchCheckedOutInWorktree) {
+      actions.push({
+        kind: "SKIP_FEATURE",
+        name: repository.name,
+        detail: `${defaultBranchName} checked out in a worktree`,
+      });
+      continue;
+    }
+
     // Dry-run: skip network calls (fetch) and mutations (merge).
     if (dryRun) {
       actions.push({
