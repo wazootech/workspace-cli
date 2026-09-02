@@ -1,4 +1,4 @@
-import { join, normalize, relative, resolve } from "@std/path";
+import { join, normalize, resolve } from "@std/path";
 import type { GitRunner } from "./git.ts";
 import { branchAb, configuredUpstream, hasRef } from "./git.ts";
 import { exists } from "@std/fs";
@@ -157,61 +157,6 @@ export async function collectStatus(
     const repoPath = resolveRepositoryPath(repository, paths);
     const mainStatus = await repoStatus(g, repository, repoPath);
     rows.push(mainStatus);
-
-    if (mainStatus.state !== "MISSING" && mainStatus.state !== "INVALID") {
-      const inspection = await inspectRepo(g, repoPath);
-      try {
-        for (const wt of inspection.worktrees) {
-          if (normalize(wt.path) === normalize(repoPath)) {
-            continue;
-          }
-          const wtExist = await exists(wt.path);
-          let wtState: RepoState = "FEATURE_CLEAN";
-          let wtDetail: string | undefined;
-
-          if (!wtExist) {
-            wtState = "MISSING";
-            wtDetail = "worktree directory missing";
-          } else {
-            try {
-              const dirty = await inspectRepo(g, wt.path);
-              if (dirty.dirty) {
-                wtState = "WORKTREE_DIRTY";
-                wtDetail = "uncommitted changes";
-              } else if (wt.detached) {
-                wtState = "FEATURE_CLEAN";
-                wtDetail = "detached HEAD";
-              }
-            } catch (err) {
-              wtState = "ERROR";
-              wtDetail = err instanceof Error ? err.message : String(err);
-            }
-          }
-
-          rows.push({
-            name: `${repository.name} (worktree: ${
-              wt.branch ?? relative(paths.root, wt.path)
-            })`,
-            path: wt.path,
-            branch: wt.branch,
-            state: wtState,
-            detail: wtDetail,
-            isWorktree: true,
-            worktreePath: wt.path,
-          });
-        }
-      } catch (err) {
-        rows.push({
-          name: `${repository.name} (worktrees)`,
-          path: repoPath,
-          state: "ERROR",
-          detail: `Failed to inspect worktrees: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-          isWorktree: true,
-        });
-      }
-    }
   }
   return rows;
 }

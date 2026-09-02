@@ -4,8 +4,6 @@ import type { WorkspaceManifest } from "./types.ts";
 export interface ManifestPaths {
   root: string;
   repositoriesDirectory: string;
-  worktreesDirectory: string;
-  secretsDirectory: string;
 }
 
 /**
@@ -45,8 +43,6 @@ export function manifestPaths(
   const paths: ManifestPaths = {
     root,
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
-    worktreesDirectory: dirOption(manifest.worktreesDirectory, "worktrees"),
-    secretsDirectory: dirOption(manifest.secretsDirectory, "secrets"),
   };
   return paths;
 }

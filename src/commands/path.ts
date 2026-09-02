@@ -30,7 +30,6 @@ export function score(name: string, query: string): number {
  *
  * Depth rules (from workspace root):
  * - repos/children: depth 1 only (repo names)
- * - worktrees/children: depth 2 (repo/feature)
  * - other top-level dirs: depth 1 (nested sub-workspaces)
  */
 async function searchWorkspace(
@@ -41,17 +40,13 @@ async function searchWorkspace(
   const rootLen = paths.root.length;
 
   // Depth limits per top-level directory (relative to that dir, not root).
-  // repos: 1 (repo names only), worktrees: 2 (repo/feature),
   // other: 1 (nested sub-workspace dirs).
   const depthLimit = new Map([
     ["repos", 1],
-    ["worktrees", 2],
-    ["secrets", 1],
   ]);
 
   try {
     for await (
-      // maxDepth 3: worktrees are root/worktrees/<repo>/<feature> = depth 3
       const entry of walk(paths.root, {
         maxDepth: 3,
         includeFiles: false,

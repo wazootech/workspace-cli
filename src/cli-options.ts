@@ -10,7 +10,6 @@ export interface CliOptions {
   visibility?: string;
   create: boolean;
   json: boolean;
-  stale: boolean;
   dryRun: boolean;
   positional: string[];
   workspace?: string;

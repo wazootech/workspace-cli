@@ -4,7 +4,6 @@ import { join } from "@std/path";
 import { run } from "@/cli.ts";
 import { runUpdate } from "@/update.ts";
 import { SystemGit } from "@/git.ts";
-import { addWorktree } from "@/worktrees.ts";
 
 const g = new SystemGit();
 
@@ -143,8 +142,6 @@ Deno.test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async 
     const paths = {
       root: dir,
       repositoriesDirectory: join(dir, "repos"),
-      worktreesDirectory: join(dir, "worktrees"),
-      secretsDirectory: join(dir, "secrets"),
     };
     const actions = await runUpdate(
       g,
@@ -158,85 +155,6 @@ Deno.test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async 
       `expected WOULD_FAST_FORWARD action, got: ${JSON.stringify(actions)}`,
     );
     assertEquals(wouldFf.name, "upd");
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("worktree add --dry-run prints path without creating worktree", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const origin = await makeRepoWithMain(dir, "wt-add");
-    const cloneDir = join(dir, "repos", "wt-add");
-    await g.run(["clone", origin, cloneDir]);
-
-    const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      manifestPath,
-      JSON.stringify({
-        workspaceRoot: dir,
-        repositories: [{ name: "wt-add", url: origin }],
-      }),
-    );
-
-    const code = await run([
-      "worktree",
-      "add",
-      "wt-add",
-      "my-feature",
-      "--manifest",
-      manifestPath,
-      "--dry-run",
-    ]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(dir, "worktrees", "wt-add", "my-feature")),
-      false,
-      "worktree should NOT be created during dry-run",
-    );
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("worktree remove --dry-run prints path without removing worktree", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const origin = await makeRepoWithMain(dir, "wt-rm");
-    const cloneDir = join(dir, "repos", "wt-rm");
-    await g.run(["clone", origin, cloneDir]);
-
-    // Create a real worktree first
-    const wtDir = join(dir, "worktrees", "wt-rm", "to-remove");
-    await Deno.mkdir(join(dir, "worktrees", "wt-rm"), { recursive: true });
-    const r1 = await addWorktree(g, cloneDir, wtDir, "to-remove", "main");
-    assert(r1.code === 0, "add worktree");
-    assertEquals(await exists(wtDir), true, "worktree should exist");
-
-    const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      manifestPath,
-      JSON.stringify({
-        workspaceRoot: dir,
-        repositories: [{ name: "wt-rm", url: origin }],
-      }),
-    );
-
-    const code = await run([
-      "worktree",
-      "remove",
-      "wt-rm",
-      "to-remove",
-      "--manifest",
-      manifestPath,
-      "--dry-run",
-    ]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(wtDir),
-      true,
-      "worktree should still exist after dry-run",
-    );
   } finally {
     await removeTempDir(dir);
   }

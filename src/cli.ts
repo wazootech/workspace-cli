@@ -11,14 +11,12 @@ import type { CliOptions } from "./shared.ts";
 
 import * as addCmd from "./commands/add.ts";
 import * as checkCmd from "./commands/check.ts";
-import * as envCmd from "./commands/env.ts";
 import * as initCmd from "./commands/init.ts";
 import * as installCmd from "./commands/install.ts";
 import * as pathCmd from "./commands/path.ts";
 import * as removeCmd from "./commands/remove.ts";
 import * as updateCmd from "./commands/update.ts";
 import * as validateCmd from "./commands/validate.ts";
-import * as worktreeCmd from "./commands/worktree.ts";
 import * as workspacesCmd from "./commands/workspaces.ts";
 
 const COMMANDS = [
@@ -29,9 +27,7 @@ const COMMANDS = [
   "remove",
   "path",
   "update",
-  "worktree",
   "workspaces",
-  "env",
   "validate",
 ];
 
@@ -53,11 +49,7 @@ wspace check [--json] [--workspace <name>]
   wspace remove <repo>
   wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
-  wspace worktree add <repo> <feature> [<commit-ish>] [--dry-run]
-  wspace worktree list [--stale] [--json] [--workspace <name>]
-  wspace worktree remove <repo> <feature> [--dry-run]
   wspace workspaces [--json]
-  wspace env sync [--dry-run] [--json]
   wspace validate
 
 Options:
@@ -70,19 +62,12 @@ Options:
   --create            add: create a missing GitHub repository before adding
   --visibility <v>    add: visibility used with --create (private|public; default private)
   --json              Machine-readable output
-  --stale             Filter worktrees fully merged into origin/<default> (or missing branch)
   --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
 
 Path Command:
-  path                Fuzzy-find a workspace directory (repo, worktree, sub-workspace).
+  path                Fuzzy-find a workspace directory (repo, sub-workspace).
                         Use in command substitution: cd "$(wspace path workspace-cli)"
-
-Worktree Commands:
-  worktree add       Creates a worktree at worktrees/<repo>/<feature> on branch <feature>.
-                     Start-point defaults to origin/<default> (resolved via origin/HEAD).
-  worktree list      Lists active worktrees. With --stale, lists safe removal candidates.
-  worktree remove    Removes a worktree at worktrees/<repo>/<feature> and prunes stale references.
 
 Sub-workspaces:
   workspaces         Lists discovered sub-workspaces with repo counts.`);
@@ -124,13 +109,8 @@ function parseCliArgs(args: string[]): CliOptions {
     visibility: parsed.visibility,
     create: parsed.create ?? false,
     json: parsed.json ?? false,
-    stale: parsed.stale ?? false,
     dryRun: parsed["dry-run"] ?? false,
-    // worktree/env consume a subcommand; every other command treats all
-    // trailing words as its own arguments.
-    positional: command === "worktree" || command === "env"
-      ? positional.slice(2)
-      : positional.slice(1),
+    positional: positional.slice(1),
     workspace: parsed.workspace,
   };
 }
@@ -193,10 +173,6 @@ export async function run(args: string[]): Promise<number> {
       return await pathCmd.run(opts, resolvedManifest, paths);
     case "update":
       return await updateCmd.run(opts, resolvedManifest, paths, g);
-    case "worktree":
-      return await worktreeCmd.run(opts, resolvedManifest, paths, g);
-    case "env":
-      return await envCmd.run(opts, resolvedManifest, paths, g);
     default:
       return 2;
   }

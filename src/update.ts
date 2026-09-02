@@ -1,4 +1,3 @@
-import { normalize } from "@std/path";
 import type { GitRunner } from "./git.ts";
 import { branchAb, fastForwardMerge, fetch } from "./git.ts";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
@@ -50,18 +49,6 @@ export async function planUpdate(
         kind: "SKIP_NO_DEFAULT",
         name: repository.name,
         detail: "no origin/HEAD",
-      });
-      continue;
-    }
-
-    const linkedWorktrees = inspection.worktrees.filter(
-      (w) => normalize(w.path) !== normalize(repoPath),
-    );
-    if (linkedWorktrees.some((w) => w.branch === defaultBranchName)) {
-      actions.push({
-        kind: "SKIP_FEATURE",
-        name: repository.name,
-        detail: `${defaultBranchName} checked out in a worktree`,
       });
       continue;
     }

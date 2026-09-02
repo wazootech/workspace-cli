@@ -3,10 +3,15 @@
   "$id": "https://wazootech.github.io/workspace-cli/schema.json",
   "title": "Workspace manifest",
   "type": "object",
-  "required": ["repositories"],
+  "required": [
+    "repositories"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
     "host": {
       "type": "string",
       "minLength": 1,
@@ -17,12 +22,11 @@
       "minLength": 1,
       "description": "Default owner for shorthand repository entries (schema v4+). A string entry \"repo\" or \"owner/repo\" expands to https://<host>/<owner>/<name>."
     },
-    "workspaceRoot": { "type": "string" },
-    "repositoriesDirectory": { "type": "string" },
-    "worktreesDirectory": { "type": "string" },
-    "secretsDirectory": {
-      "type": "string",
-      "description": "Gitignored directory holding per-repository local config files synced by `wspace env sync` (renamed from vaultDirectory in schema v4; default \"secrets\")."
+    "workspaceRoot": {
+      "type": "string"
+    },
+    "repositoriesDirectory": {
+      "type": "string"
     },
     "repositories": {
       "type": "array",
@@ -35,7 +39,9 @@
           },
           {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "additionalProperties": false,
             "properties": {
               "name": {
@@ -54,8 +60,16 @@
               }
             },
             "anyOf": [
-              { "required": ["url"] },
-              { "required": ["owner"] }
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "owner"
+                ]
+              }
             ]
           }
         ]

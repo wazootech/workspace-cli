@@ -1,11 +1,3 @@
-export {
-  addWorktree,
-  listWorktrees,
-  parseWorktreesPorcelain,
-  removeWorktree,
-} from "./worktrees.ts";
-export { isLocalConfigFile, syncEnv } from "./env.ts";
-export type { SyncEnvResult } from "./env.ts";
 export { run } from "./cli.ts";
 export { SystemGit } from "./git.ts";
 export type { AheadBehind, GitResult, GitRunner } from "./git.ts";
@@ -32,5 +24,4 @@ export type {
   UpdateAction,
   WorkspaceContext,
   WorkspaceManifest,
-  Worktree,
 } from "./types.ts";
