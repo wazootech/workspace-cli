@@ -58,8 +58,8 @@ Design principles:
 - `wspace update` — fetch remotes and fast-forward only clean default branches.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
-  counts. `check`, `install`, `update`, and `worktree list` accept
-  `--workspace <name>` to scope the command to one sub-workspace.
+  counts. `check`, `install`, and `update` accept `--workspace <name>` to scope
+  the command to one sub-workspace.
 
 ## Sub-workspaces
 
@@ -129,9 +129,10 @@ apply, and nothing is inherited from the parent.
 Schema v4 migration notes: the separate `workspaces` array was removed — child
 workspaces now compose automatically through detection. Entry fields `path`,
 `groups`, `localFiles`, and `manifest` were removed; entries are bare strings or
-`{ "name", "url" }`. Legacy `vaultDirectory`, `worktreesDirectory`, and
-`secretsDirectory` keys are rejected. All removals produce pointed errors
-instead of silent misbehavior.
+`{ "name", "url" }`. Legacy `vaultDirectory` and `workspaces` are rejected with
+pointed errors; `worktreesDirectory`, `secretsDirectory`, and removed entry
+fields such as `path` are silently ignored (the published JSON schema flags
+unknown keys via `additionalProperties: false`).
 
 Manifest discovery has been simplified to `workspace.json` only. The
 `wspace.json` and `repos.json` filename fallbacks and `.yaml` / `.yml` format

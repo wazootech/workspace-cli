@@ -1,7 +1,12 @@
 # ADR-0003: Explicit worktree baseline and merged-branch staleness
 
-- Status: accepted
+- Status: superseded by ADR-0005 (2026-09)
 - Date: 2026-08
+
+Superseded: `wspace worktree add/list/remove` and `--stale` were removed with
+ADR-0005. The behaviors described here (baseline from `origin/<default>`,
+attach-existing-branch, staleness test) now live in the raw `git worktree`
+workflows of individual workspaces.
 
 ## Context
 

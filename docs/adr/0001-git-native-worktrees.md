@@ -1,7 +1,13 @@
 # ADR-0001: Git-native worktrees
 
-- Status: accepted
+- Status: superseded by ADR-0005 (2026-09)
 - Date: 2026-08
+
+Superseded to the extent that the wspace CLI no longer manages worktrees. The
+underlying pattern — `git worktree` with a conventional
+`worktrees/<repo>/<feature>` layout under the workspace root — remains valid and
+is now exercised directly by users; the layout is each workspace's own
+convention (see its `AGENTS.md`).
 
 ## Context
 
