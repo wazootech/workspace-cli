@@ -109,6 +109,18 @@ export async function hasRef(
   return result.code === 0;
 }
 
+export async function hasDefaultBranchWorktree(
+  g: GitRunner,
+  cwd: string,
+  defaultBranchName: string,
+): Promise<boolean> {
+  const result = await g.run(["worktree", "list", "--porcelain"], cwd);
+  if (result.code !== 0) return false;
+  return result.stdout.split("\n").some((line) =>
+    line === `branch refs/heads/${defaultBranchName}`
+  );
+}
+
 export async function fetch(g: GitRunner, cwd: string): Promise<boolean> {
   return (await g.run(["fetch", "--prune"], cwd)).code === 0;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@wazoo/workspace",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts",
@@ -24,6 +24,12 @@
     "test": "deno test --allow-read --allow-write --allow-run --allow-env"
   },
   "publish": {
-    "include": ["src/", "schema/", "skills/", "LICENSE", "README.md"]
+    "include": [
+      "src/",
+      "schema/",
+      "skills/",
+      "LICENSE",
+      "README.md"
+    ]
   }
 }

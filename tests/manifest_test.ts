@@ -126,11 +126,6 @@ Deno.test("manifestPaths applies defaults under the manifest directory", () => {
     paths.repositoriesDirectory,
     join(dirname(manifestFile), "repos"),
   );
-  assertEquals(
-    paths.worktreesDirectory,
-    join(dirname(manifestFile), "worktrees"),
-  );
-  assertEquals(paths.secretsDirectory, join(dirname(manifestFile), "secrets"));
 });
 
 Deno.test("manifestPaths resolves relative workspaceRoot from manifest directory", () => {
@@ -453,7 +448,7 @@ Deno.test("loadManifest rejects a legacy vaultDirectory key", async () => {
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
-      'renamed to "secretsDirectory" in schema v4',
+      'vaultDirectory" was removed',
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
@@ -757,27 +752,6 @@ Deno.test("manifestPaths resolves relative repositoriesDirectory", () => {
   const wsDir = join(Deno.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
   assertEquals(paths.repositoriesDirectory, join(wsDir, "libs"));
-});
-
-Deno.test("manifestPaths honors absolute worktreesDirectory", () => {
-  const absWt = Deno.build.os === "windows" ? "C:\\tmp\\wt" : "/tmp/wt";
-  const manifest: WorkspaceManifest = {
-    worktreesDirectory: absWt,
-    repositories: [],
-  };
-  const wsDir = join(Deno.cwd(), "ws");
-  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  assertEquals(paths.worktreesDirectory, absWt);
-});
-
-Deno.test("manifestPaths resolves relative secretsDirectory", () => {
-  const manifest: WorkspaceManifest = {
-    secretsDirectory: ".secrets",
-    repositories: [],
-  };
-  const wsDir = join(Deno.cwd(), "ws");
-  const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  assertEquals(paths.secretsDirectory, join(wsDir, ".secrets"));
 });
 
 Deno.test("validateSafeName", async (t) => {

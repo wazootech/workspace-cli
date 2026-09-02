@@ -20,7 +20,6 @@ export type RepoState =
   | "INVALID"
   | "PATH_BLOCKED"
   | "DIRTY"
-  | "WORKTREE_DIRTY"
   | "FEATURE_CLEAN"
   | "DIVERGED"
   | "CLEAN"
@@ -37,16 +36,6 @@ export interface RepoStatus {
   behind?: number;
   state: RepoState;
   detail?: string;
-  isWorktree?: boolean;
-  worktreePath?: string;
-}
-
-export interface Worktree {
-  path: string;
-  branch?: string;
-  head?: string;
-  bare: boolean;
-  detached: boolean;
 }
 
 /** Minimal workspace context needed for repository resolution. */
@@ -82,8 +71,6 @@ export interface WorkspaceManifest {
   /** Optional override of the manifest directory as the workspace root. */
   workspaceRoot?: string;
   repositoriesDirectory?: string;
-  worktreesDirectory?: string;
-  secretsDirectory?: string;
   repositories: RepositoryEntry[];
 }
 

@@ -12,12 +12,6 @@ import { loadManifest, type ManifestPaths } from "@/manifest.ts";
 import { run } from "@/cli.ts";
 import { collectStatus } from "@/status.ts";
 import { runUpdate } from "@/update.ts";
-import {
-  addWorktree,
-  listWorktrees,
-  removeWorktree,
-  staleness,
-} from "@/worktrees.ts";
 
 const g = new SystemGit();
 
@@ -78,8 +72,6 @@ function pathsFor(dir: string): ManifestPaths {
   const p: ManifestPaths = {
     root: dir,
     repositoriesDirectory: dir,
-    worktreesDirectory: join(dir, "worktrees"),
-    secretsDirectory: join(dir, "secrets"),
   };
   return p;
 }
@@ -192,157 +184,6 @@ Deno.test("update reports CURRENT when already in sync", async () => {
       name: "a",
       detail: "origin/main",
     }]);
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("worktree add/list/remove round trip", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    const worktreePath = join(dir, "worktrees", "a", "feature-x");
-    assertEquals(
-      (await addWorktree(g, work, worktreePath, "feature-x")).code,
-      0,
-    );
-
-    const worktrees = await listWorktrees(g, work);
-    const created = worktrees.find((w) =>
-      w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
-    );
-    assert(created, "worktree not found");
-    assertEquals(created.branch, "feature-x");
-
-    assertEquals((await removeWorktree(g, work, created.path)).code, 0);
-    const after = await listWorktrees(g, work);
-    assertEquals(
-      after.find((w) =>
-        w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
-      ),
-      undefined,
-    );
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("worktree add attaches an existing branch", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    assertEquals((await g.run(["branch", "feature-x"], work)).code, 0);
-    const worktreePath = join(dir, "worktrees", "a", "feature-x");
-    assertEquals(
-      (await addWorktree(g, work, worktreePath, "feature-x")).code,
-      0,
-    );
-    const worktrees = await listWorktrees(g, work);
-    assert(
-      worktrees.some((w) =>
-        w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
-      ),
-      "worktree for existing branch not found",
-    );
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("worktree add branches from an explicit start point", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    await seedCommitOnOrigin(dir, "a", "two\n");
-    assertEquals((await g.run(["fetch", "--prune"], work)).code, 0);
-    assertEquals(
-      (await g.run(["checkout", "-b", "base-branch"], work)).code,
-      0,
-    );
-
-    const worktreePath = join(dir, "worktrees", "a", "feature-x");
-    assertEquals(
-      (await addWorktree(g, work, worktreePath, "feature-x", "origin/main"))
-        .code,
-      0,
-    );
-
-    const head = (await g.run(["rev-parse", "HEAD"], worktreePath)).stdout;
-    const originMain = (await g.run(["rev-parse", "origin/main"], work)).stdout;
-    const baseBranch = (await g.run(["rev-parse", "base-branch"], work)).stdout;
-    assertEquals(head, originMain);
-    assert(head !== baseBranch, "forked from HEAD instead of the start point");
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("staleness flags merged branches and never the main worktree", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    const worktreePath = join(dir, "worktrees", "a", "feature-x");
-    assertEquals(
-      (await addWorktree(g, work, worktreePath, "feature-x", "origin/main"))
-        .code,
-      0,
-    );
-    const worktrees = await listWorktrees(g, work);
-    const created = worktrees.find((w) =>
-      w.path.replaceAll("\\", "/") === worktreePath.replaceAll("\\", "/")
-    );
-    assert(created, "worktree not found");
-
-    assertEquals(
-      await staleness(g, work, created, "main"),
-      { stale: true, reason: "merged" },
-    );
-
-    await Deno.writeTextFile(join(worktreePath, "a.txt"), "feature\n");
-    assertEquals((await g.run(["add", "."], worktreePath)).code, 0);
-    await configure(worktreePath);
-    assertEquals(
-      (await g.run(["commit", "-m", "feature work"], worktreePath)).code,
-      0,
-    );
-    assertEquals(
-      await staleness(g, work, created, "main"),
-      { stale: false },
-    );
-
-    const main = worktrees.find((w) =>
-      w.path.replaceAll("\\", "/") === work.replaceAll("\\", "/")
-    );
-    assert(main, "main worktree not found");
-    assertEquals(await staleness(g, work, main, "main"), { stale: false });
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("update skips when default branch is checked out in a worktree", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    // Detach the base checkout, then check the default branch out in a linked worktree.
-    assertEquals((await g.run(["checkout", "--detach"], work)).code, 0);
-    const worktreePath = join(dir, "worktrees", "a", "main");
-    assertEquals(
-      (await g.run(["worktree", "add", worktreePath, "main"], work)).code,
-      0,
-    );
-    const actions = await runUpdate(
-      g,
-      { repositories: [{ name: "a", url: "u" }] },
-      pathsFor(dir),
-    );
-    assertEquals(actions, [
-      {
-        kind: "SKIP_FEATURE",
-        name: "a",
-        detail: "main checked out in a worktree",
-      },
-    ]);
   } finally {
     await removeTempDir(dir);
   }
@@ -617,11 +458,6 @@ Deno.test("wspace init scaffolds a manifest and standard directories", async () 
     assertEquals(doc.owner, "acme");
     assertEquals(doc.repositories, ["api", "other/tool"]);
     assert(await exists(join(dir, "repos")), "repos/ should be created");
-    assert(
-      await exists(join(dir, "worktrees")),
-      "worktrees/ should be created",
-    );
-    assert(await exists(join(dir, "secrets")), "secrets/ should be created");
   } finally {
     await removeTempDir(dir);
   }
@@ -914,67 +750,6 @@ Deno.test("wspace remove fails on unknown names and dry-run writes nothing", asy
   }
 });
 
-Deno.test("collectStatus reports linked worktrees and flags dirty linked worktrees", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const work = await makeRepoWithMain(dir, "a");
-    const worktreePath = join(dir, "worktrees", "a", "feat-1");
-    assertEquals((await addWorktree(g, work, worktreePath, "feat-1")).code, 0);
-    await Deno.writeTextFile(join(worktreePath, "dirty.txt"), "uncommitted");
-
-    const rows = await collectStatus(
-      g,
-      { repositories: [{ name: "a", url: "u" }] },
-      pathsFor(dir),
-    );
-    const wtRow = rows.find((r) => r.isWorktree);
-    assert(wtRow, "Linked worktree row should be present");
-    assertEquals(wtRow.state, "WORKTREE_DIRTY");
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("env sync --dry-run previews sync without modifying filesystem", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const vaultDir = join(dir, "secrets", "a");
-    await Deno.mkdir(vaultDir, { recursive: true });
-    await Deno.writeTextFile(join(vaultDir, ".env"), "SECRET=123");
-
-    const origin = join(dir, "a.git");
-    assert((await g.run(["init", "--bare", origin])).code === 0);
-    const checkout = join(dir, "repos", "a");
-    assert((await g.run(["clone", origin, checkout])).code === 0);
-
-    const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
-      manifestPath,
-      JSON.stringify({
-        workspaceRoot: dir,
-        secretsDirectory: "secrets",
-        repositories: [{ name: "a", url: "u" }],
-      }),
-    );
-
-    const code = await run([
-      "env",
-      "sync",
-      "--dry-run",
-      "--manifest",
-      manifestPath,
-    ]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(checkout, ".env")),
-      false,
-      "File should not be copied during dry-run",
-    );
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
 Deno.test("wspace path finds repo in repos/", async () => {
   const dir = await Deno.makeTempDir();
   try {
@@ -999,35 +774,6 @@ Deno.test("wspace path finds repo in repos/", async () => {
     stdout.stop();
     assertEquals(code, 0);
     assertEquals(stdout.output().trim(), join(reposDir, "my-api"));
-  } finally {
-    await removeTempDir(dir);
-  }
-});
-
-Deno.test("wspace path finds worktree in worktrees/", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    const wtDir = join(dir, "worktrees", "api", "split-commands");
-    await Deno.mkdir(wtDir, { recursive: true });
-    await Deno.writeTextFile(
-      join(dir, "workspace.json"),
-      JSON.stringify({
-        schemaVersion: 4,
-        owner: "acme",
-        repositories: ["api"],
-        workspaceRoot: dir,
-      }),
-    );
-    const stdout = captureStdout();
-    const code = await run([
-      "path",
-      "split-commands",
-      "--manifest",
-      join(dir, "workspace.json"),
-    ]);
-    stdout.stop();
-    assertEquals(code, 0);
-    assertEquals(stdout.output().trim(), wtDir);
   } finally {
     await removeTempDir(dir);
   }
@@ -1178,7 +924,7 @@ Deno.test("loadManifest rejects a legacy vaultDirectory through the CLI path", a
       threw = error instanceof Error ? error.message : String(error);
     }
     assert(
-      threw.includes('renamed to "secretsDirectory"'),
+      threw.includes('vaultDirectory" was removed'),
       `expected rename migration error, got: ${threw}`,
     );
   } finally {

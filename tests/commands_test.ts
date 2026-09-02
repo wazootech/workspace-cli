@@ -14,10 +14,8 @@ import { manifestPaths } from "@/manifest-paths.ts";
 import * as initCmd from "@/commands/init.ts";
 import * as validateCmd from "@/commands/validate.ts";
 import * as workspacesCmd from "@/commands/workspaces.ts";
-import * as envCmd from "@/commands/env.ts";
 import * as checkCmd from "@/commands/check.ts";
 import * as updateCmd from "@/commands/update.ts";
-import * as worktreeCmd from "@/commands/worktree.ts";
 import * as installCmd from "@/commands/install.ts";
 
 // ---------------------------------------------------------------------------
@@ -97,7 +95,6 @@ Deno.test("init: scaffolds manifest and directories", async () => {
       positional: [],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     });
     assertEquals(code, 0);
@@ -105,7 +102,7 @@ Deno.test("init: scaffolds manifest and directories", async () => {
     const stat = await Deno.stat(manifestPath);
     assertEquals(stat.isFile, true);
 
-    const dirs = ["repos", "worktrees", "secrets"];
+    const dirs = ["repos"];
     for (const d of dirs) {
       const s = await Deno.stat(join(tempDir, d));
       assertEquals(s.isDirectory, true);
@@ -129,7 +126,6 @@ Deno.test("init: refuses to overwrite existing manifest", async () => {
       positional: [],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     });
     assertEquals(code, 2);
@@ -149,7 +145,6 @@ Deno.test("init: fails on invalid seed entries", async () => {
       positional: ["some-repo"],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     });
     assertEquals(code, 2);
@@ -204,7 +199,6 @@ Deno.test("workspaces: lists root workspace", () => {
       positional: [],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     },
     resolved,
@@ -229,7 +223,6 @@ Deno.test("workspaces: returns JSON output", () => {
         positional: [],
         create: false,
         json: true,
-        stale: false,
         dryRun: false,
       },
       resolved,
@@ -246,39 +239,6 @@ Deno.test("workspaces: returns JSON output", () => {
 // commands/env.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("env: unknown subcommand returns 2", async () => {
-  const manifest: WorkspaceManifest = { repositories: [] };
-  const paths = {
-    root: "/tmp",
-    repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
-  };
-  const g: GitRunner = {
-    run(): Promise<GitResult> {
-      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-    },
-  };
-  const code = await envCmd.run(
-    {
-      command: "env",
-      positional: [],
-      create: false,
-      json: false,
-      stale: false,
-      dryRun: false,
-    },
-    manifest,
-    paths,
-    g,
-  );
-  assertEquals(code, 2);
-});
-
-// ---------------------------------------------------------------------------
-// commands/check.ts
-// ---------------------------------------------------------------------------
-
 Deno.test("check: missing repo returns exit code 1", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "u" }],
@@ -286,8 +246,6 @@ Deno.test("check: missing repo returns exit code 1", async () => {
   const paths = {
     root: "/tmp",
     repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
   };
   const g: GitRunner = {
     run(): Promise<GitResult> {
@@ -300,7 +258,6 @@ Deno.test("check: missing repo returns exit code 1", async () => {
       positional: [],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     },
     manifest,
@@ -322,8 +279,6 @@ Deno.test("update: returns 0 for up-to-date repos", async () => {
   const paths = {
     root: "/tmp",
     repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
   };
   const g: GitRunner = {
     run(_args: string[], _cwd?: string): Promise<GitResult> {
@@ -336,7 +291,6 @@ Deno.test("update: returns 0 for up-to-date repos", async () => {
       positional: [],
       create: false,
       json: false,
-      stale: false,
       dryRun: false,
     },
     manifest,
@@ -348,102 +302,6 @@ Deno.test("update: returns 0 for up-to-date repos", async () => {
 
 // ---------------------------------------------------------------------------
 // commands/worktree.ts
-// ---------------------------------------------------------------------------
-
-Deno.test("worktree: unknown subcommand returns 2", async () => {
-  const manifest: WorkspaceManifest = { repositories: [] };
-  const paths = {
-    root: "/tmp",
-    repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
-  };
-  const g: GitRunner = {
-    run(): Promise<GitResult> {
-      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-    },
-  };
-  const code = await worktreeCmd.run(
-    {
-      command: "worktree",
-      subcommand: "bogus",
-      positional: [],
-      create: false,
-      json: false,
-      stale: false,
-      dryRun: false,
-    },
-    manifest,
-    paths,
-    g,
-  );
-  assertEquals(code, 2);
-});
-
-Deno.test("worktree: add with missing repo returns 2", async () => {
-  const manifest: WorkspaceManifest = {
-    repositories: [{ name: "a", url: "u" }],
-  };
-  const paths = {
-    root: "/tmp",
-    repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
-  };
-  const g: GitRunner = {
-    run(): Promise<GitResult> {
-      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-    },
-  };
-  const code = await worktreeCmd.run(
-    {
-      command: "worktree",
-      subcommand: "add",
-      positional: ["nonexistent", "feat"],
-      create: false,
-      json: false,
-      stale: false,
-      dryRun: false,
-    },
-    manifest,
-    paths,
-    g,
-  );
-  assertEquals(code, 2);
-});
-
-Deno.test("worktree: list with no repos returns 0", async () => {
-  const manifest: WorkspaceManifest = { repositories: [] };
-  const paths = {
-    root: "/tmp",
-    repositoriesDirectory: "/tmp/repos",
-    worktreesDirectory: "/tmp/worktrees",
-    secretsDirectory: "/tmp/secrets",
-  };
-  const g: GitRunner = {
-    run(): Promise<GitResult> {
-      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-    },
-  };
-  const code = await worktreeCmd.run(
-    {
-      command: "worktree",
-      subcommand: "list",
-      positional: [],
-      create: false,
-      json: false,
-      stale: false,
-      dryRun: false,
-    },
-    manifest,
-    paths,
-    g,
-  );
-  assertEquals(code, 0);
-});
-
-// ---------------------------------------------------------------------------
-// commands/install.ts
 // ---------------------------------------------------------------------------
 
 Deno.test("install: clones all missing repos", async () => {
@@ -482,7 +340,6 @@ Deno.test("install: clones all missing repos", async () => {
         positional: [],
         create: false,
         json: false,
-        stale: false,
         dryRun: false,
       },
       localManifest,
@@ -527,7 +384,6 @@ Deno.test("install: only clones specified subset", async () => {
         positional: [],
         create: false,
         json: false,
-        stale: false,
         dryRun: false,
       },
       manifest,
@@ -565,7 +421,6 @@ Deno.test("install: unknown repo returns 1", async () => {
         positional: [],
         create: false,
         json: false,
-        stale: false,
         dryRun: false,
       },
       manifest,

@@ -53,12 +53,10 @@ export async function run(opts: CliOptions): Promise<number> {
   }
 
   await Deno.mkdir(join(targetDir, "repos"), { recursive: true });
-  await Deno.mkdir(join(targetDir, "worktrees"), { recursive: true });
-  await Deno.mkdir(join(targetDir, "secrets"), { recursive: true });
   await Deno.writeTextFile(target, JSON.stringify(doc, null, 2) + "\n");
 
   console.log(`Created ${target} (schema v${CURRENT_SCHEMA_VERSION})`);
-  console.log("Created repos/, worktrees/, secrets/");
+  console.log("Created repos/");
   if (opts.positional.length > 0) {
     console.log("Next: run `wspace install` to clone the listed repositories.");
   }

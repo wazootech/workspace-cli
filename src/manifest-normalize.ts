@@ -17,8 +17,6 @@ export interface RawManifest {
   host?: string;
   workspaceRoot?: string;
   repositoriesDirectory?: string;
-  worktreesDirectory?: string;
-  secretsDirectory?: string;
   repositories: Array<string | RawRepositoryEntry>;
 }
 
@@ -65,7 +63,7 @@ export function normalizeManifest(
   const raw = doc as unknown as Record<string, unknown>;
   if (raw.vaultDirectory !== undefined) {
     throw new Error(
-      `Manifest ${manifestPath}: "vaultDirectory" was renamed to "secretsDirectory" in schema v4.`,
+      `Manifest ${manifestPath}: "vaultDirectory" was removed; use a dedicated secrets tool instead.`,
     );
   }
   if (raw.workspaces !== undefined) {
@@ -133,8 +131,6 @@ export function normalizeManifest(
     host: doc.host,
     workspaceRoot: doc.workspaceRoot,
     repositoriesDirectory: doc.repositoriesDirectory,
-    worktreesDirectory: doc.worktreesDirectory,
-    secretsDirectory: doc.secretsDirectory,
     repositories,
   };
 }

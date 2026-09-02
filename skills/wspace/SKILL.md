@@ -1,6 +1,6 @@
 ---
 name: wspace
-description: 'Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, sync secrets, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any wspace command, or pushing a goal to completion.'
+description: 'Drive multi-repo Wazoo development: isolate tasks in Git worktrees, refresh default baselines safely, validate with native CI, and open PRs. For goal-oriented runs — "keep iterating", "clear the backlog", "drive this autonomously", "goal mode", "run the loop" — drive the goal loop across many wayfinder tickets, filing blockers as new tickets and stopping only at deploy/publish or HITL boundaries. Use when launching an agent session in the Wazoo workspace, creating a feature worktree, checking baseline health, running any wspace command, or pushing a goal to completion.'
 ---
 
 # `wspace` workspace skill
@@ -34,8 +34,8 @@ discovery strategy that the launch context allows, in this order:
    prompt context. Run one chained `cd <target_dir> && git status`.
 3. **Root discovery** (1 round trip): When starting at the root without a
    target, do not probe subdirectories. Run one diagnostic query —
-   `wspace check --json` or `wspace worktree list` — to learn every repository's
-   state in a single round trip.
+   `wspace check --json` or raw `git worktree list` — to learn every
+   repository's state in a single round trip.
 
 Batching is the standing rule: gather state in one shell call, never as per-repo
 `ls` or `git status` probes.
@@ -49,9 +49,9 @@ checkable condition before the next begins.
    confirm the target repo is `CLEAN` or `FEATURE_CLEAN`. Refresh clean default
    branches with `wspace update` when the baseline may be stale.
 2. **Isolate the task.** Create a worktree for the feature:
-   `wspace worktree add <repo> <feature>`. Never edit `repos/<repo>` directly;
-   work inside `worktrees/<repo>/<feature>/`. Sync local credentials with
-   `wspace env sync` when the repo needs them.
+   `git worktree add <path> -b <feature>`. Never edit `repos/<repo>` directly;
+   work inside `worktrees/<repo>/<feature>/`. Sync local credentials with manual
+   secrets setup when the repo needs them.
 3. **Implement.** Make the change inside the worktree. Commit one logical change
    at a time; do not stack unrelated work.
 4. **Validate with commands, not deliberation.** Run the repo's native check
@@ -61,9 +61,9 @@ checkable condition before the next begins.
 5. **Push and open a PR.** Push the branch and create the PR from inside the
    worktree. Watch the workflow to completion; do not merge while it is pending
    or failing.
-6. **Clean up.** After merge, remove the worktree:
-   `wspace worktree remove <repo> <feature>` and prune stale references. Leave
-   the worktree clean before moving to the next task.
+6. **Clean up.** After merge, remove the worktree: `git worktree remove <path>`
+   and prune stale references. Leave the worktree clean before moving to the
+   next task.
 7. **Reconcile state.** From the workspace root, run `wspace check` and confirm
    the touched repo is `CLEAN` or `FEATURE_CLEAN` and that no new stray or
    unmanaged repo appeared during the session (see **State reconcile** below).
@@ -212,17 +212,16 @@ The map is the source of truth for which of those two happened.
 ## Guardrails
 
 - **Worktree isolation.** Never edit `repos/<repo>` directly for feature work.
-  If the agent's cwd is inside `repos/<repo>`, stop and create a worktree first:
-  `wspace worktree add <repo> <feature-slug>`, then `cd` into it. This applies
-  to every external skill (including `/implement`) — the Pipeline step 2 is not
-  optional.
+  If the agent's cwd is inside `repos/<repo>`, stop and use raw git worktrees
+  first: `git worktree add`, then `cd` into it. This applies to every external
+  skill (including `/implement`) — the Pipeline step 2 is not optional.
 - **Never mutate user work.** `wspace update` never resets, rebases, stashes, or
   rewrites history. It skips dirty and feature branches. Respect that contract;
   do not work around it with raw git destructive commands.
 - **Root anchor.** All paths resolve relative to the directory containing the
   manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
 - **Central secret vault.** Never write `.env` files directly in `repos/` or
-  `worktrees/`. Edit `secrets/<repo>/` and run `wspace env sync`.
+  worktree paths; use your project�s manual secrets workflow.
 - **Tip-diff before stranded-work claims.** `FEATURE_CLEAN` plus "commits ahead"
   usually means a squash merge detached the branch, not that work is lost.
   Confirm with `git diff origin/main HEAD` and apply the root AGENTS.md
@@ -234,9 +233,9 @@ Reconcile workspace state at **both ends of every session** — it is the antido
 to state that silently drifts while you work (strays cloned into the wrong
 directory, abandoned worktrees, uncommitted changes).
 
-- **At launch:** run `wspace check --json` (or `wspace worktree list`) once from
-  the workspace root to learn every repository's state in a single round trip —
-  do not probe subdirectories individually.
+- **At launch:** run `wspace check --json` (or raw `git worktree list`) once
+  from the workspace root to learn every repository's state in a single round
+  trip — do not probe subdirectories individually.
 - **Before finishing:** run `wspace check` again and confirm nothing new
   appeared mid-session: no stray/unmanaged repo, and any repo you touched is
   `CLEAN` or `FEATURE_CLEAN`.
