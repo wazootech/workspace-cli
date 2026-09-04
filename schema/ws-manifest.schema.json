@@ -74,6 +74,32 @@
           }
         ]
       }
+    },
+    "workspaces": {
+      "type": "array",
+      "description": "Repositories that must contain a valid workspace.json child manifest.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "owner": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "format": "uri" }
+            },
+            "anyOf": [
+              { "required": ["url"] },
+              { "required": ["owner"] }
+            ]
+          }
+        ]
+      }
     }
   }
 }

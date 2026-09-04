@@ -13,4 +13,5 @@ export interface CliOptions {
   dryRun: boolean;
   positional: string[];
   workspace?: string;
+  asWorkspace?: boolean;
 }

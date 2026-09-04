@@ -22,6 +22,12 @@ Deno.test("addEntry appends to a repositories array", () => {
   assertEquals(doc.repositories[2], "tool");
 });
 
+Deno.test("addEntry appends to the optional workspaces array", () => {
+  const out = addEntry(JSON_FIXTURE, '"platform"', "workspaces");
+  const doc = JSON.parse(out);
+  assertEquals(doc.workspaces, ["platform"]);
+});
+
 Deno.test("addEntry rejects entries without a repositories array", () => {
   assertThrows(
     () => addEntry("{}", '"tool"'),
@@ -50,6 +56,37 @@ Deno.test("removeEntry throws when target not found", () => {
     ManifestEditError,
     "not found",
   );
+});
+
+Deno.test("removeEntry can target a workspaces array", () => {
+  const fixture = JSON.stringify({
+    repositories: [],
+    workspaces: ["platform"],
+  });
+  const out = removeEntry(
+    fixture,
+    "platform",
+    undefined,
+    "github.com",
+    "workspaces",
+  );
+  assertEquals(JSON.parse(out).workspaces, []);
+});
+
+Deno.test("removeEntry deletes from the workspaces array", () => {
+  const fixture = JSON.stringify({
+    repositories: [],
+    workspaces: ["platform"],
+  });
+  const out = removeEntry(
+    fixture,
+    "platform",
+    undefined,
+    undefined,
+    "workspaces",
+  );
+  const doc = JSON.parse(out);
+  assertEquals(doc.workspaces, []);
 });
 
 Deno.test("formatEntry renders shorthand as JSON string", () => {

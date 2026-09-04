@@ -8,7 +8,7 @@ import {
   ManifestEditError,
   removeEntry,
 } from "./manifest-edit.ts";
-import type { NewEntry } from "./manifest-edit.ts";
+import type { ManifestCollection, NewEntry } from "./manifest-edit.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import type { CliOptions } from "./cli-options.ts";
 
@@ -41,6 +41,7 @@ export function applyEntryEdit(
   entry: NewEntry | undefined,
   targetName: string,
   manifest: WorkspaceManifest,
+  collection: ManifestCollection = "repositories",
 ): string | undefined {
   const owner = manifest.owner;
   const host = manifest.host ?? "github.com";
@@ -51,8 +52,8 @@ export function applyEntryEdit(
       );
     }
     return mode === "add"
-      ? addEntry(raw, formatEntry(entry!))
-      : removeEntry(raw, targetName, owner, host);
+      ? addEntry(raw, formatEntry(entry!), collection)
+      : removeEntry(raw, targetName, owner, host, collection);
   } catch (error) {
     if (error instanceof ManifestEditError) {
       console.error(error.message);

@@ -6,6 +6,7 @@ import { type ManifestPaths, resolveRepositoryPath } from "@/manifest-paths.ts";
 import type { CliOptions } from "@/cli-options.ts";
 import { printRows } from "@/output.ts";
 import type { WorkspaceManifest } from "@/types.ts";
+import { findExistingManifest } from "@/manifest-discovery.ts";
 
 type InstallRow = { name: string; state: string; detail?: string };
 
@@ -14,6 +15,19 @@ function isBadInstallRow(row: InstallRow): boolean {
     row.state === "CLONE_FAILED" || row.state === "PATH_BLOCKED" ||
     row.state === "INVALID" || row.state === "UNKNOWN_REPO"
   );
+}
+
+function workspaceManifestMissing(
+  repository: { name: string; isWorkspace?: boolean },
+  repoPath: string,
+): InstallRow | undefined {
+  if (!repository.isWorkspace) return undefined;
+  return {
+    name: repository.name,
+    state: "INVALID",
+    detail:
+      `Workspace repository does not contain workspace.json at ${repoPath}`,
+  };
 }
 
 async function cloneMissing(
@@ -46,7 +60,12 @@ async function cloneMissing(
     const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
       if (await exists(join(repoPath, ".git"))) {
-        rows.push({ name: repository.name, state: "EXISTS" });
+        const invalidWorkspace = workspaceManifestMissing(repository, repoPath);
+        if (invalidWorkspace && !(await findExistingManifest(repoPath))) {
+          rows.push(invalidWorkspace);
+        } else {
+          rows.push({ name: repository.name, state: "EXISTS" });
+        }
       } else {
         rows.push({
           name: repository.name,
@@ -66,13 +85,20 @@ async function cloneMissing(
       continue;
     }
     const result = await clone(g, repository.url, repoPath);
-    rows.push(
-      result.code === 0 ? { name: repository.name, state: "CLONED" } : {
+    if (result.code === 0) {
+      const invalidWorkspace = workspaceManifestMissing(repository, repoPath);
+      if (invalidWorkspace && !(await findExistingManifest(repoPath))) {
+        rows.push(invalidWorkspace);
+      } else {
+        rows.push({ name: repository.name, state: "CLONED" });
+      }
+    } else {
+      rows.push({
         name: repository.name,
         state: "CLONE_FAILED",
         detail: result.stderr.trim() || `Exit code ${result.code}`,
-      },
-    );
+      });
+    }
   }
   return rows;
 }

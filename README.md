@@ -45,7 +45,7 @@ Design principles:
 - `wspace install [<repo...>]` — clone missing repositories from the manifest
   (or only a specified subset of repos). Prints a warning that fresh clones lack
   gitignored files and repo-specific setup.
-- `wspace add [<name>] [--url <url>] [--name <n>] [--create]
+- `wspace add [<name>] [--url <url>] [--name <n>] [--as-workspace] [--create]
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
@@ -63,33 +63,43 @@ Design principles:
 
 ## Sub-workspaces
 
-The manifest is `workspace.json` in `.json` format (JSONC allows comments and
-trailing commas). Discovery is name-first, then extension.
-
-Schema v4 keeps one `repositories` array with exactly two entry forms:
-
-1. **Shorthand** — `"repo"`, `"owner/repo"`, or
-   `{ "name": "...", "owner": "..." }` expands against the manifest's `host`
-   (default `github.com`) to `https://<host>/<owner>/<name>.git`.
-2. **Object** — `{ "name": "...", "url": "..." }` is a plain repository for any
-   Git host.
+A manifest keeps ordinary repositories and workspace repositories in separate
+arrays while sharing one `repositoriesDirectory`. Both arrays accept the same
+shorthand and object entry forms. A `workspaces` entry is cloned at
+`<repositoriesDirectory>/<name>` and must contain a valid `workspace.json`
+manifest; its child repositories use that child manifest's own `repos/`
+directory. This makes the checkout location deterministic without guessing
+whether a repository is also a workspace.
 
 ```json
 {
   "schemaVersion": 4,
-  "host": "github.com",
   "owner": "acme",
-  "repositories": [
-    "shared-reference",
-    "other-owner/forked-repo",
-    { "name": "elsewhere", "url": "https://gitlab.com/other/repo.git" }
-  ]
+  "repositories": ["shared-reference"],
+  "workspaces": ["platform-workspace"]
 }
 ```
 
 Shorthand rules: `owner/name` overrides the top-level `owner` per entry; exactly
-one slash is allowed; `url` and `owner` are mutually exclusive on object
+one slash is allowed; and `url` and `owner` are mutually exclusive on object
 entries.
+
+Use `wspace add --as-workspace` to add a workspace entry. `install` and `check`
+verify that declared workspace repositories contain a valid child manifest, and
+commands report ordinary repositories and workspace repositories from the same
+`repos/` directory without collisions.
+
+`wspace install` clones all missing entries from both arrays. A declared
+workspace is validated as a Git repository containing `workspace.json`; once
+present, its child repositories are resolved against that child workspace's own
+`repos/` directory. `--workspace <name>` scopes operations to repositories owned
+by that child workspace.
+
+Schema v4 keeps ordinary repositories and workspace repositories in separate
+arrays. This is intentional: the single `repositoriesDirectory` remains the
+source of truth for top-level checkout locations, while the manifest tells the
+CLI which checkouts are expected to be workspace roots. The arrays use the same
+shorthand and object entry forms, and names must be unique across both arrays.
 
 ## Local names and collisions
 
@@ -111,28 +121,6 @@ the explicit form with your chosen label as `name`:
 ```
 
 The aliased copy is an ordinary explicit-url entry.
-
-`wspace install` converges in one invocation: each pass clones what is missing,
-re-resolves the tree (newly cloned containers may reveal detected
-sub-workspaces), and repeats until nothing new appears. Every other command
-resolves once against whatever is currently on disk.
-
-Each child manifest is a standard manifest: its repositories resolve against its
-own root (defaulting to `repos/` under the directory containing the child
-manifest), and it may compose further sub-workspaces through its own bare
-strings. Resolution errors on circular references and duplicate repository
-claims across workspaces; a detected manifest that was already visited (for
-example a repository hosting its own root manifest) degrades silently to a plain
-repository row. Child manifests are self-contained: their own `host` and `owner`
-apply, and nothing is inherited from the parent.
-
-Schema v4 migration notes: the separate `workspaces` array was removed — child
-workspaces now compose automatically through detection. Entry fields `path`,
-`groups`, `localFiles`, and `manifest` were removed; entries are bare strings or
-`{ "name", "url" }`. Legacy `vaultDirectory` and `workspaces` are rejected with
-pointed errors; `worktreesDirectory`, `secretsDirectory`, and removed entry
-fields such as `path` are silently ignored (the published JSON schema flags
-unknown keys via `additionalProperties: false`).
 
 Manifest discovery has been simplified to `workspace.json` only. The
 `wspace.json` and `repos.json` filename fallbacks and `.yaml` / `.yml` format

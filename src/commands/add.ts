@@ -44,7 +44,10 @@ async function runAdd(
   if (result === undefined) return 2;
   const { entry, entryName, rows } = result;
 
-  const duplicate = manifest.repositories.find((r) => r.name === entryName);
+  const duplicate = [...manifest.repositories, ...(manifest.workspaces ?? [])]
+    .find(
+      (r) => r.name === entryName,
+    );
   if (duplicate) {
     console.error(`Duplicate repository name: ${entryName}`);
     return 2;
@@ -58,6 +61,7 @@ async function runAdd(
     entry,
     entryName,
     manifest,
+    opts.asWorkspace ? "workspaces" : "repositories",
   );
   if (newText === undefined) return 2;
 

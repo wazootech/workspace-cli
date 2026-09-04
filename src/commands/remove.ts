@@ -30,7 +30,7 @@ async function runRemove(
 ): Promise<number> {
   if (
     opts.url !== undefined || opts.name !== undefined ||
-    opts.visibility !== undefined || opts.create
+    opts.visibility !== undefined || opts.create || opts.asWorkspace
   ) {
     console.error("remove takes only a repository name");
     return 2;
@@ -40,7 +40,8 @@ async function runRemove(
     console.error("Usage: wspace remove <repo>");
     return 2;
   }
-  const existing = manifest.repositories.find((r) => r.name === target);
+  const existing = manifest.repositories.find((r) => r.name === target) ??
+    manifest.workspaces?.find((r) => r.name === target);
   if (!existing) {
     console.error(`Repository "${target}" not found in manifest`);
     return 2;
@@ -54,6 +55,9 @@ async function runRemove(
     undefined,
     target,
     manifest,
+    manifest.repositories.some((r) => r.name === target)
+      ? "repositories"
+      : "workspaces",
   );
   if (newText === undefined) return 2;
 
