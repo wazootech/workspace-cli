@@ -44,9 +44,19 @@ export async function defaultBranch(
     ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
     cwd,
   );
-  return result.code === 0 && result.stdout
-    ? result.stdout.replace(/^origin\//, "")
-    : undefined;
+  if (result.code === 0 && result.stdout) {
+    return result.stdout.replace(/^origin\//, "");
+  }
+  for (const candidate of ["main", "master"]) {
+    const probe = await g.run(
+      ["rev-parse", "--verify", `refs/remotes/origin/${candidate}`],
+      cwd,
+    );
+    if (probe.code === 0) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 export async function isDirty(g: GitRunner, cwd: string): Promise<boolean> {

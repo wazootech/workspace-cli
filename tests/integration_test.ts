@@ -349,12 +349,12 @@ Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () =>
   }
 });
 
-Deno.test("defaultBranch returns undefined when origin/HEAD is missing", async () => {
+Deno.test("defaultBranch falls back to main when origin/HEAD is missing", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await g.run(["remote", "set-head", "origin", "--delete"], work);
-    assertEquals(await defaultBranch(g, work), undefined);
+    assertEquals(await defaultBranch(g, work), "main");
   } finally {
     await removeTempDir(dir);
   }
