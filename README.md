@@ -178,8 +178,14 @@ it never needs to be taught the conventions twice.
 Install from JSR as the `wspace` binary:
 
 ```sh
-deno install -g --name wspace jsr:@wazoo/workspace
+deno install -g -A --name wspace jsr:@wazoo/workspace/cli
 ```
+
+Use the `/cli` subpath export — the runnable CLI entry — not the bare
+`jsr:@wazoo/workspace` package (which exposes the library and produces a no-op
+`wspace` when installed globally). `-A` grants the read/write/run permissions
+`wspace` needs; omit it if you prefer to grant specific flags (e.g.
+`--allow-read --allow-write --allow-run=git`) or use Prompts.
 
 Or build a local binary:
 
