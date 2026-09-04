@@ -23,9 +23,32 @@ function fail(stderr = ""): GitResult {
   return { code: 1, stdout: "", stderr };
 }
 
-Deno.test("defaultBranch returns undefined when origin/HEAD missing", async () => {
+Deno.test("defaultBranch falls back to origin/main when origin/HEAD missing", async () => {
   const g = respond({
     "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
+    "rev-parse --verify refs/remotes/origin/main": ok(
+      "refs/remotes/origin/main\n",
+    ),
+  });
+  assertEquals(await defaultBranch(g, "/repo"), "main");
+});
+
+Deno.test("defaultBranch falls back to origin/master when only master exists", async () => {
+  const g = respond({
+    "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
+    "rev-parse --verify refs/remotes/origin/main": fail(),
+    "rev-parse --verify refs/remotes/origin/master": ok(
+      "refs/remotes/origin/master\n",
+    ),
+  });
+  assertEquals(await defaultBranch(g, "/repo"), "master");
+});
+
+Deno.test("defaultBranch returns undefined when no origin remote refs exist", async () => {
+  const g = respond({
+    "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
+    "rev-parse --verify refs/remotes/origin/main": fail(),
+    "rev-parse --verify refs/remotes/origin/master": fail(),
   });
   assertEquals(await defaultBranch(g, "/repo"), undefined);
 });
