@@ -1,8 +1,124 @@
 import type { GitRunner } from "./git.ts";
 import { branchAb, fastForwardMerge, fetch } from "./git.ts";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
-import type { RepositoryEntry, UpdateAction } from "./types.ts";
+import {
+  type RepositoryEntry,
+  ROOT_LABEL,
+  type UpdateAction,
+} from "./types.ts";
 import { inspectRepo } from "./repo-inspect.ts";
+
+async function planRepoUpdate(
+  g: GitRunner,
+  name: string,
+  repoPath: string,
+  dryRun: boolean,
+): Promise<UpdateAction> {
+  const inspection = await inspectRepo(g, repoPath);
+
+  if (!inspection.exists) {
+    return { kind: "MISSING", name };
+  }
+  if (!inspection.isGit) {
+    return { kind: "INVALID", name };
+  }
+
+  const branch = inspection.branch;
+  const defaultBranchName = inspection.defaultBranch;
+  const dirty = inspection.dirty;
+
+  if (dirty) {
+    return {
+      kind: "SKIP_DIRTY",
+      name,
+      detail: "uncommitted changes",
+    };
+  }
+  if (branch && branch !== defaultBranchName) {
+    return {
+      kind: "SKIP_FEATURE",
+      name,
+      detail: `${branch} != ${defaultBranchName}`,
+    };
+  }
+  if (!defaultBranchName) {
+    return {
+      kind: "SKIP_NO_DEFAULT",
+      name,
+      detail: "no origin/HEAD",
+    };
+  }
+
+  if (inspection.defaultBranchCheckedOutInWorktree) {
+    return {
+      kind: "SKIP_FEATURE",
+      name,
+      detail: `${defaultBranchName} checked out in a worktree`,
+    };
+  }
+
+  // Dry-run: skip network calls (fetch) and mutations (merge).
+  if (dryRun) {
+    return {
+      kind: "WOULD_FAST_FORWARD",
+      name,
+      detail: `origin/${defaultBranchName}`,
+    };
+  }
+
+  if (!(await fetch(g, repoPath))) {
+    return { kind: "FETCH_FAILED", name };
+  }
+
+  const upstream = `origin/${defaultBranchName}`;
+  const ab = await branchAb(g, repoPath, upstream);
+  if (!ab) {
+    return {
+      kind: "SKIP_NO_DEFAULT",
+      name,
+      detail: "upstream tracking ref missing",
+    };
+  }
+  if (ab.ahead > 0) {
+    return {
+      kind: "SKIP_AHEAD",
+      name,
+      detail: `${ab.ahead} ahead, ${ab.behind} behind`,
+    };
+  }
+  if (ab.behind === 0) {
+    return {
+      kind: "CURRENT",
+      name,
+      detail: upstream,
+    };
+  }
+
+  const ok = await fastForwardMerge(g, repoPath, upstream);
+  return ok ? { kind: "FAST_FORWARD", name, commits: ab.behind } : {
+    kind: "FAST_FORWARD_FAILED",
+    name,
+    detail: upstream,
+  };
+}
+
+/**
+ * Plan an update for one checkout. Returns the single action for a git repo,
+ * or undefined when the path is not a git repo (used for the workspace root,
+ * which may legitimately be a plain directory).
+ */
+async function planGitUpdate(
+  g: GitRunner,
+  name: string,
+  repoPath: string,
+  dryRun: boolean,
+): Promise<UpdateAction | undefined> {
+  const inspection = await inspectRepo(g, repoPath);
+  if (!inspection.isGit) {
+    return undefined;
+  }
+  return await planRepoUpdate(g, name, repoPath, dryRun);
+}
 
 export async function planUpdate(
   g: GitRunner,
@@ -11,109 +127,17 @@ export async function planUpdate(
   { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<UpdateAction[]> {
   const actions: UpdateAction[] = [];
+
+  // The workspace's own checkout (the directory hosting the manifest) is
+  // subject to the same conservative update policy when it is a git repo.
+  const rootAction = await planGitUpdate(g, ROOT_LABEL, paths.root, dryRun);
+  if (rootAction) {
+    actions.push(rootAction);
+  }
+
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
-    const inspection = await inspectRepo(g, repoPath);
-
-    if (!inspection.exists) {
-      actions.push({ kind: "MISSING", name: repository.name });
-      continue;
-    }
-    if (!inspection.isGit) {
-      actions.push({ kind: "INVALID", name: repository.name });
-      continue;
-    }
-
-    const branch = inspection.branch;
-    const defaultBranchName = inspection.defaultBranch;
-    const dirty = inspection.dirty;
-
-    if (dirty) {
-      actions.push({
-        kind: "SKIP_DIRTY",
-        name: repository.name,
-        detail: "uncommitted changes",
-      });
-      continue;
-    }
-    if (branch && branch !== defaultBranchName) {
-      actions.push({
-        kind: "SKIP_FEATURE",
-        name: repository.name,
-        detail: `${branch} != ${defaultBranchName}`,
-      });
-      continue;
-    }
-    if (!defaultBranchName) {
-      actions.push({
-        kind: "SKIP_NO_DEFAULT",
-        name: repository.name,
-        detail: "no origin/HEAD",
-      });
-      continue;
-    }
-
-    if (inspection.defaultBranchCheckedOutInWorktree) {
-      actions.push({
-        kind: "SKIP_FEATURE",
-        name: repository.name,
-        detail: `${defaultBranchName} checked out in a worktree`,
-      });
-      continue;
-    }
-
-    // Dry-run: skip network calls (fetch) and mutations (merge).
-    if (dryRun) {
-      actions.push({
-        kind: "WOULD_FAST_FORWARD",
-        name: repository.name,
-        detail: `origin/${defaultBranchName}`,
-      });
-      continue;
-    }
-
-    if (!(await fetch(g, repoPath))) {
-      actions.push({ kind: "FETCH_FAILED", name: repository.name });
-      continue;
-    }
-
-    const upstream = `origin/${defaultBranchName}`;
-    const ab = await branchAb(g, repoPath, upstream);
-    if (!ab) {
-      actions.push({
-        kind: "SKIP_NO_DEFAULT",
-        name: repository.name,
-        detail: "upstream tracking ref missing",
-      });
-      continue;
-    }
-    if (ab.ahead > 0) {
-      actions.push({
-        kind: "SKIP_AHEAD",
-        name: repository.name,
-        detail: `${ab.ahead} ahead, ${ab.behind} behind`,
-      });
-      continue;
-    }
-    if (ab.behind === 0) {
-      actions.push({
-        kind: "CURRENT",
-        name: repository.name,
-        detail: upstream,
-      });
-      continue;
-    }
-
-    const ok = await fastForwardMerge(g, repoPath, upstream);
-    actions.push(
-      ok
-        ? { kind: "FAST_FORWARD", name: repository.name, commits: ab.behind }
-        : {
-          kind: "FAST_FORWARD_FAILED",
-          name: repository.name,
-          detail: upstream,
-        },
-    );
+    actions.push(await planRepoUpdate(g, repository.name, repoPath, dryRun));
   }
   return actions;
 }

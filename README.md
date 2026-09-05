@@ -27,7 +27,9 @@ Design principles:
 - **Conservative mutation.** Commands that write or move state (update, update
   refuses to touch dirty repositories, feature branches, missing repos, or
   unmanaged checkouts. `update` only fetches and fast-forwards clean default
-  branches; it never resets, rebases, stashes, or rewrites history.
+  branches; it never resets, rebases, stashes, or rewrites history. When the
+  workspace root is itself a git checkout, `update` treats it like any other
+  clean default branch and `check` reports it as `(workspace root)`.
 - **Machine-readable output.** `check --json` emits structured results for
   tools; plain output is for humans.
 - **Exit code contract.** `wspace check` exits `0` when the workspace is clean
@@ -38,6 +40,8 @@ Design principles:
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
+  When the workspace root directory is itself a git checkout, it is reported
+  first as `(workspace root)` and non-clean states fail the check.
 - `wspace init [--host <host>] [--owner <owner>] [<repo...>]` — one-time
   scaffold for an empty directory: writes a fresh `workspace.json` (schema v4)
   with optional host/owner and seeded shorthand entries, and creates the
@@ -55,7 +59,8 @@ Design principles:
   `wspace install <name>` afterwards.
 - `wspace remove <repo>` — delete the entry whose effective name matches.
   Surgical edit; local checkouts are never deleted.
-- `wspace update` — fetch remotes and fast-forward only clean default branches.
+- `wspace update` — fetch remotes and fast-forward only clean default branches,
+  including the workspace root's own checkout when it is a git repository.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
   counts. `check`, `install`, and `update` accept `--workspace <name>` to scope

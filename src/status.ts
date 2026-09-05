@@ -3,6 +3,7 @@ import type { GitRunner } from "./git.ts";
 import { branchAb, configuredUpstream, hasRef } from "./git.ts";
 import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
+import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
 import { inspectRepo } from "./repo-inspect.ts";
 
@@ -128,6 +129,15 @@ export async function collectStatus(
     ),
   );
   const reposDir = paths.repositoriesDirectory;
+
+  // The workspace's own checkout (the directory hosting the manifest) is a
+  // repo like any other when it is a git checkout; surface it on a
+  // non-CLEAN state just like the managed repositories.
+  if ((await inspectRepo(g, paths.root)).isGit) {
+    rows.push(
+      await repoStatus(g, { name: ROOT_LABEL, url: "" }, paths.root),
+    );
+  }
 
   if (await exists(reposDir)) {
     for await (const entry of Deno.readDir(reposDir)) {

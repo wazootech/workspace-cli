@@ -24,6 +24,11 @@ safe, predictable progress and clearly report what it skipped and why.
    branches, missing repos, repos without upstreams, or branches that are ahead
    or diverged.
 
+The workspace root's own checkout (the directory hosting the manifest) is
+subject to the same policy when it is a git repository: `update` fast-forwards a
+clean root on its default branch, and `check` reports it as `(workspace root)`
+with the same `CLEAN`/`DIRTY`/`FEATURE_CLEAN`/`DIVERGED` semantics.
+
 ## Consequences
 
 - Updates are always safe to run unattended: they make progress when possible
