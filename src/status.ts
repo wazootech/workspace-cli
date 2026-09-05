@@ -5,7 +5,7 @@ import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
 import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
-import { inspectRepo } from "./repo-inspect.ts";
+import { type InspectOptions, inspectRepo } from "./repo-inspect.ts";
 
 export interface ClassifyInput {
   dirty: boolean;
@@ -52,9 +52,10 @@ export async function repoStatus(
   g: GitRunner,
   repository: RepositoryEntry,
   repoPath: string,
+  inspectOpts: InspectOptions = {},
 ): Promise<RepoStatus> {
   const base = { name: repository.name, path: repoPath };
-  const inspection = await inspectRepo(g, repoPath);
+  const inspection = await inspectRepo(g, repoPath, inspectOpts);
 
   if (!inspection.exists) {
     return { ...base, state: "MISSING" };
@@ -120,6 +121,7 @@ export async function collectStatus(
   g: GitRunner,
   manifest: { repositories: RepositoryEntry[] },
   paths: ManifestPaths,
+  { includeRoot = true }: { includeRoot?: boolean } = {},
 ): Promise<RepoStatus[]> {
   const rows: RepoStatus[] = [];
   const managed = new Set(manifest.repositories.map((r) => r.name));
@@ -131,11 +133,21 @@ export async function collectStatus(
   const reposDir = paths.repositoriesDirectory;
 
   // The workspace's own checkout (the directory hosting the manifest) is a
-  // repo like any other when it is a git checkout; surface it on a
-  // non-CLEAN state just like the managed repositories.
-  if ((await inspectRepo(g, paths.root)).isGit) {
+  // repo like any other when it is a git checkout; surface it just like the
+  // managed repositories. Its dirty probe ignores untracked files (repos/
+  // and worktrees/ are expected workspace contents). Omitted when the
+  // command is scoped to a sub-workspace.
+  if (
+    includeRoot &&
+    (await inspectRepo(g, paths.root, { ignoreUntracked: true })).isGit
+  ) {
     rows.push(
-      await repoStatus(g, { name: ROOT_LABEL, url: "" }, paths.root),
+      await repoStatus(
+        g,
+        { name: ROOT_LABEL, url: "" },
+        paths.root,
+        { ignoreUntracked: true },
+      ),
     );
   }
 

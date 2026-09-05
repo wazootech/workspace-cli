@@ -29,7 +29,10 @@ Design principles:
   unmanaged checkouts. `update` only fetches and fast-forwards clean default
   branches; it never resets, rebases, stashes, or rewrites history. When the
   workspace root is itself a git checkout, `update` treats it like any other
-  clean default branch and `check` reports it as `(workspace root)`.
+  clean default branch and `check` reports it as `(workspace root)`. The root's
+  dirty probe ignores untracked files, so its own `repos/` and `worktrees/`
+  contents never mark it dirty. Scoped runs (`--workspace <name>`) leave the
+  root out entirely.
 - **Machine-readable output.** `check --json` emits structured results for
   tools; plain output is for humans.
 - **Exit code contract.** `wspace check` exits `0` when the workspace is clean
@@ -41,7 +44,9 @@ Design principles:
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
   When the workspace root directory is itself a git checkout, it is reported
-  first as `(workspace root)` and non-clean states fail the check.
+  first as `(workspace root)` and non-clean states fail the check. Untracked
+  files at the root never count as dirty, and `--workspace <name>` checks only
+  the named sub-workspace.
 - `wspace init [--host <host>] [--owner <owner>] [<repo...>]` — one-time
   scaffold for an empty directory: writes a fresh `workspace.json` (schema v4)
   with optional host/owner and seeded shorthand entries, and creates the
@@ -61,6 +66,9 @@ Design principles:
   Surgical edit; local checkouts are never deleted.
 - `wspace update` — fetch remotes and fast-forward only clean default branches,
   including the workspace root's own checkout when it is a git repository.
+  Untracked workspace content (`repos/`, `worktrees/`) does not mark the root
+  dirty. `--workspace <name>` updates only the named sub-workspace and leaves
+  the root out.
 - `wspace validate` — validate the manifest without touching any repository.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
   counts. `check`, `install`, and `update` accept `--workspace <name>` to scope

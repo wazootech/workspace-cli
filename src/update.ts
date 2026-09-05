@@ -6,15 +6,16 @@ import {
   ROOT_LABEL,
   type UpdateAction,
 } from "./types.ts";
-import { inspectRepo } from "./repo-inspect.ts";
+import { type InspectOptions, inspectRepo } from "./repo-inspect.ts";
 
 async function planRepoUpdate(
   g: GitRunner,
   name: string,
   repoPath: string,
   dryRun: boolean,
+  inspectOpts: InspectOptions = {},
 ): Promise<UpdateAction> {
-  const inspection = await inspectRepo(g, repoPath);
+  const inspection = await inspectRepo(g, repoPath, inspectOpts);
 
   if (!inspection.exists) {
     return { kind: "MISSING", name };
@@ -112,27 +113,42 @@ async function planGitUpdate(
   name: string,
   repoPath: string,
   dryRun: boolean,
+  inspectOpts: InspectOptions = {},
 ): Promise<UpdateAction | undefined> {
-  const inspection = await inspectRepo(g, repoPath);
+  const inspection = await inspectRepo(g, repoPath, inspectOpts);
   if (!inspection.isGit) {
     return undefined;
   }
-  return await planRepoUpdate(g, name, repoPath, dryRun);
+  return await planRepoUpdate(g, name, repoPath, dryRun, inspectOpts);
 }
 
 export async function planUpdate(
   g: GitRunner,
   repositories: RepositoryEntry[],
   paths: ManifestPaths,
-  { dryRun = false }: { dryRun?: boolean } = {},
+  { dryRun = false, includeRoot = true }: {
+    dryRun?: boolean;
+    includeRoot?: boolean;
+  } = {},
 ): Promise<UpdateAction[]> {
   const actions: UpdateAction[] = [];
 
   // The workspace's own checkout (the directory hosting the manifest) is
   // subject to the same conservative update policy when it is a git repo.
-  const rootAction = await planGitUpdate(g, ROOT_LABEL, paths.root, dryRun);
-  if (rootAction) {
-    actions.push(rootAction);
+  // Untracked files are ignored in its dirty probe: repos/ and worktrees/
+  // are the expected workspace contents, not user work. Omitted when the
+  // command is scoped to a sub-workspace.
+  if (includeRoot) {
+    const rootAction = await planGitUpdate(
+      g,
+      ROOT_LABEL,
+      paths.root,
+      dryRun,
+      { ignoreUntracked: true },
+    );
+    if (rootAction) {
+      actions.push(rootAction);
+    }
   }
 
   for (const repository of repositories) {
@@ -146,7 +162,13 @@ export async function runUpdate(
   g: GitRunner,
   manifest: { repositories: RepositoryEntry[] },
   paths: ManifestPaths,
-  { dryRun = false }: { dryRun?: boolean } = {},
+  { dryRun = false, includeRoot = true }: {
+    dryRun?: boolean;
+    includeRoot?: boolean;
+  } = {},
 ): Promise<UpdateAction[]> {
-  return await planUpdate(g, manifest.repositories, paths, { dryRun });
+  return await planUpdate(g, manifest.repositories, paths, {
+    dryRun,
+    includeRoot,
+  });
 }

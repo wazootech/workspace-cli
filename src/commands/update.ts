@@ -12,7 +12,12 @@ export async function run(
   g: GitRunner,
 ): Promise<number> {
   const scoped = scopeManifest(opts, manifest);
-  const rows = await runUpdate(g, scoped, paths, { dryRun: opts.dryRun });
+  // Scoped runs (`--workspace <name>`) leave the root out: update only what
+  // was asked for, so the root is not fetched/fast-forwarded out of scope.
+  const rows = await runUpdate(g, scoped, paths, {
+    dryRun: opts.dryRun,
+    includeRoot: opts.workspace === undefined,
+  });
   printRows(rows, opts.json);
   return 0;
 }

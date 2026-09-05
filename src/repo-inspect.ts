@@ -23,6 +23,15 @@ export interface RepoInspection {
 }
 
 /**
+ * Inspection options. `ignoreUntracked` is used for the workspace root,
+ * where untracked `repos/` and `worktrees/` directories are the expected
+ * workspace contents rather than a signal of user work.
+ */
+export interface InspectOptions {
+  ignoreUntracked?: boolean;
+}
+
+/**
  * Inspect a repository at the given path. Returns a structured result
  * with the common git state that multiple callers need. Does not
  * classify state or plan actions — callers add that logic.
@@ -30,6 +39,7 @@ export interface RepoInspection {
 export async function inspectRepo(
   g: GitRunner,
   repoPath: string,
+  opts: InspectOptions = {},
 ): Promise<RepoInspection> {
   if (!(await exists(repoPath))) {
     return {
@@ -50,7 +60,7 @@ export async function inspectRepo(
 
   const branch = await currentBranch(g, repoPath);
   const defaultBranchName = await defaultBranch(g, repoPath);
-  const dirty = await isDirty(g, repoPath);
+  const dirty = await isDirty(g, repoPath, opts.ignoreUntracked);
   const defaultBranchCheckedOutInWorktree = defaultBranchName !== undefined &&
     branch !== defaultBranchName &&
     await hasDefaultBranchWorktree(g, repoPath, defaultBranchName);

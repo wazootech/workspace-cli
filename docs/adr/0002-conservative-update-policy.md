@@ -27,7 +27,11 @@ safe, predictable progress and clearly report what it skipped and why.
 The workspace root's own checkout (the directory hosting the manifest) is
 subject to the same policy when it is a git repository: `update` fast-forwards a
 clean root on its default branch, and `check` reports it as `(workspace root)`
-with the same `CLEAN`/`DIRTY`/`FEATURE_CLEAN`/`DIVERGED` semantics.
+with the same `CLEAN`/`DIRTY`/`FEATURE_CLEAN`/`DIVERGED` semantics. The root's
+dirty probe ignores untracked files, because the `repos/` and `worktrees/`
+directories it materializes are the expected contents of a workspace checkout,
+not user work. Scoped runs (`--workspace <name>`) leave the root out of both
+`update` and `check`.
 
 ## Consequences
 
