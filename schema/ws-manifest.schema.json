@@ -33,44 +33,10 @@
       "items": {
         "anyOf": [
           {
-            "type": "string",
-            "minLength": 1,
-            "description": "Shorthand repository name: either \"repo\" (expands against the manifest's owner) or \"owner/repo\" (expands against the manifest's host with an inline owner)."
+            "$ref": "#/$defs/shorthand"
           },
           {
-            "type": "object",
-            "required": [
-              "name"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "Local checkout label (a single path segment under repositoriesDirectory): no slashes or path traversal; must be unique across the composed tree."
-              },
-              "owner": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Expand this entry against the manifest's host instead of providing a url: https://<host>/<owner>/<name>. Mutually exclusive with url."
-              },
-              "url": {
-                "type": "string",
-                "format": "uri",
-                "description": "Clone URL for any Git host. Mutually exclusive with owner."
-              }
-            },
-            "anyOf": [
-              {
-                "required": [
-                  "url"
-                ]
-              },
-              {
-                "required": [
-                  "owner"
-                ]
-              }
-            ]
+            "$ref": "#/$defs/entry"
           }
         ]
       }
@@ -81,25 +47,60 @@
       "items": {
         "anyOf": [
           {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/$defs/shorthand"
           },
           {
-            "type": "object",
-            "required": ["name"],
-            "additionalProperties": false,
-            "properties": {
-              "name": { "type": "string" },
-              "owner": { "type": "string", "minLength": 1 },
-              "url": { "type": "string", "format": "uri" }
-            },
-            "anyOf": [
-              { "required": ["url"] },
-              { "required": ["owner"] }
-            ]
+            "$ref": "#/$defs/entry"
           }
         ]
       }
+    }
+  },
+  "$defs": {
+    "shorthand": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Shorthand repository name: either \"repo\" (expands against the manifest's owner) or \"owner/repo\" (expands against the manifest's host with an inline owner)."
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Local checkout label (a single path segment under repositoriesDirectory): no slashes or path traversal; must be unique across the composed tree."
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expand this entry against the manifest's host instead of providing a url: https://<host>/<owner>/<name>. Mutually exclusive with url."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Clone URL for any Git host. Mutually exclusive with owner."
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Hostname override for this entry's owner expansion: https://<host>/<owner>/<name>. Hostname only - no protocol or slashes."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "owner"
+          ]
+        }
+      ]
     }
   }
 }
