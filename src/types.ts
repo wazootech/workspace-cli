@@ -79,6 +79,8 @@ export interface WorkspaceManifest {
   /** Optional override of the manifest directory as the workspace root. */
   workspaceRoot?: string;
   repositoriesDirectory?: string;
+  /** Directory (relative to workspaceRoot) for workspace repository checkouts. Defaults to repositoriesDirectory. */
+  workspacesDirectory?: string;
   repositories: RepositoryEntry[];
   /** Repositories that must contain a valid child workspace manifest. */
   workspaces?: RepositoryEntry[];

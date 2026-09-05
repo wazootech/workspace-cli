@@ -4,6 +4,8 @@ import type { WorkspaceManifest } from "./types.ts";
 export interface ManifestPaths {
   root: string;
   repositoriesDirectory: string;
+  /** Directory for workspace repository checkouts; falls back to repositoriesDirectory. */
+  workspacesDirectory?: string;
 }
 
 /**
@@ -19,6 +21,26 @@ export function resolveRepositoryPath(
     return normalize(resolve(repo.resolvedPath));
   }
   return normalize(resolve(paths.repositoriesDirectory, repo.name));
+}
+
+/**
+ * Resolve the on-disk path for a workspace repository entry. Uses a pre-set
+ * `resolvedPath` when available, otherwise computes it from the workspace's
+ * workspaces directory, falling back to the repositories directory.
+ */
+export function resolveWorkspacePath(
+  repo: { name: string; resolvedPath?: string },
+  paths: ManifestPaths,
+): string {
+  if (repo.resolvedPath !== undefined) {
+    return normalize(resolve(repo.resolvedPath));
+  }
+  return normalize(
+    resolve(
+      paths.workspacesDirectory ?? paths.repositoriesDirectory,
+      repo.name,
+    ),
+  );
 }
 
 export function manifestPaths(
@@ -43,6 +65,9 @@ export function manifestPaths(
   const paths: ManifestPaths = {
     root,
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
+    workspacesDirectory: manifest.workspacesDirectory === undefined
+      ? undefined
+      : dirOption(manifest.workspacesDirectory, "repos"),
   };
   return paths;
 }

@@ -924,8 +924,51 @@ Deno.test("resolveWorkspaceTree loads declared workspace repositories recursivel
     ]);
     assertEquals(resolved.repositories[1].isWorkspace, true);
     assertEquals(resolved.repositories[2].workspace, "platform");
+    // Without workspacesDirectory, the workspace checkout falls back to the
+    // repositories directory alongside ordinary repos.
+    assertEquals(resolved.repositories[1].resolvedPath, childDir);
     assertEquals(
       resolved.repositories[2].resolvedPath,
+      join(childDir, "repos", "leaf"),
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree places workspace checkouts under workspacesDirectory when declared", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const rootPath = join(tempDir, "workspace.json");
+    const childDir = join(tempDir, "subworkspaces", "platform");
+    const childPath = join(childDir, "workspace.json");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.mkdir(join(childDir, ".git"));
+    await Deno.writeTextFile(
+      rootPath,
+      JSON.stringify({
+        workspacesDirectory: "subworkspaces",
+        repositories: [{ name: "plain", url: "https://example.com/plain.git" }],
+        workspaces: [{
+          name: "platform",
+          url: "https://example.com/platform.git",
+        }],
+      }),
+    );
+    await Deno.writeTextFile(
+      childPath,
+      JSON.stringify({
+        repositories: [{ name: "leaf", url: "https://example.com/leaf.git" }],
+      }),
+    );
+
+    const manifest = await loadManifest(rootPath);
+    const resolved = await resolveWorkspaceTree(manifest, rootPath);
+    const workspace = resolved.repositories.find((r) => r.isWorkspace);
+    assertEquals(workspace?.resolvedPath, childDir);
+    const leaf = resolved.repositories.find((r) => r.name === "leaf");
+    assertEquals(
+      leaf?.resolvedPath,
       join(childDir, "repos", "leaf"),
     );
   } finally {

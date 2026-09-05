@@ -28,6 +28,10 @@
     "repositoriesDirectory": {
       "type": "string"
     },
+    "workspacesDirectory": {
+      "type": "string",
+      "description": "Directory (relative to workspaceRoot) holding workspace repository checkouts. Defaults to repositoriesDirectory."
+    },
     "repositories": {
       "type": "array",
       "items": {

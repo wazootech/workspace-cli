@@ -77,17 +77,20 @@ Design principles:
 ## Sub-workspaces
 
 A manifest keeps ordinary repositories and workspace repositories in separate
-arrays while sharing one `repositoriesDirectory`. Both arrays accept the same
-shorthand and object entry forms. A `workspaces` entry is cloned at
-`<repositoriesDirectory>/<name>` and must contain a valid `workspace.json`
-manifest; its child repositories use that child manifest's own `repos/`
-directory. This makes the checkout location deterministic without guessing
-whether a repository is also a workspace.
+arrays. Workspace checkouts live in `workspacesDirectory` when it is set;
+otherwise they share `repositoriesDirectory` with ordinary repositories. Both
+arrays accept the same shorthand and object entry forms. A `workspaces` entry
+is cloned at `<workspacesDirectory>/<name>` (or
+`<repositoriesDirectory>/<name>` when unset) and must contain a valid
+`workspace.json` manifest; its child repositories use that child manifest's own
+`repos/` directory. This makes the checkout location deterministic without
+guessing whether a repository is also a workspace.
 
 ```json
 {
   "schemaVersion": 4,
   "owner": "acme",
+  "workspacesDirectory": "workspaces",
   "repositories": ["shared-reference"],
   "workspaces": ["platform-workspace"]
 }
@@ -99,8 +102,8 @@ entries.
 
 Use `wspace add --as-workspace` to add a workspace entry. `install` and `check`
 verify that declared workspace repositories contain a valid child manifest, and
-commands report ordinary repositories and workspace repositories from the same
-`repos/` directory without collisions.
+commands report ordinary repositories and workspace repositories without
+collisions.
 
 `wspace install` clones all missing entries from both arrays. A declared
 workspace is validated as a Git repository containing `workspace.json`; once
@@ -109,16 +112,19 @@ present, its child repositories are resolved against that child workspace's own
 by that child workspace.
 
 Schema v4 keeps ordinary repositories and workspace repositories in separate
-arrays. This is intentional: the single `repositoriesDirectory` remains the
-source of truth for top-level checkout locations, while the manifest tells the
-CLI which checkouts are expected to be workspace roots. The arrays use the same
-shorthand and object entry forms, and names must be unique across both arrays.
+arrays. This is intentional: `repositoriesDirectory` remains the source of
+truth for ordinary checkout locations, and the optional `workspacesDirectory`
+separates workspace checkouts when the manifest declares one. The arrays use
+the same shorthand and object entry forms, and names must be unique across both
+arrays.
 
 ## Local names and collisions
 
-A repository's local checkout directory is always
-`<repositoriesDirectory>/<name>`, where `name` is the post-expansion label:
-ownership and hosts live in URLs, never in paths. Names therefore cannot contain
+An ordinary repository's local checkout directory is always
+`<repositoriesDirectory>/<name>`; a workspace repository's is
+`<workspacesDirectory>/<name>` when configured, otherwise
+`<repositoriesDirectory>/<name>`. `name` is the post-expansion label: ownership
+and hosts live in URLs, never in paths. Names therefore cannot contain
 slashes, backslashes, or path traversal, and two entries resolving to the same
 label are rejected — including a shorthand colliding with another entry's
 expanded name.

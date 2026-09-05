@@ -52,6 +52,9 @@ async function cloneMissing(
 ): Promise<InstallRow[]> {
   if (!dryRun) {
     await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+    if (paths.workspacesDirectory !== undefined) {
+      await Deno.mkdir(paths.workspacesDirectory, { recursive: true });
+    }
   }
   let repositories = manifest.repositories;
   if (targets.length > 0) {

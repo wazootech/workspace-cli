@@ -17,6 +17,7 @@ export interface RawManifest {
   host?: string;
   workspaceRoot?: string;
   repositoriesDirectory?: string;
+  workspacesDirectory?: string;
   repositories: Array<string | RawRepositoryEntry>;
   workspaces?: Array<string | RawRepositoryEntry>;
 }
@@ -145,6 +146,7 @@ export function normalizeManifest(
     host: doc.host,
     workspaceRoot: doc.workspaceRoot,
     repositoriesDirectory: doc.repositoriesDirectory,
+    workspacesDirectory: doc.workspacesDirectory,
     repositories,
     workspaces,
   };

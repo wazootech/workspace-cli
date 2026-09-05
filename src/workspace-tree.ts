@@ -2,7 +2,11 @@ import { exists } from "@std/fs";
 import { join, normalize, resolve } from "@std/path";
 import { findExistingManifest } from "./manifest-discovery.ts";
 import { loadManifest } from "./manifest-normalize.ts";
-import { manifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
+import {
+  manifestPaths,
+  resolveRepositoryPath,
+  resolveWorkspacePath,
+} from "./manifest-paths.ts";
 import type {
   RepositoryEntry,
   ResolvedWorkspace,
@@ -58,7 +62,7 @@ export async function resolveWorkspaceTree(
         ...declared,
         isWorkspace: true,
         workspace: parentWorkspace,
-        resolvedPath: resolveRepositoryPath(declared, paths),
+        resolvedPath: resolveWorkspacePath(declared, paths),
       };
       workspaceEntries.push(workspace);
       repositories.push(workspace);
