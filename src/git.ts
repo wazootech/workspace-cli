@@ -59,8 +59,15 @@ export async function defaultBranch(
   return undefined;
 }
 
-export async function isDirty(g: GitRunner, cwd: string): Promise<boolean> {
-  const result = await g.run(["status", "--porcelain"], cwd);
+export async function isDirty(
+  g: GitRunner,
+  cwd: string,
+  ignoreUntracked = false,
+): Promise<boolean> {
+  const args = ignoreUntracked
+    ? ["status", "--porcelain", "--untracked-files=no"]
+    : ["status", "--porcelain"];
+  const result = await g.run(args, cwd);
   return result.code === 0 && result.stdout.length > 0;
 }
 

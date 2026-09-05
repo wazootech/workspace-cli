@@ -12,7 +12,11 @@ export async function run(
   g: GitRunner,
 ): Promise<number> {
   const scoped = scopeManifest(opts, manifest);
-  const rows = await collectStatus(g, scoped, paths);
+  // Scoped runs (`--workspace <name>`) leave the root out: check only what
+  // was asked for, so an unrelated root state cannot flip the exit code.
+  const rows = await collectStatus(g, scoped, paths, {
+    includeRoot: opts.workspace === undefined,
+  });
   printRows(rows, opts.json);
   return hasErrors(rows) ? 1 : 0;
 }
