@@ -13,7 +13,9 @@ import type {
 /**
  * Resolve declared workspace repositories and their child manifests. A
  * missing workspace checkout is retained as a normal missing repository so
- * `install` can clone it; an existing checkout must contain a valid manifest.
+ * `install` can clone it; an existing checkout without a valid manifest is
+ * retained as an error-marked entry so `check`/`install` can report it as a
+ * row instead of aborting the whole tree.
  */
 export async function resolveWorkspaceTree(
   manifest: WorkspaceManifest,
@@ -66,20 +68,17 @@ export async function resolveWorkspaceTree(
       declaredWorkspaceNames.add(workspace.name);
 
       const checkoutPath = workspace.resolvedPath!;
-      if (
-        await exists(checkoutPath) &&
-        !(await exists(join(checkoutPath, ".git")))
-      ) {
-        throw new Error(
-          `Workspace repository "${workspace.name}" at ${checkoutPath} is not a Git repository`,
-        );
+      const checkoutExists = await exists(checkoutPath);
+      if (checkoutExists && !(await exists(join(checkoutPath, ".git")))) {
+        workspace.error =
+          `Workspace repository "${workspace.name}" at ${checkoutPath} is not a Git repository`;
+        continue;
       }
       const childManifestPath = await findExistingManifest(checkoutPath);
       if (!childManifestPath) {
-        if (await exists(checkoutPath)) {
-          throw new Error(
-            `Workspace repository "${workspace.name}" at ${checkoutPath} does not contain a workspace.json manifest`,
-          );
+        if (checkoutExists) {
+          workspace.error =
+            `Workspace repository "${workspace.name}" at ${checkoutPath} does not contain a workspace.json manifest`;
         }
         continue;
       }

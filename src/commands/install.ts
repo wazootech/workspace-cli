@@ -17,17 +17,30 @@ function isBadInstallRow(row: InstallRow): boolean {
   );
 }
 
-function workspaceManifestMissing(
-  repository: { name: string; isWorkspace?: boolean },
+async function workspaceManifestMissing(
+  repository: { name: string; isWorkspace?: boolean; error?: string },
   repoPath: string,
-): InstallRow | undefined {
+): Promise<InstallRow | undefined> {
   if (!repository.isWorkspace) return undefined;
-  return {
-    name: repository.name,
-    state: "INVALID",
-    detail:
-      `Workspace repository does not contain workspace.json at ${repoPath}`,
-  };
+  // Resolution already flagged this checkout (exists but not git, or lacks a
+  // child manifest); surface its error verbatim.
+  if (repository.error) {
+    return {
+      name: repository.name,
+      state: "INVALID",
+      detail: repository.error,
+    };
+  }
+  // Fresh clone that turned out manifest-less.
+  if (!(await findExistingManifest(repoPath))) {
+    return {
+      name: repository.name,
+      state: "INVALID",
+      detail:
+        `Workspace repository does not contain workspace.json at ${repoPath}`,
+    };
+  }
+  return undefined;
 }
 
 async function cloneMissing(
@@ -59,13 +72,14 @@ async function cloneMissing(
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
-      if (await exists(join(repoPath, ".git"))) {
-        const invalidWorkspace = workspaceManifestMissing(repository, repoPath);
-        if (invalidWorkspace && !(await findExistingManifest(repoPath))) {
-          rows.push(invalidWorkspace);
-        } else {
-          rows.push({ name: repository.name, state: "EXISTS" });
-        }
+      const invalidWorkspace = await workspaceManifestMissing(
+        repository,
+        repoPath,
+      );
+      if (invalidWorkspace) {
+        rows.push(invalidWorkspace);
+      } else if (await exists(join(repoPath, ".git"))) {
+        rows.push({ name: repository.name, state: "EXISTS" });
       } else {
         rows.push({
           name: repository.name,
@@ -86,12 +100,13 @@ async function cloneMissing(
     }
     const result = await clone(g, repository.url, repoPath);
     if (result.code === 0) {
-      const invalidWorkspace = workspaceManifestMissing(repository, repoPath);
-      if (invalidWorkspace && !(await findExistingManifest(repoPath))) {
-        rows.push(invalidWorkspace);
-      } else {
-        rows.push({ name: repository.name, state: "CLONED" });
-      }
+      const invalidWorkspace = await workspaceManifestMissing(
+        repository,
+        repoPath,
+      );
+      rows.push(
+        invalidWorkspace ?? { name: repository.name, state: "CLONED" },
+      );
     } else {
       rows.push({
         name: repository.name,

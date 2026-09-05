@@ -58,6 +58,8 @@ export interface RepositoryEntry {
   workspace?: string;
   /** Internal marker for entries declared in the manifest's workspaces array. */
   isWorkspace?: boolean;
+  /** Why this workspace entry could not be resolved (set in resolved view). */
+  error?: string;
 }
 
 /** A workspace manifest: the config document the wspace CLI reads. */

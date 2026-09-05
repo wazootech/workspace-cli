@@ -171,6 +171,14 @@ export async function planUpdate(
 
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
+    if (repository.error) {
+      actions.push({
+        kind: "INVALID",
+        name: repository.name,
+        detail: repository.error,
+      });
+      continue;
+    }
     actions.push(await planRepoUpdate(g, repository.name, repoPath, dryRun));
   }
   return actions;

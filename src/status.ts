@@ -191,6 +191,15 @@ export async function collectStatus(
 
   for (const repository of manifest.repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
+    if (repository.error) {
+      rows.push({
+        name: repository.name,
+        path: repoPath,
+        state: "INVALID",
+        detail: repository.error,
+      });
+      continue;
+    }
     const mainStatus = await repoStatus(g, repository, repoPath);
     rows.push(mainStatus);
   }

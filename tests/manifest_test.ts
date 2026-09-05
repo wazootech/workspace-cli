@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { dirname, join } from "@std/path";
 import {
   detectConflicts,
@@ -933,7 +933,7 @@ Deno.test("resolveWorkspaceTree loads declared workspace repositories recursivel
   }
 });
 
-Deno.test("resolveWorkspaceTree rejects an existing workspace checkout without a manifest", async () => {
+Deno.test("resolveWorkspaceTree marks an existing workspace checkout without a manifest as an error entry", async () => {
   const tempDir = await Deno.makeTempDir();
   try {
     const rootPath = join(tempDir, "workspace.json");
@@ -951,10 +951,41 @@ Deno.test("resolveWorkspaceTree rejects an existing workspace checkout without a
       }),
     );
     const manifest = await loadManifest(rootPath);
-    await assertRejects(
-      () => resolveWorkspaceTree(manifest, rootPath),
-      Error,
-      "does not contain a workspace.json manifest",
+    const resolved = await resolveWorkspaceTree(manifest, rootPath);
+    assertEquals(resolved.workspaceEntries?.length, 1);
+    assertEquals(resolved.repositories[0].isWorkspace, true);
+    assert(
+      resolved.repositories[0].error?.includes(
+        "does not contain a workspace.json manifest",
+      ),
+      `expected manifest-missing error, got: ${resolved.repositories[0].error}`,
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("resolveWorkspaceTree marks a non-git workspace checkout as an error entry", async () => {
+  const tempDir = await Deno.makeTempDir();
+  try {
+    const rootPath = join(tempDir, "workspace.json");
+    const childDir = join(tempDir, "repos", "platform");
+    await Deno.mkdir(childDir, { recursive: true });
+    await Deno.writeTextFile(
+      rootPath,
+      JSON.stringify({
+        repositories: [],
+        workspaces: [{
+          name: "platform",
+          url: "https://example.com/platform.git",
+        }],
+      }),
+    );
+    const manifest = await loadManifest(rootPath);
+    const resolved = await resolveWorkspaceTree(manifest, rootPath);
+    assert(
+      resolved.repositories[0].error?.includes("is not a Git repository"),
+      `expected non-git error, got: ${resolved.repositories[0].error}`,
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
