@@ -84,7 +84,8 @@ Deno.test("collectStatus reports error-marked workspace entries as INVALID rows"
       repositories: [{
         name: "platform",
         url: "",
-        error: "Workspace repository \"platform\" at /ws/repos/platform does not contain a workspace.json manifest",
+        error:
+          'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
       }],
     },
     { root: "/ws", repositoriesDirectory: "/ws/repos" },
@@ -93,6 +94,9 @@ Deno.test("collectStatus reports error-marked workspace entries as INVALID rows"
   assertEquals(rows.length, 1);
   assertEquals(rows[0].name, "platform");
   assertEquals(rows[0].state, "INVALID");
-  assertEquals(rows[0].detail, "Workspace repository \"platform\" at /ws/repos/platform does not contain a workspace.json manifest");
+  assertEquals(
+    rows[0].detail,
+    'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
+  );
   assertEquals(hasErrors(rows), true);
 });

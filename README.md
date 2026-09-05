@@ -79,12 +79,12 @@ Design principles:
 A manifest keeps ordinary repositories and workspace repositories in separate
 arrays. Workspace checkouts live in `workspacesDirectory` when it is set;
 otherwise they share `repositoriesDirectory` with ordinary repositories. Both
-arrays accept the same shorthand and object entry forms. A `workspaces` entry
-is cloned at `<workspacesDirectory>/<name>` (or
-`<repositoriesDirectory>/<name>` when unset) and must contain a valid
-`workspace.json` manifest; its child repositories use that child manifest's own
-`repos/` directory. This makes the checkout location deterministic without
-guessing whether a repository is also a workspace.
+arrays accept the same shorthand and object entry forms. A `workspaces` entry is
+cloned at `<workspacesDirectory>/<name>` (or `<repositoriesDirectory>/<name>`
+when unset) and must contain a valid `workspace.json` manifest; its child
+repositories use that child manifest's own `repos/` directory. This makes the
+checkout location deterministic without guessing whether a repository is also a
+workspace.
 
 ```json
 {
@@ -112,10 +112,10 @@ present, its child repositories are resolved against that child workspace's own
 by that child workspace.
 
 Schema v4 keeps ordinary repositories and workspace repositories in separate
-arrays. This is intentional: `repositoriesDirectory` remains the source of
-truth for ordinary checkout locations, and the optional `workspacesDirectory`
-separates workspace checkouts when the manifest declares one. The arrays use
-the same shorthand and object entry forms, and names must be unique across both
+arrays. This is intentional: `repositoriesDirectory` remains the source of truth
+for ordinary checkout locations, and the optional `workspacesDirectory`
+separates workspace checkouts when the manifest declares one. The arrays use the
+same shorthand and object entry forms, and names must be unique across both
 arrays.
 
 ## Local names and collisions
@@ -124,13 +124,12 @@ An ordinary repository's local checkout directory is always
 `<repositoriesDirectory>/<name>`; a workspace repository's is
 `<workspacesDirectory>/<name>` when configured, otherwise
 `<repositoriesDirectory>/<name>`. `name` is the post-expansion label: ownership
-and hosts live in URLs, never in paths. Names therefore cannot contain
-slashes, backslashes, or path traversal. Two entries conflict only when they
-resolve to the same checkout path — including a shorthand colliding with
-another entry's expanded name within one workspace. The same name may appear in
-different workspaces because each workspace's checkouts live in its own
-directory (`./workspaces/wazootech/repos/memory` and `./repos/memory` can
-coexist).
+and hosts live in URLs, never in paths. Names therefore cannot contain slashes,
+backslashes, or path traversal. Two entries conflict only when they resolve to
+the same checkout path — including a shorthand colliding with another entry's
+expanded name within one workspace. The same name may appear in different
+workspaces because each workspace's checkouts live in its own directory
+(`./workspaces/wazootech/repos/memory` and `./repos/memory` can coexist).
 
 To check out a repository under a different label than its shorthand name, write
 the explicit form with your chosen label as `name`:
