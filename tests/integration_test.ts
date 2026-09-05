@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { exists } from "@std/fs";
-import { join } from "@std/path";
+import { dirname, join } from "@std/path";
 import {
   branchAb,
   defaultBranch,
@@ -189,6 +189,312 @@ Deno.test("update reports CURRENT when already in sync", async () => {
   }
 });
 
+Deno.test("update fast-forwards a clean workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "root");
+    await seedCommitOnOrigin(dir, "root", "two\n");
+    const actions = await runUpdate(
+      g,
+      { repositories: [] },
+      {
+        root: join(dir, "root"),
+        repositoriesDirectory: join(dir, "repos"),
+      },
+    );
+    assertEquals(actions, [
+      { kind: "FAST_FORWARD", name: "(workspace root)", commits: 1 },
+    ]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update skips a dirty workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    // A tracked modification is user work; the root must be skipped.
+    await Deno.writeTextFile(join(rootDir, "a.txt"), "local change\n");
+    const actions = await runUpdate(
+      g,
+      { repositories: [] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(dir, "repos"),
+      },
+    );
+    assertEquals(actions, [
+      {
+        kind: "SKIP_DIRTY",
+        name: "(workspace root)",
+        detail: "uncommitted changes",
+      },
+    ]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update skips a feature-branch workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    await g.run(["checkout", "-b", "feature-x"], rootDir);
+    const actions = await runUpdate(
+      g,
+      { repositories: [] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(dir, "repos"),
+      },
+    );
+    assertEquals(actions[0].kind, "SKIP_FEATURE");
+    assertEquals(actions[0].name, "(workspace root)");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update reports CURRENT for an in-sync workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "root");
+    const actions = await runUpdate(
+      g,
+      { repositories: [] },
+      {
+        root: join(dir, "root"),
+        repositoriesDirectory: join(dir, "repos"),
+      },
+    );
+    assertEquals(actions, [{
+      kind: "CURRENT",
+      name: "(workspace root)",
+      detail: "origin/main",
+    }]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update omits the workspace root when it is not a git repo", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "a");
+    await seedCommitOnOrigin(dir, "a", "two\n");
+    const actions = await runUpdate(
+      g,
+      { repositories: [{ name: "a", url: "u" }] },
+      pathsFor(dir),
+    );
+    assert(
+      !actions.some((a) => a.name === "(workspace root)"),
+      "plain-directory root should not produce an update action",
+    );
+    assertEquals(actions, [{ kind: "FAST_FORWARD", name: "a", commits: 1 }]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("collectStatus reports the workspace root when it is a git repo", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await makeRepoWithMain(dir, "root");
+    const rows = await collectStatus(
+      g,
+      { repositories: [] },
+      {
+        root: join(dir, "root"),
+        repositoriesDirectory: join(dir, "repos"),
+      },
+    );
+    assertEquals(rows[0].name, "(workspace root)");
+    assertEquals(rows[0].state, "CLEAN");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("check exits 1 when the workspace root is dirty", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    await Deno.mkdir(join(rootDir, "repos"), { recursive: true });
+    const manifestPath = join(rootDir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: rootDir,
+        repositories: [],
+      }),
+    );
+    // The manifest belongs to the root checkout; commit it so the root is a
+    // clean git repo (mirrors a committed workspace.json in a real workspace).
+    await configure(rootDir);
+    await g.run(["add", "."], rootDir);
+    await g.run(["commit", "-m", "workspace manifest"], rootDir);
+    await g.run(["push", "origin", "main"], rootDir);
+    assertEquals(
+      await run(["check", "--manifest", manifestPath]),
+      0,
+      "clean root should pass check",
+    );
+    // A tracked modification is user work; the root must fail check.
+    await Deno.writeTextFile(join(rootDir, "a.txt"), "oops\n");
+    assertEquals(
+      await run(["check", "--manifest", manifestPath]),
+      1,
+      "dirty workspace root should fail check",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update ignores untracked workspace content in the workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    // Untracked repos/ is the expected workspace content of the root
+    // checkout (install populates it on a fresh clone); it must not make
+    // the root permanently DIRTY.
+    await Deno.mkdir(join(rootDir, "repos", "a"), { recursive: true });
+    await seedCommitOnOrigin(dir, "root", "two\n");
+    const actions = await runUpdate(
+      g,
+      { repositories: [] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(rootDir, "repos"),
+      },
+    );
+    assertEquals(actions, [
+      { kind: "FAST_FORWARD", name: "(workspace root)", commits: 1 },
+    ]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("collectStatus ignores untracked workspace content in the root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    await Deno.mkdir(join(rootDir, "repos", "a"), { recursive: true });
+    const rows = await collectStatus(
+      g,
+      { repositories: [] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(rootDir, "repos"),
+      },
+    );
+    assertEquals(rows[0].name, "(workspace root)");
+    assertEquals(rows[0].state, "CLEAN");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update omits the workspace root when scoped to a sub-workspace", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    await seedCommitOnOrigin(dir, "root", "two\n");
+    const actions = await runUpdate(
+      g,
+      { repositories: [{ name: "a", url: "u" }] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(dir, "repos"),
+      },
+      { includeRoot: false },
+    );
+    assert(
+      !actions.some((a) => a.name === "(workspace root)"),
+      "scoped update should omit the workspace root",
+    );
+    assertEquals(actions, [{ kind: "MISSING", name: "a" }]);
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("collectStatus omits the workspace root when scoped", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    await Deno.writeTextFile(join(rootDir, "a.txt"), "local change\n");
+    const rows = await collectStatus(g, { repositories: [] }, {
+      root: rootDir,
+      repositoriesDirectory: join(dir, "repos"),
+    }, { includeRoot: false });
+    assert(
+      !rows.some((r) => r.name === "(workspace root)"),
+      "scoped check should omit the workspace root",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("check --workspace ignores a dirty workspace root", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const rootDir = join(dir, "root");
+    await makeRepoWithMain(dir, "root");
+    // Clone the repo attributed to sub-workspace "sub" into repos/a.
+    await makeRepoWithMain(dir, "a");
+    const reposA = join(rootDir, "repos", "a");
+    await Deno.mkdir(dirname(reposA), { recursive: true });
+    assert(
+      (await g.run(["clone", join(dir, "a.git"), reposA])).code === 0,
+      "clone a into repos",
+    );
+    await configure(reposA);
+
+    const manifestPath = join(rootDir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: rootDir,
+        repositories: [
+          { name: "a", url: join(dir, "a.git"), workspace: "sub" },
+        ],
+      }),
+    );
+    await configure(rootDir);
+    await g.run(["add", "."], rootDir);
+    await g.run(["commit", "-m", "workspace manifest"], rootDir);
+    await g.run(["push", "origin", "main"], rootDir);
+
+    // A dirty root is user work and fails an unscoped check...
+    await Deno.writeTextFile(join(rootDir, "a.txt"), "oops\n");
+    assertEquals(
+      await run(["check", "--manifest", manifestPath]),
+      1,
+      "dirty root should fail an unscoped check",
+    );
+    // ...but a scoped check evaluates only the requested sub-workspace.
+    assertEquals(
+      await run(["check", "--manifest", manifestPath, "--workspace", "sub"]),
+      0,
+      "scoped check should ignore the workspace root",
+    );
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
 Deno.test("wspace install clones missing repositories", async () => {
   const dir = await Deno.makeTempDir();
   try {
@@ -320,6 +626,33 @@ Deno.test("repoStatus reports INVALID when path has no .git", async () => {
       pathsFor(dir),
     );
     assertEquals(rows[0].state, "INVALID");
+    assertEquals(rows[0].detail, "Path exists but is not a Git repository");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update reports INVALID with a clear detail when a repo path is not a git repo", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const empty = join(dir, "empty");
+    await Deno.mkdir(empty, { recursive: true });
+    const actions = await runUpdate(
+      g,
+      {
+        repositories: [{
+          name: "empty",
+          url: "u",
+          resolvedPath: empty,
+        }],
+      },
+      pathsFor(dir),
+    );
+    assertEquals(actions, [{
+      kind: "INVALID",
+      name: "empty",
+      detail: "Path exists but is not a Git repository",
+    }]);
   } finally {
     await removeTempDir(dir);
   }

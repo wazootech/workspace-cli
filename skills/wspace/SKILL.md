@@ -47,7 +47,12 @@ checkable condition before the next begins.
 
 1. **Anchor the baseline.** From the workspace root, run `wspace check` and
    confirm the target repo is `CLEAN` or `FEATURE_CLEAN`. Refresh clean default
-   branches with `wspace update` when the baseline may be stale.
+   branches with `wspace update` when the baseline may be stale. Both commands
+   include the workspace root's own checkout (reported as `(workspace root)`)
+   when the root directory is itself a git repository; its untracked `repos/`
+   and `worktrees/` contents never mark it dirty, and `--workspace` scoped runs
+   leave it out. `(workspace root)` is always the first row of `wspace check`
+   and `wspace update` output; managed repos follow in manifest order.
 2. **Isolate the task.** Create a worktree for the feature:
    `git worktree add <path> -b <feature>`. Never edit `repos/<repo>` directly;
    work inside `worktrees/<repo>/<feature>/`. Sync local credentials with manual
@@ -216,8 +221,10 @@ The map is the source of truth for which of those two happened.
   first: `git worktree add`, then `cd` into it. This applies to every external
   skill (including `/implement`) — the Pipeline step 2 is not optional.
 - **Never mutate user work.** `wspace update` never resets, rebases, stashes, or
-  rewrites history. It skips dirty and feature branches. Respect that contract;
-  do not work around it with raw git destructive commands.
+  rewrites history. It skips dirty and feature branches, including the workspace
+  root's own checkout (whose untracked `repos/`/`worktrees/` contents never
+  count as dirty). Respect that contract; do not work around it with raw git
+  destructive commands.
 - **Root anchor.** All paths resolve relative to the directory containing the
   manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
 - **Central secret vault.** Never write `.env` files directly in `repos/` or
@@ -240,6 +247,10 @@ directory, abandoned worktrees, uncommitted changes).
   appeared mid-session: no stray/unmanaged repo, and any repo you touched is
   `CLEAN` or `FEATURE_CLEAN`.
 - Prefer `wspace check --json` over ad-hoc per-repo `ls`/`git status` probes.
-- `wspace check` reports unmanaged repos only inside `repos/`. Until the root
-  scan lands, manually confirm no git clone landed in the workspace root itself
-  (a stray at the root typically means the wrong working directory was used).
+- `wspace check` reports the workspace root's own checkout as `(workspace root)`
+  when it is a git repo (a dirty/diverged root fails the check; untracked
+  `repos/`/`worktrees/` contents never mark it dirty) and flags unmanaged repos
+  inside `repos/`. Scoped runs with `--workspace <name>` leave the root out.
+  Until the root stray scan lands, manually confirm no extra git clone landed in
+  the workspace root itself (a stray at the root typically means the wrong
+  working directory was used).

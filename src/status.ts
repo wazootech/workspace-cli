@@ -3,8 +3,13 @@ import type { GitRunner } from "./git.ts";
 import { branchAb, configuredUpstream, hasRef } from "./git.ts";
 import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
+import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
-import { inspectRepo } from "./repo-inspect.ts";
+import {
+  type InspectOptions,
+  inspectRepo,
+  type RepoInspection,
+} from "./repo-inspect.ts";
 
 export interface ClassifyInput {
   dirty: boolean;
@@ -51,15 +56,23 @@ export async function repoStatus(
   g: GitRunner,
   repository: RepositoryEntry,
   repoPath: string,
+  inspectOpts: InspectOptions = {},
+  inspection?: RepoInspection,
 ): Promise<RepoStatus> {
   const base = { name: repository.name, path: repoPath };
-  const inspection = await inspectRepo(g, repoPath);
+  // Callers that already inspected (e.g. the workspace root, whose git-ness
+  // gates inclusion) pass the inspection through so it is computed once.
+  inspection ??= await inspectRepo(g, repoPath, inspectOpts);
 
   if (!inspection.exists) {
     return { ...base, state: "MISSING" };
   }
   if (!inspection.isGit) {
-    return { ...base, state: "INVALID" };
+    return {
+      ...base,
+      state: "INVALID",
+      detail: "Path exists but is not a Git repository",
+    };
   }
 
   try {
@@ -119,6 +132,7 @@ export async function collectStatus(
   g: GitRunner,
   manifest: { repositories: RepositoryEntry[] },
   paths: ManifestPaths,
+  { includeRoot = true }: { includeRoot?: boolean } = {},
 ): Promise<RepoStatus[]> {
   const rows: RepoStatus[] = [];
   const managed = new Set(manifest.repositories.map((r) => r.name));
@@ -128,6 +142,28 @@ export async function collectStatus(
     ),
   );
   const reposDir = paths.repositoriesDirectory;
+
+  // The workspace's own checkout (the directory hosting the manifest) is a
+  // repo like any other when it is a git checkout; surface it just like the
+  // managed repositories. Its dirty probe ignores untracked files (repos/
+  // and worktrees/ are expected workspace contents). Omitted when the
+  // command is scoped to a sub-workspace.
+  if (includeRoot) {
+    const rootInspection = await inspectRepo(g, paths.root, {
+      ignoreUntracked: true,
+    });
+    if (rootInspection.isGit) {
+      rows.push(
+        await repoStatus(
+          g,
+          { name: ROOT_LABEL, url: "" },
+          paths.root,
+          { ignoreUntracked: true },
+          rootInspection,
+        ),
+      );
+    }
+  }
 
   if (await exists(reposDir)) {
     for await (const entry of Deno.readDir(reposDir)) {

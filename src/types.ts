@@ -1,5 +1,9 @@
+/** Display name for the workspace's own checkout (the directory hosting the manifest). */
+export const ROOT_LABEL = "(workspace root)";
+
 export type UpdateAction =
-  | { kind: "MISSING" | "INVALID"; name: string }
+  | { kind: "MISSING"; name: string }
+  | { kind: "INVALID"; name: string; detail?: string }
   | {
     kind:
       | "SKIP_DIRTY"
