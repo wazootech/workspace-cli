@@ -626,6 +626,33 @@ Deno.test("repoStatus reports INVALID when path has no .git", async () => {
       pathsFor(dir),
     );
     assertEquals(rows[0].state, "INVALID");
+    assertEquals(rows[0].detail, "Path exists but is not a Git repository");
+  } finally {
+    await removeTempDir(dir);
+  }
+});
+
+Deno.test("update reports INVALID with a clear detail when a repo path is not a git repo", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const empty = join(dir, "empty");
+    await Deno.mkdir(empty, { recursive: true });
+    const actions = await runUpdate(
+      g,
+      {
+        repositories: [{
+          name: "empty",
+          url: "u",
+          resolvedPath: empty,
+        }],
+      },
+      pathsFor(dir),
+    );
+    assertEquals(actions, [{
+      kind: "INVALID",
+      name: "empty",
+      detail: "Path exists but is not a Git repository",
+    }]);
   } finally {
     await removeTempDir(dir);
   }

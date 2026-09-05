@@ -51,7 +51,8 @@ checkable condition before the next begins.
    include the workspace root's own checkout (reported as `(workspace root)`)
    when the root directory is itself a git repository; its untracked `repos/`
    and `worktrees/` contents never mark it dirty, and `--workspace` scoped runs
-   leave it out.
+   leave it out. `(workspace root)` is always the first row of `wspace check`
+   and `wspace update` output; managed repos follow in manifest order.
 2. **Isolate the task.** Create a worktree for the feature:
    `git worktree add <path> -b <feature>`. Never edit `repos/<repo>` directly;
    work inside `worktrees/<repo>/<feature>/`. Sync local credentials with manual

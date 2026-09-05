@@ -5,7 +5,11 @@ import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
 import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
-import { type InspectOptions, inspectRepo } from "./repo-inspect.ts";
+import {
+  type InspectOptions,
+  inspectRepo,
+  type RepoInspection,
+} from "./repo-inspect.ts";
 
 export interface ClassifyInput {
   dirty: boolean;
@@ -53,15 +57,22 @@ export async function repoStatus(
   repository: RepositoryEntry,
   repoPath: string,
   inspectOpts: InspectOptions = {},
+  inspection?: RepoInspection,
 ): Promise<RepoStatus> {
   const base = { name: repository.name, path: repoPath };
-  const inspection = await inspectRepo(g, repoPath, inspectOpts);
+  // Callers that already inspected (e.g. the workspace root, whose git-ness
+  // gates inclusion) pass the inspection through so it is computed once.
+  inspection ??= await inspectRepo(g, repoPath, inspectOpts);
 
   if (!inspection.exists) {
     return { ...base, state: "MISSING" };
   }
   if (!inspection.isGit) {
-    return { ...base, state: "INVALID" };
+    return {
+      ...base,
+      state: "INVALID",
+      detail: "Path exists but is not a Git repository",
+    };
   }
 
   try {
@@ -137,18 +148,21 @@ export async function collectStatus(
   // managed repositories. Its dirty probe ignores untracked files (repos/
   // and worktrees/ are expected workspace contents). Omitted when the
   // command is scoped to a sub-workspace.
-  if (
-    includeRoot &&
-    (await inspectRepo(g, paths.root, { ignoreUntracked: true })).isGit
-  ) {
-    rows.push(
-      await repoStatus(
-        g,
-        { name: ROOT_LABEL, url: "" },
-        paths.root,
-        { ignoreUntracked: true },
-      ),
-    );
+  if (includeRoot) {
+    const rootInspection = await inspectRepo(g, paths.root, {
+      ignoreUntracked: true,
+    });
+    if (rootInspection.isGit) {
+      rows.push(
+        await repoStatus(
+          g,
+          { name: ROOT_LABEL, url: "" },
+          paths.root,
+          { ignoreUntracked: true },
+          rootInspection,
+        ),
+      );
+    }
   }
 
   if (await exists(reposDir)) {

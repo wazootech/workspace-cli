@@ -6,7 +6,11 @@ import {
   ROOT_LABEL,
   type UpdateAction,
 } from "./types.ts";
-import { type InspectOptions, inspectRepo } from "./repo-inspect.ts";
+import {
+  type InspectOptions,
+  inspectRepo,
+  type RepoInspection,
+} from "./repo-inspect.ts";
 
 async function planRepoUpdate(
   g: GitRunner,
@@ -14,14 +18,21 @@ async function planRepoUpdate(
   repoPath: string,
   dryRun: boolean,
   inspectOpts: InspectOptions = {},
+  inspection?: RepoInspection,
 ): Promise<UpdateAction> {
-  const inspection = await inspectRepo(g, repoPath, inspectOpts);
+  // Callers that already inspected (e.g. the workspace root, whose git-ness
+  // gates inclusion) pass the inspection through so it is computed once.
+  inspection ??= await inspectRepo(g, repoPath, inspectOpts);
 
   if (!inspection.exists) {
     return { kind: "MISSING", name };
   }
   if (!inspection.isGit) {
-    return { kind: "INVALID", name };
+    return {
+      kind: "INVALID",
+      name,
+      detail: "Path exists but is not a Git repository",
+    };
   }
 
   const branch = inspection.branch;
@@ -119,7 +130,14 @@ async function planGitUpdate(
   if (!inspection.isGit) {
     return undefined;
   }
-  return await planRepoUpdate(g, name, repoPath, dryRun, inspectOpts);
+  return await planRepoUpdate(
+    g,
+    name,
+    repoPath,
+    dryRun,
+    inspectOpts,
+    inspection,
+  );
 }
 
 export async function planUpdate(
