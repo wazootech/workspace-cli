@@ -1,7 +1,6 @@
 /**
- * Surgical edits to the repositories collection of a workspace manifest.
- * Pure text-in/text-out: functions return the new document text or throw
- * ManifestEditError without side effects.
+ * Surgical edits to the repositories and workspaces collections of a
+ * workspace manifest.
  */
 import { BARE_DEFAULT_HOST, resolveRepository } from "./resolve.ts";
 
@@ -12,61 +11,76 @@ export type NewEntry =
   | { kind: "shorthand"; raw: string }
   | { kind: "object"; name: string; url: string };
 
+export type ManifestCollection = "repositories" | "workspaces";
+
 /** Render an entry as it is written into .json manifests. */
 export function formatEntry(entry: NewEntry): string {
-  if (entry.kind === "shorthand") {
-    return JSON.stringify(entry.raw);
-  }
+  if (entry.kind === "shorthand") return JSON.stringify(entry.raw);
   return `{ "name": ${JSON.stringify(entry.name)}, "url": ${
     JSON.stringify(entry.url)
   } }`;
 }
 
-/**
- * Insert an entry into the repositories array of a .json document,
- * returning the rewritten text.
- */
-export function addEntry(raw: string, entryText: string): string {
+/** Insert an entry into a manifest collection. */
+export function addEntry(
+  raw: string,
+  entryText: string,
+  collection: ManifestCollection = "repositories",
+): string {
   const doc = JSON.parse(raw);
-  if (!Array.isArray(doc.repositories)) {
+  if (doc[collection] === undefined) {
+    if (collection === "repositories") {
+      throw new ManifestEditError(
+        `"${collection}" is not an array in this manifest`,
+      );
+    }
+    doc[collection] = [];
+  }
+  if (!Array.isArray(doc[collection])) {
     throw new ManifestEditError(
-      `"repositories" is not an array in this manifest`,
+      `"${collection}" is not an array in this manifest`,
     );
   }
-  doc.repositories.push(JSON.parse(entryText));
+  doc[collection].push(JSON.parse(entryText));
   return JSON.stringify(doc, null, 2) + "\n";
 }
 
-/**
- * Remove the entry whose effective repository name equals `targetName`
- * from a .json document.
- */
+/** Remove the entry whose effective repository name equals `targetName`. */
 export function removeEntry(
   raw: string,
   targetName: string,
   owner?: string,
   host = BARE_DEFAULT_HOST,
+  collection?: ManifestCollection,
 ): string {
   const doc = JSON.parse(raw);
-  if (!Array.isArray(doc.repositories)) {
-    throw new ManifestEditError(
-      `"repositories" is not an array in this manifest`,
+  const collections = collection
+    ? [collection]
+    : ["repositories", "workspaces"];
+  let foundCollection: ManifestCollection | undefined;
+  let index = -1;
+  for (const candidate of collections) {
+    if (!Array.isArray(doc[candidate])) continue;
+    const candidateIndex = doc[candidate].findIndex(
+      (entry: unknown) =>
+        entry === targetName ||
+        (typeof entry === "object" && entry !== null &&
+          (entry as Record<string, unknown>).name === targetName) ||
+        (typeof entry === "string" &&
+          resolvedName(entry, owner, host) === targetName),
     );
+    if (candidateIndex >= 0) {
+      foundCollection = candidate as ManifestCollection;
+      index = candidateIndex;
+      break;
+    }
   }
-  const idx = doc.repositories.findIndex(
-    (entry: unknown) =>
-      entry === targetName ||
-      (typeof entry === "object" && entry !== null &&
-        (entry as Record<string, unknown>).name === targetName) ||
-      (typeof entry === "string" &&
-        resolvedName(entry, owner, host) === targetName),
-  );
-  if (idx === -1) {
+  if (!foundCollection || index < 0) {
     throw new ManifestEditError(
       `Repository "${targetName}" not found in manifest`,
     );
   }
-  doc.repositories.splice(idx, 1);
+  doc[foundCollection].splice(index, 1);
   return JSON.stringify(doc, null, 2) + "\n";
 }
 

@@ -6,6 +6,7 @@ import { type ManifestPaths, resolveRepositoryPath } from "@/manifest-paths.ts";
 import type { CliOptions } from "@/cli-options.ts";
 import { printRows } from "@/output.ts";
 import type { WorkspaceManifest } from "@/types.ts";
+import { findExistingManifest } from "@/manifest-discovery.ts";
 
 type InstallRow = { name: string; state: string; detail?: string };
 
@@ -14,6 +15,32 @@ function isBadInstallRow(row: InstallRow): boolean {
     row.state === "CLONE_FAILED" || row.state === "PATH_BLOCKED" ||
     row.state === "INVALID" || row.state === "UNKNOWN_REPO"
   );
+}
+
+async function workspaceManifestMissing(
+  repository: { name: string; isWorkspace?: boolean; error?: string },
+  repoPath: string,
+): Promise<InstallRow | undefined> {
+  if (!repository.isWorkspace) return undefined;
+  // Resolution already flagged this checkout (exists but not git, or lacks a
+  // child manifest); surface its error verbatim.
+  if (repository.error) {
+    return {
+      name: repository.name,
+      state: "INVALID",
+      detail: repository.error,
+    };
+  }
+  // Fresh clone that turned out manifest-less.
+  if (!(await findExistingManifest(repoPath))) {
+    return {
+      name: repository.name,
+      state: "INVALID",
+      detail:
+        `Workspace repository does not contain workspace.json at ${repoPath}`,
+    };
+  }
+  return undefined;
 }
 
 async function cloneMissing(
@@ -25,6 +52,9 @@ async function cloneMissing(
 ): Promise<InstallRow[]> {
   if (!dryRun) {
     await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+    if (paths.workspacesDirectory !== undefined) {
+      await Deno.mkdir(paths.workspacesDirectory, { recursive: true });
+    }
   }
   let repositories = manifest.repositories;
   if (targets.length > 0) {
@@ -45,7 +75,13 @@ async function cloneMissing(
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
     if (await exists(repoPath)) {
-      if (await exists(join(repoPath, ".git"))) {
+      const invalidWorkspace = await workspaceManifestMissing(
+        repository,
+        repoPath,
+      );
+      if (invalidWorkspace) {
+        rows.push(invalidWorkspace);
+      } else if (await exists(join(repoPath, ".git"))) {
         rows.push({ name: repository.name, state: "EXISTS" });
       } else {
         rows.push({
@@ -66,13 +102,21 @@ async function cloneMissing(
       continue;
     }
     const result = await clone(g, repository.url, repoPath);
-    rows.push(
-      result.code === 0 ? { name: repository.name, state: "CLONED" } : {
+    if (result.code === 0) {
+      const invalidWorkspace = await workspaceManifestMissing(
+        repository,
+        repoPath,
+      );
+      rows.push(
+        invalidWorkspace ?? { name: repository.name, state: "CLONED" },
+      );
+    } else {
+      rows.push({
         name: repository.name,
         state: "CLONE_FAILED",
         detail: result.stderr.trim() || `Exit code ${result.code}`,
-      },
-    );
+      });
+    }
   }
   return rows;
 }

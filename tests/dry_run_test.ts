@@ -174,3 +174,49 @@ Deno.test("--dry-run appears in global help text", async () => {
     "expected dry-run description in help text",
   );
 });
+
+Deno.test("install reports INVALID for an existing workspace checkout missing its manifest", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const workspaceDir = join(dir, "repos", "platform");
+    await Deno.mkdir(workspaceDir, { recursive: true });
+    await Deno.mkdir(join(workspaceDir, ".git"));
+    const manifestPath = join(dir, "workspace.json");
+    await Deno.writeTextFile(
+      manifestPath,
+      JSON.stringify({
+        workspaceRoot: dir,
+        repositories: [],
+        workspaces: [{ name: "platform", url: join(dir, "platform.git") }],
+      }),
+    );
+
+    const cmd = new Deno.Command("deno", {
+      args: [
+        "run",
+        "--allow-all",
+        CLI_PATH,
+        "install",
+        "--manifest",
+        manifestPath,
+        "--json",
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    const stdout = new TextDecoder().decode(output.stdout);
+    const stderr = new TextDecoder().decode(output.stderr);
+    assert(
+      stdout.includes('"state": "INVALID"'),
+      `expected INVALID row in stdout, got: ${stdout}\nstderr: ${stderr}`,
+    );
+    assert(
+      stdout.includes("does not contain a workspace.json manifest"),
+      `expected manifest-missing detail, got: ${stdout}`,
+    );
+    assertEquals(output.code, 1);
+  } finally {
+    await removeTempDir(dir);
+  }
+});

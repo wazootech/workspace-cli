@@ -45,7 +45,7 @@ wspace check [--json] [--workspace <name>]
   wspace init [--host <host>] [--owner <owner>] [<repo...>]
   wspace install [<repo...>] [--json] [--workspace <name>] [--dry-run]
   wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
-  wspace add [<name>] [--url <url>] [--name <n>] [--create] [--visibility <public|private>]
+  wspace add [<name>] [--url <url>] [--name <n>] [--as-workspace] [--create] [--visibility <public|private>]
   wspace remove <repo>
   wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
@@ -64,6 +64,7 @@ Options:
   --json              Machine-readable output
   --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
+  --as-workspace       add: place the entry in the workspaces array and require a child manifest
 
 Path Command:
   path                Fuzzy-find a workspace directory (repo, sub-workspace).
@@ -75,7 +76,7 @@ Sub-workspaces:
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
-    boolean: ["help", "json", "stale", "dry-run", "create"],
+    boolean: ["help", "json", "stale", "dry-run", "create", "as-workspace"],
     string: [
       "manifest",
       "workspace",
@@ -112,6 +113,7 @@ function parseCliArgs(args: string[]): CliOptions {
     dryRun: parsed["dry-run"] ?? false,
     positional: positional.slice(1),
     workspace: parsed.workspace,
+    asWorkspace: parsed["as-workspace"] ?? false,
   };
 }
 
@@ -142,15 +144,15 @@ export async function run(args: string[]): Promise<number> {
 
   // Every command below resolves once; detected sub-workspaces reflect
   // whatever is currently on disk.
-  const resolvedTree = resolveWorkspaceTree(manifest, manifestPath);
+  const resolvedTree = await resolveWorkspaceTree(manifest, manifestPath);
 
   // Detect conflicts.
   const conflicts = detectConflicts(resolvedTree);
   if (conflicts.length > 0) {
-    console.error("ERROR: Duplicate repository names across workspaces:");
+    console.error("ERROR: Duplicate repository checkouts across workspaces:");
     for (const c of conflicts) {
       console.error(
-        `  "${c.repoName}" claimed by: ${c.claimedBy.join(", ")}`,
+        `  "${c.repoName}" at ${c.path} claimed by: ${c.claimedBy.join(", ")}`,
       );
     }
     return 2;
@@ -168,7 +170,7 @@ export async function run(args: string[]): Promise<number> {
     case "check":
       return await checkCmd.run(opts, resolvedManifest, paths, g);
     case "install":
-      return await installCmd.run(opts, resolvedManifest, paths, g);
+      return await installConverged(opts, manifest, manifestPath, g);
     case "path":
       return await pathCmd.run(opts, resolvedManifest, paths);
     case "update":
@@ -176,6 +178,38 @@ export async function run(args: string[]): Promise<number> {
     default:
       return 2;
   }
+}
+
+async function installConverged(
+  opts: CliOptions,
+  rootManifest: Awaited<ReturnType<typeof loadManifest>>,
+  manifestPath: string,
+  g: SystemGit,
+): Promise<number> {
+  let tree = await resolveWorkspaceTree(rootManifest, manifestPath);
+  let code = await installCmd.run(
+    opts,
+    flattenResolved(tree, rootManifest),
+    manifestPaths(rootManifest, manifestPath),
+    g,
+  );
+  if (code !== 0 || opts.dryRun || opts.positional.length > 0) return code;
+
+  for (let pass = 0; pass < 32; pass++) {
+    const next = await resolveWorkspaceTree(rootManifest, manifestPath);
+    if (next.repositories.length === tree.repositories.length) return code;
+    tree = next;
+    code = await installCmd.run(
+      opts,
+      flattenResolved(tree, rootManifest),
+      manifestPaths(rootManifest, manifestPath),
+      g,
+    );
+    if (code !== 0) return code;
+  }
+  throw new Error(
+    "Workspace resolution did not converge after 32 install passes",
+  );
 }
 
 export async function main(): Promise<number> {

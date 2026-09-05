@@ -56,6 +56,10 @@ export interface RepositoryEntry {
   resolvedPath?: string;
   /** Name of the sub-workspace this repo belongs to (set in resolved view). */
   workspace?: string;
+  /** Internal marker for entries declared in the manifest's workspaces array. */
+  isWorkspace?: boolean;
+  /** Why this workspace entry could not be resolved (set in resolved view). */
+  error?: string;
 }
 
 /** A workspace manifest: the config document the wspace CLI reads. */
@@ -75,18 +79,28 @@ export interface WorkspaceManifest {
   /** Optional override of the manifest directory as the workspace root. */
   workspaceRoot?: string;
   repositoriesDirectory?: string;
+  /** Directory (relative to workspaceRoot) for workspace repository checkouts. Defaults to repositoriesDirectory. */
+  workspacesDirectory?: string;
   repositories: RepositoryEntry[];
+  /** Repositories that must contain a valid child workspace manifest. */
+  workspaces?: RepositoryEntry[];
 }
 
 /** Resolved view of the workspace: the root manifest and all repositories. */
 export interface ResolvedWorkspace {
   /** The root manifest. */
   root: WorkspaceManifest;
+  /** Child workspace manifests keyed by their declared repository name. */
+  children?: Map<string, WorkspaceManifest>;
+  /** Workspace entries discovered in the manifest tree. */
+  workspaceEntries?: RepositoryEntry[];
   /** All repositories with workspace attribution. */
   repositories: RepositoryEntry[];
 }
 
 export interface WorkspaceConflict {
   repoName: string;
+  /** The checkout path shared by the conflicting entries. */
+  path: string;
   claimedBy: string[];
 }

@@ -1,7 +1,8 @@
 import { assertEquals } from "@std/assert";
-import { classifyState } from "@/status.ts";
+import { classifyState, collectStatus } from "@/status.ts";
 import type { ClassifyInput } from "@/status.ts";
 import { hasErrors } from "@/status.ts";
+import type { GitRunner } from "@/git.ts";
 import type { RepoStatus } from "@/types.ts";
 
 function input(overrides: Partial<ClassifyInput>): ClassifyInput {
@@ -73,5 +74,29 @@ Deno.test("hasErrors is true for any non-clean state", () => {
     { name: "a", path: "/a", state: "CLEAN" },
     { name: "b", path: "/b", state: "DIVERGED" },
   ];
+  assertEquals(hasErrors(rows), true);
+});
+
+Deno.test("collectStatus reports error-marked workspace entries as INVALID rows", async () => {
+  const rows = await collectStatus(
+    {} as GitRunner,
+    {
+      repositories: [{
+        name: "platform",
+        url: "",
+        error:
+          'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
+      }],
+    },
+    { root: "/ws", repositoriesDirectory: "/ws/repos" },
+    { includeRoot: false },
+  );
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].name, "platform");
+  assertEquals(rows[0].state, "INVALID");
+  assertEquals(
+    rows[0].detail,
+    'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
+  );
   assertEquals(hasErrors(rows), true);
 });

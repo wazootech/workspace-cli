@@ -30,5 +30,9 @@ export function flattenResolved(
   resolved: ResolvedWorkspace,
   root: WorkspaceManifest,
 ): WorkspaceManifest {
-  return { ...root, repositories: resolved.repositories };
+  return {
+    ...root,
+    repositories: resolved.repositories,
+    workspaces: [],
+  };
 }

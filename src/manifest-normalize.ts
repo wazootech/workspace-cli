@@ -17,7 +17,9 @@ export interface RawManifest {
   host?: string;
   workspaceRoot?: string;
   repositoriesDirectory?: string;
+  workspacesDirectory?: string;
   repositories: Array<string | RawRepositoryEntry>;
+  workspaces?: Array<string | RawRepositoryEntry>;
 }
 
 export function parseManifestText(
@@ -46,6 +48,15 @@ export function parseManifestText(
       `Manifest ${manifestPath} must be an object with a repositories array`,
     );
   }
+  const parsedObject = parsed as Record<string, unknown>;
+  if (
+    parsedObject.workspaces !== undefined &&
+    !Array.isArray(parsedObject.workspaces)
+  ) {
+    throw new Error(
+      `Manifest ${manifestPath}: "workspaces" must be an array`,
+    );
+  }
   return parsed as RawManifest;
 }
 
@@ -64,11 +75,6 @@ export function normalizeManifest(
   if (raw.vaultDirectory !== undefined) {
     throw new Error(
       `Manifest ${manifestPath}: "vaultDirectory" was removed; use a dedicated secrets tool instead.`,
-    );
-  }
-  if (raw.workspaces !== undefined) {
-    throw new Error(
-      `Manifest ${manifestPath}: "workspaces" was removed in schema v4. Declare each child workspace's repositories directly in the parent manifest.`,
     );
   }
   const owner = doc.owner;
@@ -99,39 +105,50 @@ export function normalizeManifest(
     }
   };
 
-  const repositories = doc.repositories.map((entry, index) => {
-    const at = `Manifest ${manifestPath}: repositories[${index}]`;
-    if (typeof entry === "string") {
-      return resolveEntry(at, entry);
-    }
-    if (entry.owner === undefined) {
-      return {
+  const normalizeEntries = (
+    entries: Array<string | RawRepositoryEntry>,
+    collection: "repositories" | "workspaces",
+  ): RepositoryEntry[] =>
+    entries.map((entry, index) => {
+      const at = `Manifest ${manifestPath}: ${collection}[${index}]`;
+      if (typeof entry === "string") {
+        return resolveEntry(at, entry);
+      }
+      if (entry.owner === undefined) {
+        return {
+          name: typeof entry.name === "string" ? entry.name : "",
+          url: typeof entry.url === "string" ? entry.url : "",
+        };
+      }
+      if (entry.url !== undefined && entry.url !== "") {
+        throw new Error(
+          `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
+        );
+      }
+      if (typeof entry.owner !== "string" || entry.owner === "") {
+        throw new Error(`${at}: "owner" must be a non-empty string.`);
+      }
+      return resolveEntry(at, {
         name: typeof entry.name === "string" ? entry.name : "",
-        url: typeof entry.url === "string" ? entry.url : "",
-      };
-    }
-    if (entry.url !== undefined && entry.url !== "") {
-      throw new Error(
-        `${at} sets both "url" and "owner"; they are mutually exclusive - use "url" for an explicit clone target or "owner" to expand against the host.`,
-      );
-    }
-    if (typeof entry.owner !== "string" || entry.owner === "") {
-      throw new Error(`${at}: "owner" must be a non-empty string.`);
-    }
-    return resolveEntry(at, {
-      name: typeof entry.name === "string" ? entry.name : "",
-      host: typeof entry.host === "string" ? entry.host : undefined,
-      owner: entry.owner,
-      url: typeof entry.url === "string" ? entry.url : undefined,
+        host: typeof entry.host === "string" ? entry.host : undefined,
+        owner: entry.owner,
+        url: typeof entry.url === "string" ? entry.url : undefined,
+      });
     });
-  });
+
+  const repositories = normalizeEntries(doc.repositories, "repositories");
+  const workspaces = doc.workspaces === undefined
+    ? undefined
+    : normalizeEntries(doc.workspaces, "workspaces");
   return {
     schemaVersion: doc.schemaVersion,
     owner: doc.owner,
     host: doc.host,
     workspaceRoot: doc.workspaceRoot,
     repositoriesDirectory: doc.repositoriesDirectory,
+    workspacesDirectory: doc.workspacesDirectory,
     repositories,
+    workspaces,
   };
 }
 
@@ -171,11 +188,22 @@ export function validateManifest(manifest: WorkspaceManifest): void {
     );
   }
   const seen = new Set<string>();
-  for (const repository of manifest.repositories) {
-    if (!repository.name || !repository.url) {
-      throw new Error(requiredEntryMessage(repository));
+  for (
+    const [collection, entries] of [
+      ["repositories", manifest.repositories],
+      ["workspaces", manifest.workspaces ?? []],
+    ] as const
+  ) {
+    for (const repository of entries) {
+      if (!repository.name || !repository.url) {
+        throw new Error(requiredEntryMessage(repository));
+      }
+      registerName(
+        seen,
+        repository.name,
+        collection === "repositories" ? "Repository name" : "Workspace name",
+      );
     }
-    registerName(seen, repository.name, "Repository name");
   }
 }
 

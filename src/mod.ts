@@ -21,6 +21,7 @@ export type {
   RepositoryEntry,
   RepoState,
   RepoStatus,
+  ResolvedWorkspace,
   UpdateAction,
   WorkspaceContext,
   WorkspaceManifest,
