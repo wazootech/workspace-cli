@@ -98,20 +98,35 @@ export async function resolveWorkspaceTree(
   }
 }
 
-/** Detect repository names claimed more than once in the resolved tree. */
+/**
+ * Detect checkouts that collide on disk: entries resolving to the same path.
+ * Same-named repos in different workspaces do not conflict because each
+ * workspace has its own checkout directory; entries without a resolved path
+ * (hand-built views) fall back to name-based keying.
+ */
 export function detectConflicts(
   resolved: ResolvedWorkspace,
 ): WorkspaceConflict[] {
-  const claims = new Map<string, string[]>();
+  const claims = new Map<
+    string,
+    { repoName: string; path: string; claimedBy: string[] }
+  >();
   for (const repo of resolved.repositories) {
     const owner = repo.workspace ?? "(root)";
-    const existing = claims.get(repo.name) ?? [];
-    existing.push(owner);
-    claims.set(repo.name, existing);
+    const key = repo.resolvedPath !== undefined
+      ? normalize(resolve(repo.resolvedPath))
+      : repo.name;
+    const existing = claims.get(key) ?? {
+      repoName: repo.name,
+      path: key,
+      claimedBy: [],
+    };
+    existing.claimedBy.push(owner);
+    claims.set(key, existing);
   }
   return [...claims.entries()]
-    .filter(([, claimedBy]) => claimedBy.length > 1)
-    .map(([repoName, claimedBy]) => ({ repoName, claimedBy }));
+    .filter(([, claim]) => claim.claimedBy.length > 1)
+    .map(([, claim]) => claim);
 }
 
 /** List the root workspace and every declared child workspace. */

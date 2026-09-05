@@ -100,5 +100,7 @@ export interface ResolvedWorkspace {
 
 export interface WorkspaceConflict {
   repoName: string;
+  /** The checkout path shared by the conflicting entries. */
+  path: string;
   claimedBy: string[];
 }

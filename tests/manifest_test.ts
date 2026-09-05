@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
-import { dirname, join } from "@std/path";
+import { dirname, join, normalize, resolve } from "@std/path";
 import {
   detectConflicts,
   findDefaultManifestPath,
@@ -503,6 +503,52 @@ Deno.test("detectConflicts returns empty when no conflicts", () => {
     ],
   };
   assertEquals(detectConflicts(resolved).length, 0);
+});
+
+Deno.test("detectConflicts does not flag same-named repos in different workspaces with distinct paths", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [
+      {
+        name: "memory",
+        url: "https://github.com/EthanThatOneKid/memory",
+        workspace: undefined,
+        resolvedPath: "/ws/repos/memory",
+      },
+      {
+        name: "memory",
+        url: "https://github.com/wazootech/memory",
+        workspace: "wazootech",
+        resolvedPath: "/ws/workspaces/wazootech/repos/memory",
+      },
+    ],
+  };
+  assertEquals(detectConflicts(resolved).length, 0);
+});
+
+Deno.test("detectConflicts flags entries resolving to the same checkout path", () => {
+  const resolved = {
+    root: { repositories: [] } as WorkspaceManifest,
+    repositories: [
+      {
+        name: "memory",
+        url: "u",
+        workspace: undefined,
+        resolvedPath: "/ws/repos/memory",
+      },
+      {
+        name: "memory",
+        url: "u2",
+        workspace: "wazootech",
+        resolvedPath: "/ws/repos/memory",
+      },
+    ],
+  };
+  const conflicts = detectConflicts(resolved);
+  assertEquals(conflicts.length, 1);
+  assertEquals(conflicts[0].repoName, "memory");
+  assertEquals(conflicts[0].path, normalize(resolve("/ws/repos/memory")));
+  assertEquals(conflicts[0].claimedBy, ["(root)", "wazootech"]);
 });
 
 Deno.test("listWorkspaces returns root with all repos", () => {

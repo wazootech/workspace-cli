@@ -75,7 +75,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Local checkout label (a single path segment under repositoriesDirectory): no slashes or path traversal; must be unique across the composed tree."
+          "description": "Local checkout label (a single path segment under repositoriesDirectory or workspacesDirectory): no slashes or path traversal. Unique within its own workspace's checkout directory; the same name may appear in different workspaces since their checkouts resolve to different paths."
         },
         "owner": {
           "type": "string",

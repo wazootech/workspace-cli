@@ -125,9 +125,12 @@ An ordinary repository's local checkout directory is always
 `<workspacesDirectory>/<name>` when configured, otherwise
 `<repositoriesDirectory>/<name>`. `name` is the post-expansion label: ownership
 and hosts live in URLs, never in paths. Names therefore cannot contain
-slashes, backslashes, or path traversal, and two entries resolving to the same
-label are rejected — including a shorthand colliding with another entry's
-expanded name.
+slashes, backslashes, or path traversal. Two entries conflict only when they
+resolve to the same checkout path — including a shorthand colliding with
+another entry's expanded name within one workspace. The same name may appear in
+different workspaces because each workspace's checkouts live in its own
+directory (`./workspaces/wazootech/repos/memory` and `./repos/memory` can
+coexist).
 
 To check out a repository under a different label than its shorthand name, write
 the explicit form with your chosen label as `name`:

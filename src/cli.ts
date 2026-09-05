@@ -149,10 +149,10 @@ export async function run(args: string[]): Promise<number> {
   // Detect conflicts.
   const conflicts = detectConflicts(resolvedTree);
   if (conflicts.length > 0) {
-    console.error("ERROR: Duplicate repository names across workspaces:");
+    console.error("ERROR: Duplicate repository checkouts across workspaces:");
     for (const c of conflicts) {
       console.error(
-        `  "${c.repoName}" claimed by: ${c.claimedBy.join(", ")}`,
+        `  "${c.repoName}" at ${c.path} claimed by: ${c.claimedBy.join(", ")}`,
       );
     }
     return 2;
