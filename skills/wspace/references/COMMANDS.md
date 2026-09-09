@@ -55,12 +55,14 @@ key that errors is `vaultDirectory`.
 
 A repository checks out at `<repositoriesDirectory>/<name>`, where `name` is the
 post-expansion label: ownership lives in URLs, never in paths. Names reject
-slashes, backslashes, and traversal. Two entries conflict only when they resolve
-to the same checkout path; the same name may appear in different workspaces
-because each workspace checks out under its own directory. To use a different
-local label than the shorthand name, write the explicit form with your chosen
-`name` plus a full `url`. Child manifests are self-contained: their own `host`
-and `owner` apply, and they re-root their own directory defaults.
+slashes, backslashes, and traversal. Within one manifest, names must be unique
+across `repositories[]` and `workspaces[]`, even when the directories differ;
+across workspaces the same name is allowed because each checks out under its own
+directory. The only conflict is when two entries resolve to the same checkout
+path. To use a different local label than the shorthand name, write the explicit
+form with your chosen `name` plus a full `url`. Child manifests are
+self-contained: their own `host` and `owner` apply, and they re-root their own
+directory defaults.
 
 ## Commands
 
