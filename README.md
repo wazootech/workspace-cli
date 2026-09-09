@@ -24,15 +24,15 @@ Design principles:
 - **Thin over custom.** Prefer plain `git` porcelain/plumbing and well-known
   directory conventions over bespoke state files. The workspace layout is
   encoded in a single `workspace.json` manifest.
-- **Conservative mutation.** Commands that write or move state (update, update
-  refuses to touch dirty repositories, feature branches, missing repos, or
-  unmanaged checkouts. `update` only fetches and fast-forwards clean default
-  branches; it never resets, rebases, stashes, or rewrites history. When the
-  workspace root is itself a git checkout, `update` treats it like any other
-  clean default branch and `check` reports it as `(workspace root)`. The root's
-  dirty probe ignores untracked files, so its own `repos/` and `worktrees/`
-  contents never mark it dirty. Scoped runs (`--workspace <name>`) leave the
-  root out entirely.
+- **Conservative mutation.** Commands that write or move state (`update`,
+  `install`, `add`, `remove`) refuse to touch dirty repositories, feature
+  branches, missing repos, or unmanaged checkouts. `update` only fetches and
+  fast-forwards clean default branches; it never resets, rebases, stashes, or
+  rewrites history. When the workspace root is itself a git checkout, `update`
+  treats it like any other clean default branch and `check` reports it as
+  `(workspace root)`. The root's dirty probe ignores untracked files, so its own
+  `repos/` and `worktrees/` contents never mark it dirty. Scoped runs
+  (`--workspace <name>`) leave the root out entirely.
 - **Machine-readable output.** `check --json` emits structured results for
   tools; plain output is for humans.
 - **Exit code contract.** `wspace check` exits `0` when the workspace is clean
@@ -58,10 +58,10 @@ Design principles:
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
-  with `--name` or a positional name). Edits are surgical manifests survive.
-  GitHub shorthand entries are probed with `gh`; pass `--create` to create a
-  missing repository first (default private). Nothing is cloned; run
-  `wspace install <name>` afterwards.
+  with `--name` or a positional name). Edits are surgical and preserve existing
+  manifest content. GitHub shorthand entries are probed with `gh`; pass
+  `--create` to create a missing repository first (default private). Nothing is
+  cloned; run `wspace install <name>` afterwards.
 - `wspace remove <repo>` — delete the entry whose effective name matches.
   Surgical edit; local checkouts are never deleted.
 - `wspace update` — fetch remotes and fast-forward only clean default branches,
