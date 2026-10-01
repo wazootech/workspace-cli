@@ -15,6 +15,7 @@ import * as initCmd from "./commands/init.ts";
 import * as installCmd from "./commands/install.ts";
 import * as pathCmd from "./commands/path.ts";
 import * as removeCmd from "./commands/remove.ts";
+import * as sweepCmd from "./commands/sweep.ts";
 import * as updateCmd from "./commands/update.ts";
 import * as validateCmd from "./commands/validate.ts";
 import * as workspacesCmd from "./commands/workspaces.ts";
@@ -27,6 +28,7 @@ const COMMANDS = [
   "remove",
   "path",
   "update",
+  "sweep",
   "workspaces",
   "validate",
 ];
@@ -49,6 +51,8 @@ wspace check [--json] [--workspace <name>]
   wspace remove <repo>
   wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
+  wspace sweep [--dry-run] [--json] [--delete-remote] [--force] [--strict]
+              [--workspace <name>]
   wspace workspaces [--json]
   wspace validate
 
@@ -64,7 +68,16 @@ Options:
   --json              Machine-readable output
   --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
+  --delete-remote     sweep: also delete origin/<branch> (default: keep remotes)
+  --force             sweep: override the merge-proof and clean-tree gates
+  --strict            sweep: exit non-zero on refusals, not only on failures
   --as-workspace       add: place the entry in the workspaces array and require a child manifest
+
+Sweep Command:
+  sweep               Remove every linked worktree whose branch is already
+                      merged, workspace-wide. Discovers worktrees from
+                      git (no on-disk convention) and only deletes after
+                      proving the merge. Refusals are reported, not fatal.
 
 Path Command:
   path                Fuzzy-find a workspace directory (repo, sub-workspace).
@@ -76,7 +89,17 @@ Sub-workspaces:
 
 function parseCliArgs(args: string[]): CliOptions {
   const parsed = parseArgs(args, {
-    boolean: ["help", "json", "stale", "dry-run", "create", "as-workspace"],
+    boolean: [
+      "help",
+      "json",
+      "stale",
+      "dry-run",
+      "create",
+      "as-workspace",
+      "delete-remote",
+      "force",
+      "strict",
+    ],
     string: [
       "manifest",
       "workspace",
@@ -114,6 +137,9 @@ function parseCliArgs(args: string[]): CliOptions {
     positional: positional.slice(1),
     workspace: parsed.workspace,
     asWorkspace: parsed["as-workspace"] ?? false,
+    deleteRemote: parsed["delete-remote"] ?? false,
+    force: parsed.force ?? false,
+    strict: parsed.strict ?? false,
   };
 }
 
@@ -175,6 +201,8 @@ export async function run(args: string[]): Promise<number> {
       return await pathCmd.run(opts, resolvedManifest, paths);
     case "update":
       return await updateCmd.run(opts, resolvedManifest, paths, g);
+    case "sweep":
+      return await sweepCmd.run(opts, resolvedManifest, paths, g);
     default:
       return 2;
   }
