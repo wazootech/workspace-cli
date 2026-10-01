@@ -19,6 +19,40 @@ export type UpdateAction =
   }
   | { kind: "FAST_FORWARD"; name: string; commits: number };
 
+/**
+ * One row of a `wspace sweep` plan or result. A row describes a single
+ * candidate worktree in a single repository; a repository with no candidate
+ * worktrees produces no rows at all.
+ */
+export type SweepAction =
+  | {
+    kind: "REMOVED" | "WOULD_REMOVE";
+    name: string;
+    branch: string;
+    worktree: string;
+    /** How the merge was proven, or why --force was needed. */
+    detail?: string;
+  }
+  | {
+    kind:
+      | "SKIP_NOT_MERGED"
+      | "SKIP_DIRTY"
+      | "SKIP_DETACHED"
+      | "SKIP_DEFAULT"
+      | "SKIP_NO_DEFAULT"
+      | "FAILED"
+      | "SKIPPED_REMOTE";
+    name: string;
+    branch?: string;
+    worktree?: string;
+    detail?: string;
+  };
+
+/** A mutation that broke, as opposed to a refusal to act. */
+export function isSweepFailure(action: SweepAction): boolean {
+  return action.kind === "FAILED";
+}
+
 export type RepoState =
   | "MISSING"
   | "INVALID"

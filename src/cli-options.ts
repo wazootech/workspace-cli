@@ -14,4 +14,10 @@ export interface CliOptions {
   positional: string[];
   workspace?: string;
   asWorkspace?: boolean;
+  /** sweep: also delete origin/<branch> after a proven merge. */
+  deleteRemote?: boolean;
+  /** sweep: override the merge-proof and clean-tree gates. */
+  force?: boolean;
+  /** sweep: treat refusals as failures, not just reported rows. */
+  strict?: boolean;
 }

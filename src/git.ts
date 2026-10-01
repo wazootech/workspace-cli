@@ -157,3 +157,103 @@ export async function clone(
 ): Promise<GitResult> {
   return await g.run(["clone", url, dir]);
 }
+
+/** One entry from `git worktree list --porcelain`. */
+export interface WorktreeEntry {
+  path: string;
+  head: string;
+  /** Branch name, or undefined for a detached-HEAD worktree. */
+  branch?: string;
+}
+
+/**
+ * Parse `git worktree list --porcelain`. The first entry is always the main
+ * worktree; callers treat every later entry as a candidate. Discovery comes
+ * from git rather than from directory layout so no on-disk convention is
+ * imposed (see ADR-0005).
+ */
+export async function worktreeList(
+  g: GitRunner,
+  cwd: string,
+): Promise<WorktreeEntry[]> {
+  const result = await g.run(["worktree", "list", "--porcelain"], cwd);
+  if (result.code !== 0) return [];
+  const entries: WorktreeEntry[] = [];
+  let current: WorktreeEntry | undefined;
+  for (const raw of result.stdout.split("\n")) {
+    const line = raw.trim();
+    if (line === "") {
+      current = undefined;
+      continue;
+    }
+    if (line.startsWith("worktree ")) {
+      current = { path: line.slice("worktree ".length), head: "" };
+      entries.push(current);
+      continue;
+    }
+    if (!current) continue;
+    if (line.startsWith("HEAD ")) {
+      current.head = line.slice("HEAD ".length);
+    } else if (line.startsWith("branch refs/heads/")) {
+      current.branch = line.slice("branch refs/heads/".length);
+    } else if (line === "detached") {
+      current.branch = undefined;
+    }
+  }
+  return entries;
+}
+
+/** Resolve the tree object a ref points at, or undefined when it does not exist. */
+export async function treeHash(
+  g: GitRunner,
+  cwd: string,
+  ref: string,
+): Promise<string | undefined> {
+  const result = await g.run(
+    ["rev-parse", "--verify", "--quiet", `${ref}^{tree}`],
+    cwd,
+  );
+  return result.code === 0 && result.stdout ? result.stdout : undefined;
+}
+
+/** True when the two refs have no diff between them. */
+export async function diffQuiet(
+  g: GitRunner,
+  cwd: string,
+  a: string,
+  b: string,
+): Promise<boolean> {
+  return (await g.run(["diff", "--quiet", a, b], cwd)).code === 0;
+}
+
+/** Number of commits in a rev-list range, or undefined when unresolvable. */
+export async function revListCount(
+  g: GitRunner,
+  cwd: string,
+  range: string,
+): Promise<number | undefined> {
+  const result = await g.run(["rev-list", "--count", range], cwd);
+  if (result.code !== 0 || !result.stdout) return undefined;
+  const count = Number(result.stdout.trim());
+  return Number.isNaN(count) ? undefined : count;
+}
+
+/** Delete a local branch. `force` uses -D so rewritten merges are removable. */
+export async function deleteBranch(
+  g: GitRunner,
+  cwd: string,
+  branch: string,
+  force = true,
+): Promise<boolean> {
+  return (await g.run(["branch", force ? "-D" : "-d", branch], cwd)).code === 0;
+}
+
+/** Delete a remote-tracking branch on the given remote. */
+export async function deleteRemoteBranch(
+  g: GitRunner,
+  cwd: string,
+  remote: string,
+  branch: string,
+): Promise<boolean> {
+  return (await g.run(["push", remote, "--delete", branch], cwd)).code === 0;
+}
