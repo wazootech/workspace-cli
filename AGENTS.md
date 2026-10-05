@@ -34,3 +34,6 @@ does not manage their location or lifecycle.
 ```sh
 deno task ci
 ```
+## Agent skills
+
+This repo uses a lightweight skills/config scaffold under docs/agents/. The canonical triage state labels are defined in docs/agents/triage-labels.md. For how to file, label, and decide issues, follow docs/agents/issue-tracker.md. Domain expectations live in docs/agents/domain.md.
