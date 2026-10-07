@@ -1,0 +1,7 @@
+﻿name: Contract Lint
+description: Shared credential-free contract lint
+runs:
+  using: composite
+  steps:
+    - run: bash "$GITHUB_ACTION_PATH/lint.sh"
+      shell: bash
