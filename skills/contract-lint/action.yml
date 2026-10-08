@@ -1,0 +1,17 @@
+name: Contract Lint
+description: >-
+  Shared credential-free contract lint for Wazoo CI workflows (wayfinder #165).
+  Fails R1-R5: deploy-* may only fetch CLOUDFLARE_API_TOKEN from Infisical by
+  named secret-name; CLOUDFLARE_ACCOUNT_ID from vars only; every Infisical fetch
+  declares secret-name; no committed secret literals; PR-triggered jobs must not
+  reach privileged deployment credentials.
+inputs:
+  workflows-dir:
+    description: Directory of workflow YAML files to scan.
+    required: false
+    default: .github/workflows
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: bash "$GITHUB_ACTION_PATH/lint.sh" --dir "${{ inputs.workflows-dir }}"
