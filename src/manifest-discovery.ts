@@ -1,5 +1,5 @@
 import { dirname, resolve } from "@std/path";
-import { exists } from "@std/fs";
+import { currentDirectory, pathExists } from "./runtime.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -15,7 +15,7 @@ export async function findExistingManifest(
   for (const basename of DEFAULT_MANIFEST_FILENAMES) {
     for (const extension of MANIFEST_EXTENSIONS) {
       const candidate = resolve(dir, basename + extension);
-      if (await exists(candidate)) {
+      if (await pathExists(candidate)) {
         return candidate;
       }
     }
@@ -48,7 +48,7 @@ export async function findManifestWalkingUp(
 }
 
 export async function findDefaultManifestPath(
-  cwd: string = Deno.cwd(),
+  cwd: string = currentDirectory(),
 ): Promise<string> {
   return (await findManifestWalkingUp(cwd)) ??
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);

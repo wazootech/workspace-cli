@@ -10,20 +10,19 @@
  * actually worked is reported so callers and users can see what happened.
  */
 
+import {
+  isWindows,
+  makeTempDirectory,
+  pathExists,
+  removePath,
+  runProcess,
+} from "./runtime.ts";
+
 /** Convert a path to a Windows verbatim (`\\?\`) path, bypassing MAX_PATH. */
 function verbatim(path: string): string {
   if (path.startsWith("\\\\?\\")) return path;
   if (path.startsWith("\\\\")) return `\\\\?\\UNC\\${path.slice(2)}`;
   return `\\\\?\\${path}`;
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -32,45 +31,37 @@ async function exists(path: string): Promise<boolean> {
  * The empty source is created under the OS temp dir, not beside the target.
  */
 async function robocopyPurge(target: string): Promise<boolean> {
-  const empty = await Deno.makeTempDir({ prefix: "wspace-purge-" });
+  const empty = await makeTempDirectory("wspace-purge-");
   try {
     // robocopy exit codes 0-7 are success; 8+ are real failures.
-    const copy = await new Deno.Command("robocopy", {
-      args: [
-        empty,
-        target,
-        "/MIR",
-        "/NFL",
-        "/NDL",
-        "/NJH",
-        "/NP",
-        "/R:1",
-        "/W:1",
-      ],
-      stdout: "null",
-      stderr: "null",
-    }).output();
-    if (copy.success === false && copy.code > 7) return false;
+    const copy = await runProcess("robocopy", [
+      empty,
+      target,
+      "/MIR",
+      "/NFL",
+      "/NDL",
+      "/NJH",
+      "/NP",
+      "/R:1",
+      "/W:1",
+    ]);
+    if (copy.code > 7) return false;
   } catch {
     return false;
   } finally {
     try {
-      await Deno.remove(empty, { recursive: true });
+      await removePath(empty);
     } catch {
       // The empty staging dir is disposable; a leftover temp dir must not
       // fail the purge that already succeeded.
     }
   }
   try {
-    await new Deno.Command("rmdir", {
-      args: [verbatim(target)],
-      stdout: "null",
-      stderr: "null",
-    }).output();
+    await runProcess("rmdir", [verbatim(target)]);
   } catch {
     // Fall through to the existence check below.
   }
-  return !(await exists(target));
+  return !(await pathExists(target));
 }
 
 /**
@@ -84,16 +75,16 @@ export async function purgeDirectory(
   // Strategy 1: a plain recursive delete. On non-Windows platforms, and for
   // most Windows paths, this is all that is needed.
   try {
-    await Deno.remove(dir, { recursive: true });
+    await removePath(dir);
     return "recursive delete";
   } catch {
     // Fall through to the long-path strategies.
   }
 
-  if (Deno.build.os === "windows") {
+  if (isWindows()) {
     // Strategy 2: the verbatim prefix opts out of MAX_PATH normalisation.
     try {
-      await Deno.remove(verbatim(dir), { recursive: true });
+      await removePath(verbatim(dir));
       return "verbatim recursive delete";
     } catch {
       // Fall through to robocopy.
@@ -109,12 +100,8 @@ export async function purgeDirectory(
 
   // POSIX last resort: rm -rf tolerates paths Deno refuses to resolve.
   try {
-    const rm = await new Deno.Command("rm", {
-      args: ["-rf", dir],
-      stdout: "null",
-      stderr: "null",
-    }).output();
-    if (rm.success) return "rm -rf";
+    const rm = await runProcess("rm", ["-rf", dir]);
+    if (rm.code === 0) return "rm -rf";
   } catch {
     // Report failure below.
   }

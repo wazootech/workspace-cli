@@ -9,7 +9,8 @@
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/path@1": "1.1.6",
     "jsr:@std/path@^1.1.5": "1.1.6",
-    "jsr:@std/yaml@^1.2.0": "1.2.0"
+    "jsr:@std/yaml@^1.2.0": "1.2.0",
+    "npm:@types/node@22": "22.20.5"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -48,13 +49,25 @@
       "integrity": "20beb41e4983ba3437dbefac62b14061ab058e8a187596f19d28ff9035f6e6cf"
     }
   },
+  "npm": {
+    "@types/node@22.20.5": {
+      "integrity": "sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
+    "undici-types@6.21.0": {
+      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
+    }
+  },
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
-      "jsr:@std/yaml@^1.2.0"
+      "jsr:@std/yaml@^1.2.0",
+      "npm:@types/node@22"
     ]
   }
 }

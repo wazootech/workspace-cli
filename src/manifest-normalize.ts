@@ -2,6 +2,7 @@ import type { RepositoryEntry, WorkspaceManifest } from "./types.ts";
 import { type Repository, resolveRepository } from "./resolve.ts";
 import { CURRENT_SCHEMA_VERSION } from "./manifest-discovery.ts";
 import { validateRepositoryName } from "./names.ts";
+import { readTextFile } from "./runtime.ts";
 
 /** Raw repository entry — shorthand string or unvalidated object. */
 type RawRepositoryEntry = string | Record<string, unknown>;
@@ -227,7 +228,7 @@ export async function loadManifest(
 ): Promise<WorkspaceManifest> {
   const raw = parseManifestText(
     manifestPath,
-    await Deno.readTextFile(manifestPath),
+    await readTextFile(manifestPath),
   );
   const manifest = normalizeManifest(raw, manifestPath);
   validateManifest(manifest);

@@ -8,6 +8,7 @@ import {
   type RawManifest,
   validateManifest,
 } from "@/manifest.ts";
+import { currentDirectory, makeDirectory, writeTextFile } from "@/runtime.ts";
 import type { CliOptions } from "@/shared.ts";
 
 /**
@@ -19,7 +20,7 @@ import type { CliOptions } from "@/shared.ts";
  * anything is written.
  */
 export async function run(opts: CliOptions): Promise<number> {
-  const cwd = Deno.cwd();
+  const cwd = currentDirectory();
   const target = opts.manifestPath
     ? resolve(cwd, opts.manifestPath)
     : resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
@@ -52,8 +53,8 @@ export async function run(opts: CliOptions): Promise<number> {
     return 2;
   }
 
-  await Deno.mkdir(join(targetDir, "repos"), { recursive: true });
-  await Deno.writeTextFile(target, JSON.stringify(doc, null, 2) + "\n");
+  await makeDirectory(join(targetDir, "repos"));
+  await writeTextFile(target, JSON.stringify(doc, null, 2) + "\n");
 
   console.log(`Created ${target} (schema v${CURRENT_SCHEMA_VERSION})`);
   console.log("Created repos/");

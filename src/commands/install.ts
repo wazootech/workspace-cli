@@ -1,10 +1,10 @@
-import { exists } from "@std/fs";
 import { join } from "@std/path";
 import { clone } from "@/git.ts";
 import type { GitRunner } from "@/git.ts";
 import { type ManifestPaths, resolveRepositoryPath } from "@/manifest-paths.ts";
 import type { CliOptions } from "@/cli-options.ts";
 import { printRows } from "@/output.ts";
+import { makeDirectory, pathExists } from "@/runtime.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 import { findExistingManifest } from "@/manifest-discovery.ts";
 
@@ -51,9 +51,9 @@ async function cloneMissing(
   { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<InstallRow[]> {
   if (!dryRun) {
-    await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+    await makeDirectory(paths.repositoriesDirectory);
     if (paths.workspacesDirectory !== undefined) {
-      await Deno.mkdir(paths.workspacesDirectory, { recursive: true });
+      await makeDirectory(paths.workspacesDirectory);
     }
   }
   let repositories = manifest.repositories;
@@ -74,14 +74,14 @@ async function cloneMissing(
   const rows: InstallRow[] = [];
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
-    if (await exists(repoPath)) {
+    if (await pathExists(repoPath)) {
       const invalidWorkspace = await workspaceManifestMissing(
         repository,
         repoPath,
       );
       if (invalidWorkspace) {
         rows.push(invalidWorkspace);
-      } else if (await exists(join(repoPath, ".git"))) {
+      } else if (await pathExists(join(repoPath, ".git"))) {
         rows.push({ name: repository.name, state: "EXISTS" });
       } else {
         rows.push({

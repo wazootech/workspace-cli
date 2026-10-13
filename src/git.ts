@@ -1,3 +1,5 @@
+import { runProcess } from "./runtime.ts";
+
 export interface GitResult {
   code: number;
   stdout: string;
@@ -12,19 +14,7 @@ export class SystemGit implements GitRunner {
   constructor(private readonly git: string = "git") {}
 
   async run(args: string[], cwd?: string): Promise<GitResult> {
-    const command = new Deno.Command(this.git, {
-      args,
-      cwd,
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const output = await command.output();
-    const decoder = new TextDecoder();
-    return {
-      code: output.code,
-      stdout: decoder.decode(output.stdout).trim(),
-      stderr: decoder.decode(output.stderr).trim(),
-    };
+    return await runProcess(this.git, args, { cwd });
   }
 }
 

@@ -6,6 +6,7 @@ import {
   manifestPaths,
   resolveWorkspaceTree,
 } from "./manifest.ts";
+import { cliArgs, exit } from "./runtime.ts";
 import { flattenResolved, resolveManifestPath } from "./shared.ts";
 import type { CliOptions } from "./shared.ts";
 
@@ -242,7 +243,7 @@ async function installConverged(
 
 export async function main(): Promise<number> {
   try {
-    return await run(Deno.args);
+    return await run(cliArgs());
   } catch (error) {
     if (error instanceof CliHelp) {
       return 0;
@@ -253,5 +254,5 @@ export async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-  main().then((code) => Deno.exit(code));
+  main().then((code) => exit(code));
 }

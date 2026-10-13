@@ -1,5 +1,5 @@
-import { exists } from "@std/fs";
 import { join, normalize, resolve } from "@std/path";
+import { pathExists } from "./runtime.ts";
 import { findExistingManifest } from "./manifest-discovery.ts";
 import { loadManifest } from "./manifest-normalize.ts";
 import {
@@ -72,8 +72,8 @@ export async function resolveWorkspaceTree(
       declaredWorkspaceNames.add(workspace.name);
 
       const checkoutPath = workspace.resolvedPath!;
-      const checkoutExists = await exists(checkoutPath);
-      if (checkoutExists && !(await exists(join(checkoutPath, ".git")))) {
+      const checkoutExists = await pathExists(checkoutPath);
+      if (checkoutExists && !(await pathExists(join(checkoutPath, ".git")))) {
         workspace.error =
           `Workspace repository "${workspace.name}" at ${checkoutPath} is not a Git repository`;
         continue;
