@@ -19,7 +19,11 @@ does not manage their location or lifecycle.
   the sole exception is the runtime edge, `src/runtime.ts`, which uses `node:`
   builtins so the engine also runs on Node through JSR's npm-compatibility layer
   (see ADR-0007). It is the only module allowed to import `node:*`, and the only
-  one permitted to reference `npm:@types/node`.
+  one permitted to reference `npm:@types/node`. `src/` must not import `@std/fs`
+  either: that package is Deno-only (`exists` and `walk` call the `Deno` global,
+  so it works under `deno test` and throws under Node), which is why existence
+  checks and tree walks go through the runtime edge's `pathExists` and
+  `walkDirectoryTree`.
 - TypeScript source in `src/`, tests in `tests/`. `tests/integration_test.ts`
   exercises real local git repositories under a temp dir.
 - Machine-readable git: use `--porcelain` output formats and `GitRunner` (an

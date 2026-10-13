@@ -1,12 +1,22 @@
 /**
- * Runtime edge — the one module in `src/` that reaches outside `@std`.
+ * Runtime edge — the one module in `src/` that touches the host runtime.
  *
  * `wspace` runs two ways: on Deno (as a compiled binary or via `deno run`) and
- * on Node (via the JSR npm-compatibility package). Deno's `Deno.*` globals do
- * not exist on Node, so every such call is replaced with a `node:` builtin
- * here; Deno implements the `node:` specifiers natively, so a single
- * implementation serves both runtimes. Nothing else in `src/` may import
- * `node:*`.
+ * on Node (via the JSR npm-compatibility package). Two host interfaces do not
+ * exist on Node, so both are owned here:
+ *
+ *  - Deno's `Deno.*` globals, replaced with `node:` builtins; Deno implements
+ *    the `node:` specifiers natively, so one implementation serves both
+ *    runtimes;
+ *  - `@std/fs`, which is Deno-only. Its `exists` and `walk` call the `Deno`
+ *    global directly — in the TypeScript source *and* in the JavaScript JSR
+ *    ships to npm — so importing it type-checks and tests clean on Deno while
+ *    throwing `ReferenceError: Deno is not defined` on Node. The two call
+ *    shapes this CLI needs live here instead, as {@link pathExists} and
+ *    {@link walkDirectoryTree}.
+ *
+ * Nothing else in `src/` may import `node:*` or `@std/fs`. `@std/path` and
+ * `@std/cli` are runtime-neutral and stay in use.
  *
  * Two host details genuinely differ and must not be hand-normalised:
  *
@@ -31,7 +41,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import process from "node:process";
-import { join } from "@std/path";
+import { basename, join } from "@std/path";
 
 /** Output of a finished subprocess. Mirrors `Deno.Command#output()`. */
 export interface ProcessResult {
@@ -135,7 +145,73 @@ export async function readDirectory(path: string): Promise<DirectoryEntry[]> {
   }));
 }
 
-/** Whether a path exists, of any kind. Never rejects. */
+/** One path visited by {@link walkDirectoryTree}. */
+export interface WalkEntry {
+  /** Path as joined from the walked root, never canonicalised. */
+  path: string;
+  /** Basename of the entry. */
+  name: string;
+  /** Whether the entry is a directory. Symlinks are never followed. */
+  isDirectory: boolean;
+}
+
+/**
+ * Walk `root` depth-first, returning directories and — when `includeFiles` is
+ * true — files. Replaces `@std/fs`'s `walk`, which is Deno-only.
+ *
+ * Semantics are deliberately the ones `@std/fs/walk` had:
+ *
+ *  - the root itself is returned first, as a directory, so callers written
+ *    against `walk` keep working unchanged;
+ *  - `maxDepth` counts the root as depth 0, and a negative value walks nothing;
+ *  - `skip` patterns are matched against the **whole path**, not the basename,
+ *    and a skipped directory is neither returned nor descended into;
+ *  - symlinks are never followed: a symlinked directory is not an
+ *    `isDirectory: true` entry, its contents are not walked, and it is only
+ *    returned at all when `includeFiles` is set.
+ *
+ * Unlike `walk` this returns a sorted-by-traversal array rather than an async
+ * generator, because the CLI collects every result before ranking it anyway.
+ */
+export async function walkDirectoryTree(
+  root: string,
+  options: { maxDepth?: number; includeFiles?: boolean; skip?: RegExp[] } = {},
+): Promise<WalkEntry[]> {
+  const { maxDepth = Infinity, includeFiles = true, skip = [] } = options;
+  if (maxDepth < 0) return [];
+
+  const isSkipped = (candidate: string) =>
+    skip.some((pattern) => candidate.match(pattern) !== null);
+  const found: WalkEntry[] = [];
+
+  const visit = async (dir: string, depth: number): Promise<void> => {
+    if (isSkipped(dir)) return;
+    found.push({ path: dir, name: basename(dir), isDirectory: true });
+    if (depth >= maxDepth) return;
+
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const entryPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await visit(entryPath, depth + 1);
+      } else if (includeFiles && !isSkipped(entryPath)) {
+        found.push({ path: entryPath, name: entry.name, isDirectory: false });
+      }
+    }
+  };
+
+  await visit(root, 0);
+  return found;
+}
+
+/**
+ * Whether a path exists, of any kind. Never rejects.
+ *
+ * Matches `@std/fs`'s `exists` for the cases this CLI hits, with one
+ * deliberate divergence it does not share: a path that exists but cannot be
+ * stat'd — permission denied, for instance — reads as absent here, where
+ * `exists` reports it as present. Callers that must tell "missing" from
+ * "unreadable" apart should use {@link readTextFile} or `stat` directly.
+ */
 export async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);

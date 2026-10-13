@@ -1,10 +1,9 @@
-import { exists } from "@std/fs";
 import {
   manifestPaths,
   resolveRepositoryPath,
   validateManifestText,
 } from "@/manifest.ts";
-import { readTextFile, writeTextFile } from "@/runtime.ts";
+import { pathExists, readTextFile, writeTextFile } from "@/runtime.ts";
 import type { CliOptions } from "@/shared.ts";
 import {
   applyEntryEdit,
@@ -71,7 +70,7 @@ async function runRemove(
 
   const paths = manifestPaths(manifest, manifestPath);
   const repoPath = resolveRepositoryPath(existing, paths);
-  const checkoutRemains = await exists(repoPath);
+  const checkoutRemains = await pathExists(repoPath);
 
   if (!opts.dryRun) {
     await writeTextFile(manifestPath, newText);

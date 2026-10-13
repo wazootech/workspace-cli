@@ -1,5 +1,5 @@
 import { relative } from "@std/path";
-import { walk } from "@std/fs/walk";
+import { walkDirectoryTree } from "@/runtime.ts";
 import type { ManifestPaths } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import type { WorkspaceManifest } from "@/types.ts";
@@ -46,8 +46,8 @@ async function searchWorkspace(
   ]);
 
   try {
-    for await (
-      const entry of walk(paths.root, {
+    for (
+      const entry of await walkDirectoryTree(paths.root, {
         maxDepth: 3,
         includeFiles: false,
         skip: [/^\./, /node_modules/, /^\.git$/],

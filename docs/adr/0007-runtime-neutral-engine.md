@@ -31,6 +31,10 @@ not shim Deno globals. That single fact — not packaging, not the alias, not th
 `@std` specs — was the whole barrier between "JSR serves a Node package" and
 "JSR serves a Node package that runs".
 
+That error had a second source the first pass missed. The CLI's own `Deno.*`
+calls were the visible ones; `@std/fs` — a dependency, not our code — reaches
+the `Deno` global too, in `exists` and `walk`.
+
 Two constraints frame the decision. JSR's npm-compat layer forwards only
 `exports`, never `bin`
 ([#135](https://github.com/wazootech/workspace-cli/issues/135)), so a `wspace`
@@ -47,10 +51,11 @@ no cross-platform runtime code but does ship a large artifact matrix.
 2. **Confine all host access to one module, `src/runtime.ts`.** It imports
    `node:child_process`, `node:fs/promises`, `node:os` and `node:process`, which
    Deno implements natively, so a single implementation serves both runtimes.
-   Nothing else in `src/` may import `node:*`. This is the one documented
-   exception to the "@std only" rule; `src/runtime.ts` is also the only module
-   permitted to reference `npm:@types/node`, which is now the project's sole
-   non-`@std` dependency (type-only, declared in `deno.json`).
+   Nothing else in `src/` may import `node:*` **or `@std/fs`** (item 8). This is
+   the one documented exception to the "@std only" rule; `src/runtime.ts` is
+   also the only module permitted to reference `npm:@types/node`, which is now
+   the project's sole non-`@std` dependency (type-only, declared in
+   `deno.json`).
 
 3. **`runProcess` preserves the two subprocess behaviours callers depend on.**
    It resolves for _every_ exit code — including non-zero — so callers keep
@@ -73,10 +78,10 @@ no cross-platform runtime code but does ship a large artifact matrix.
    would corrupt the `--json` contract that tooling consumes. Both runtimes
    honour the exit code.
 
-6. **The engine stays Deno-tested.** The 185 Deno tests are not rewritten; they
-   are the behaviour-parity gate, and Deno loads `node:` builtins natively.
-   `tests/runtime_test.ts` covers the runtime edge directly, including the
-   non-zero-exit and missing-binary branches above.
+6. **The engine stays Deno-tested.** The existing Deno test suite is not
+   rewritten; it is the behaviour-parity gate, and Deno loads `node:` builtins
+   natively. `tests/runtime_test.ts` covers the runtime edge directly, including
+   the non-zero-exit and missing-binary branches above.
 
 7. **The compiled binary's permission set is corrected.** `deno task build`
    allowed only `--allow-run=git`, but the code also spawns `gh`
@@ -84,6 +89,20 @@ no cross-platform runtime code but does ship a large artifact matrix.
    --create`) and `robocopy`, `rmdir` and `rm` (the ADR-0006
    purge ladder); `deno compile` bakes permissions in, so those paths would
    throw `PermissionDenied`. The allowlist now names all five.
+
+8. **`@std/fs` is removed from `src/`, because it is Deno-only.** Its `exists`
+   and `walk` call the `Deno` global directly — in the TypeScript source _and_
+   in the JavaScript JSR ships to npm — so a module that imports them
+   type-checks and tests green on Deno, then throws
+   `ReferenceError: Deno is not defined` on Node. `src/runtime.ts` now owns the
+   two shapes the CLI needed, `pathExists` and `walkDirectoryTree`, and keeps
+   `@std/fs/walk`'s observable semantics on purpose: the root is returned first,
+   `maxDepth` counts the root as depth 0, `skip` patterns match the whole path
+   rather than the basename, a skipped directory is neither returned nor
+   descended into, and symlinks are never followed. `@std/path` and `@std/cli`
+   are runtime-neutral and stay in use. `@std/fs` remains a _test_ dependency
+   (`exists`, `expandGlob`), and JSR was measured to omit test-only dependencies
+   from the published package.
 
 ## Consequences
 
@@ -106,7 +125,15 @@ no cross-platform runtime code but does ship a large artifact matrix.
 - **The version bumps.** JSR is immutable, so the port and the previously
   unshipped `sweep`/`purge` ([#159]) both require moving off the published
   `0.7.0`; the release carries both.
-- **A faithful end-to-end test requires a pre-release.** JSR builds the
-  npm-compat tarball only at publish time, and `deno transpile` output is not
-  directly Node-loadable (it leaves `jsr:` specifiers), so verification is an
-  `-rc` publish plus a real `npx jsr add` install.
+- **The Deno test suite could not have caught the `Deno` dependency, and did
+  not.** A green `deno task ci` with `@std/fs` imported from `src/` is expected,
+  because Deno defines the `Deno` global; the defect appears only when the same
+  module graph runs under Node. It was found by reproducing JSR's specifier
+  rewrites locally and executing the result on Node, which is the closest
+  available stand-in for the published tarball. JSR's server-side packaging
+  remains the one link a local run cannot exercise; it applies the same rewrites
+  that were reproduced by hand.
+- **A `wspace path` traversal is now the CLI's own code.** `walkDirectoryTree`
+  is ~40 lines to maintain and read in place of a dependency, and it is covered
+  by tests that pin the semantics `@std/fs/walk` had, so the substitution is
+  observable rather than assumed.

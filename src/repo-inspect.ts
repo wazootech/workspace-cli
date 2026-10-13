@@ -6,7 +6,7 @@ import {
   hasDefaultBranchWorktree,
   isDirty,
 } from "./git.ts";
-import { exists } from "@std/fs";
+import { pathExists } from "./runtime.ts";
 
 /**
  * Structured result of inspecting a single repository on disk.
@@ -41,7 +41,7 @@ export async function inspectRepo(
   repoPath: string,
   opts: InspectOptions = {},
 ): Promise<RepoInspection> {
-  if (!(await exists(repoPath))) {
+  if (!(await pathExists(repoPath))) {
     return {
       exists: false,
       isGit: false,
@@ -49,7 +49,7 @@ export async function inspectRepo(
       defaultBranchCheckedOutInWorktree: false,
     };
   }
-  if (!(await exists(join(repoPath, ".git")))) {
+  if (!(await pathExists(join(repoPath, ".git")))) {
     return {
       exists: true,
       isGit: false,

@@ -1,6 +1,5 @@
 import { dirname, resolve } from "@std/path";
-import { exists } from "@std/fs";
-import { currentDirectory } from "./runtime.ts";
+import { currentDirectory, pathExists } from "./runtime.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -16,7 +15,7 @@ export async function findExistingManifest(
   for (const basename of DEFAULT_MANIFEST_FILENAMES) {
     for (const extension of MANIFEST_EXTENSIONS) {
       const candidate = resolve(dir, basename + extension);
-      if (await exists(candidate)) {
+      if (await pathExists(candidate)) {
         return candidate;
       }
     }

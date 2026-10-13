@@ -1,5 +1,4 @@
 import { resolve } from "@std/path";
-import { exists } from "@std/fs";
 import { findDefaultManifestPath } from "./manifest-discovery.ts";
 import { loadManifest } from "./manifest-normalize.ts";
 import {
@@ -9,7 +8,7 @@ import {
   removeEntry,
 } from "./manifest-edit.ts";
 import type { ManifestCollection, NewEntry } from "./manifest-edit.ts";
-import { currentDirectory } from "./runtime.ts";
+import { currentDirectory, pathExists } from "./runtime.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import type { CliOptions } from "./cli-options.ts";
 
@@ -78,7 +77,7 @@ export async function loadEditableManifest(
   opts: CliOptions,
 ): Promise<EditableManifest> {
   const manifestPath = await resolveManifestPath(opts);
-  if (!(await exists(manifestPath))) {
+  if (!(await pathExists(manifestPath))) {
     console.error(
       `No manifest found at ${manifestPath}; run \`wspace init\` first`,
     );

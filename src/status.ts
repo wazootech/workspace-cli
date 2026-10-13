@@ -1,9 +1,8 @@
 import { join, normalize, resolve } from "@std/path";
 import type { GitRunner } from "./git.ts";
 import { branchAb, configuredUpstream, hasRef } from "./git.ts";
-import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
-import { readDirectory } from "./runtime.ts";
+import { pathExists, readDirectory } from "./runtime.ts";
 import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
 import {
@@ -166,7 +165,7 @@ export async function collectStatus(
     }
   }
 
-  if (await exists(reposDir)) {
+  if (await pathExists(reposDir)) {
     for (const entry of await readDirectory(reposDir)) {
       if (!entry.isDirectory || entry.name === ".git") {
         continue;
@@ -178,7 +177,7 @@ export async function collectStatus(
       if (managedPaths.has(candidatePath)) {
         continue;
       }
-      if (await exists(join(candidatePath, ".git"))) {
+      if (await pathExists(join(candidatePath, ".git"))) {
         rows.push(
           await repoStatus(
             g,
