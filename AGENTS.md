@@ -15,8 +15,11 @@ does not manage their location or lifecycle.
 
 ## Conventions
 
-- Deno 2, TypeScript, strict mode. `@std` packages are the only allowed
-  dependencies (runtime included); nothing outside `@std`.
+- Deno 2, TypeScript, strict mode. `@std` packages are the default dependency;
+  the sole exception is the runtime edge, `src/runtime.ts`, which uses `node:`
+  builtins so the engine also runs on Node through JSR's npm-compatibility layer
+  (see ADR-0007). It is the only module allowed to import `node:*`, and the only
+  one permitted to reference `npm:@types/node`.
 - TypeScript source in `src/`, tests in `tests/`. `tests/integration_test.ts`
   exercises real local git repositories under a temp dir.
 - Machine-readable git: use `--porcelain` output formats and `GitRunner` (an

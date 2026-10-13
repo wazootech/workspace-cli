@@ -3,6 +3,7 @@ import type { GitRunner } from "./git.ts";
 import { branchAb, configuredUpstream, hasRef } from "./git.ts";
 import { exists } from "@std/fs";
 import { type ManifestPaths, resolveRepositoryPath } from "./manifest-paths.ts";
+import { readDirectory } from "./runtime.ts";
 import { ROOT_LABEL } from "./types.ts";
 import type { RepositoryEntry, RepoState, RepoStatus } from "./types.ts";
 import {
@@ -166,7 +167,7 @@ export async function collectStatus(
   }
 
   if (await exists(reposDir)) {
-    for await (const entry of Deno.readDir(reposDir)) {
+    for (const entry of await readDirectory(reposDir)) {
       if (!entry.isDirectory || entry.name === ".git") {
         continue;
       }

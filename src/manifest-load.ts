@@ -9,6 +9,7 @@ import {
   removeEntry,
 } from "./manifest-edit.ts";
 import type { ManifestCollection, NewEntry } from "./manifest-edit.ts";
+import { currentDirectory } from "./runtime.ts";
 import type { WorkspaceManifest } from "./types.ts";
 import type { CliOptions } from "./cli-options.ts";
 
@@ -16,7 +17,7 @@ export async function resolveManifestPath(
   opts: Pick<CliOptions, "manifestPath">,
 ): Promise<string> {
   return opts.manifestPath
-    ? resolve(Deno.cwd(), opts.manifestPath)
+    ? resolve(currentDirectory(), opts.manifestPath)
     : await findDefaultManifestPath();
 }
 

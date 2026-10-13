@@ -207,7 +207,8 @@ Use the `/cli` subpath export — the runnable CLI entry — not the bare
 `jsr:@wazoo/workspace` package (which exposes the library and produces a no-op
 `wspace` when installed globally). `-A` grants the read/write/run permissions
 `wspace` needs; omit it if you prefer to grant specific flags (e.g.
-`--allow-read --allow-write --allow-run=git`) or use Prompts.
+`--allow-read --allow-write --allow-run=git,gh,robocopy,rmdir,rm`) or use
+Prompts.
 
 Or build a local binary:
 
@@ -216,6 +217,19 @@ deno task build
 ```
 
 Requires a Deno runtime (v2+). The `wspace` binary has no runtime dependencies.
+
+### Running without a Deno install
+
+JSR also serves the package in Node-compatible form, which needs no Deno
+installation:
+
+```sh
+npx jsr add @wazoo/workspace
+node node_modules/@wazoo/workspace/src/cli.js check --json
+```
+
+JSR forwards `exports` but not `bin`, so this runs the CLI rather than putting a
+`wspace` command on `PATH`; add a one-line wrapper if you want one.
 
 ## Development
 

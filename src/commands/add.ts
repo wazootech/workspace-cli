@@ -3,6 +3,7 @@ import { BARE_DEFAULT_HOST, resolveRepository } from "@/resolve.ts";
 import { validateManifestText } from "@/manifest.ts";
 import { validateRepositoryName } from "@/names.ts";
 import { createGitHubRepo } from "@/remote.ts";
+import { readTextFile, writeTextFile } from "@/runtime.ts";
 import type { CliOptions, EditRow } from "@/shared.ts";
 import {
   applyEntryEdit,
@@ -53,7 +54,7 @@ async function runAdd(
     return 2;
   }
 
-  const raw = await Deno.readTextFile(manifestPath);
+  const raw = await readTextFile(manifestPath);
   const newText = applyEntryEdit(
     raw,
     manifestExtension(manifestPath),
@@ -75,7 +76,7 @@ async function runAdd(
   rows.push({ name: entryName, action: "ADDED" });
   printRows(rows, opts.json);
   if (!opts.dryRun) {
-    await Deno.writeTextFile(manifestPath, newText);
+    await writeTextFile(manifestPath, newText);
     console.log(`Next: run \`wspace install ${entryName}\` to clone it.`);
   }
   return 0;

@@ -1,6 +1,6 @@
 {
   "name": "@wazoo/workspace",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts",
@@ -15,10 +15,11 @@
     "@std/cli": "jsr:@std/cli@^1.0.0",
     "@std/fs": "jsr:@std/fs@^1.0.0",
     "@std/path": "jsr:@std/path@^1.0.0",
-    "@std/yaml": "jsr:@std/yaml@^1.2.0"
+    "@std/yaml": "jsr:@std/yaml@^1.2.0",
+    "@types/node": "npm:@types/node@^22"
   },
   "tasks": {
-    "build": "deno compile --allow-read --allow-write --allow-run=git --output wspace src/cli.ts",
+    "build": "deno compile --allow-read --allow-write --allow-run=git,gh,robocopy,rmdir,rm --output wspace src/cli.ts",
     "ci": "deno fmt --check && deno lint && deno task lint:imports && deno check src/ tests/ && deno task test",
     "lint:imports": "deno run --allow-read scripts/lint_imports.ts",
     "test": "deno test --allow-read --allow-write --allow-run --allow-env"

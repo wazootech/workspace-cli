@@ -4,6 +4,7 @@ import {
   resolveRepositoryPath,
   validateManifestText,
 } from "@/manifest.ts";
+import { readTextFile, writeTextFile } from "@/runtime.ts";
 import type { CliOptions } from "@/shared.ts";
 import {
   applyEntryEdit,
@@ -47,7 +48,7 @@ async function runRemove(
     return 2;
   }
 
-  const raw = await Deno.readTextFile(manifestPath);
+  const raw = await readTextFile(manifestPath);
   const newText = applyEntryEdit(
     raw,
     manifestExtension(manifestPath),
@@ -73,7 +74,7 @@ async function runRemove(
   const checkoutRemains = await exists(repoPath);
 
   if (!opts.dryRun) {
-    await Deno.writeTextFile(manifestPath, newText);
+    await writeTextFile(manifestPath, newText);
   }
   printRows([{ name: target, action: "REMOVED" }], opts.json);
   if (checkoutRemains) {

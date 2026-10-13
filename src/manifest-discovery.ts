@@ -1,5 +1,6 @@
 import { dirname, resolve } from "@std/path";
 import { exists } from "@std/fs";
+import { currentDirectory } from "./runtime.ts";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
@@ -48,7 +49,7 @@ export async function findManifestWalkingUp(
 }
 
 export async function findDefaultManifestPath(
-  cwd: string = Deno.cwd(),
+  cwd: string = currentDirectory(),
 ): Promise<string> {
   return (await findManifestWalkingUp(cwd)) ??
     resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);

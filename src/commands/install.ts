@@ -5,6 +5,7 @@ import type { GitRunner } from "@/git.ts";
 import { type ManifestPaths, resolveRepositoryPath } from "@/manifest-paths.ts";
 import type { CliOptions } from "@/cli-options.ts";
 import { printRows } from "@/output.ts";
+import { makeDirectory } from "@/runtime.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 import { findExistingManifest } from "@/manifest-discovery.ts";
 
@@ -51,9 +52,9 @@ async function cloneMissing(
   { dryRun = false }: { dryRun?: boolean } = {},
 ): Promise<InstallRow[]> {
   if (!dryRun) {
-    await Deno.mkdir(paths.repositoriesDirectory, { recursive: true });
+    await makeDirectory(paths.repositoriesDirectory);
     if (paths.workspacesDirectory !== undefined) {
-      await Deno.mkdir(paths.workspacesDirectory, { recursive: true });
+      await makeDirectory(paths.workspacesDirectory);
     }
   }
   let repositories = manifest.repositories;
