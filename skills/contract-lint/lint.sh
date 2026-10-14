@@ -101,6 +101,11 @@ scan_jobs() {
         next
       }
       if (jname != "") {
+        # A blank line is not a job boundary. indent("") is 0, so the check
+        # below used to end the block on one, and run: | bodies contain them.
+        # Treating one as the boundary hid every later violation in that job
+        # (#163).
+        if ($0 ~ /^[[:space:]]*$/) next
         if (indent($0) < 2) { finish_job(); next }
         lines[n++] = $0
       }
