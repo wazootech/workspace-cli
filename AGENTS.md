@@ -51,10 +51,17 @@ Domain expectations live in docs/agents/domain.md.
 
 ## Code health
 
-Family-wide rules live in the [wazootech workspace constitution](https://github.com/wazootech/workspace/blob/main/AGENTS.md#code-health-standards); this repo's specifics:
+Family-wide rules live in the
+[wazootech workspace constitution](https://github.com/wazootech/workspace/blob/main/AGENTS.md#code-health-standards);
+this repo's specifics:
 
-- **Before pushing**, run `deno task ci` (fmt, lint, `lint:imports`, check, test); CI runs the same task.
-- `no-explicit-any` is enforced by `deno lint` with no suppressions; `deno.json` sets `strict` and `lock.frozen`.
-- CI uses Deno `v2.9.8`; third-party actions are pinned to full commit SHAs with a version comment.
-- `secret-scan.yml` (gitleaks) runs on every PR and push to main; never suppress a finding.
-- `code-health.yml` is warn-only (file length, TODO/FIXME without an issue link). `.github/CODEOWNERS` assigns review.
+- **Before pushing**, run `deno task ci` (fmt, lint, `lint:imports`, check,
+  test); CI runs the same task.
+- `no-explicit-any` is enforced by `deno lint` with no suppressions; `deno.json`
+  sets `strict` and `lock.frozen`.
+- CI uses Deno `v2.9.8`; third-party actions are pinned to full commit SHAs with
+  a version comment.
+- `secret-scan.yml` (gitleaks) runs on every PR and push to main; never suppress
+  a finding.
+- `code-health.yml` is warn-only (file length, TODO/FIXME without an issue
+  link). `.github/CODEOWNERS` assigns review.
