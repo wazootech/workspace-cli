@@ -466,8 +466,7 @@ Deno.test("sweep --json emits machine-readable rows", async () => {
 
     const original = console.log;
     let output = "";
-    // deno-lint-ignore no-explicit-any
-    console.log = (...args: any[]) => {
+    console.log = (...args: unknown[]) => {
       output += args.map(String).join(" ") + "\n";
     };
     const code = await run([

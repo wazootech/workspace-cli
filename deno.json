@@ -18,6 +18,12 @@
     "@std/yaml": "jsr:@std/yaml@^1.2.0",
     "@types/node": "npm:@types/node@^22"
   },
+  "lock": {
+    "frozen": true
+  },
+  "compilerOptions": {
+    "strict": true
+  },
   "tasks": {
     "build": "deno compile --allow-read --allow-write --allow-run=git,gh,robocopy,rmdir,rm --output wspace src/cli.ts",
     "ci": "deno fmt --check && deno lint && deno task lint:imports && deno check src/ tests/ && deno task test",
