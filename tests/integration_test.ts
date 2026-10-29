@@ -80,8 +80,7 @@ function pathsFor(dir: string): ManifestPaths {
 function captureStdout() {
   let output = "";
   const original = console.log;
-  // deno-lint-ignore no-explicit-any
-  console.log = (...args: any[]) => {
+  console.log = (...args: unknown[]) => {
     output += args.map(String).join(" ") + "\n";
   };
   return {
