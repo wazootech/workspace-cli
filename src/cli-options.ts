@@ -20,4 +20,6 @@ export interface CliOptions {
   force?: boolean;
   /** sweep: treat refusals as failures, not just reported rows. */
   strict?: boolean;
+  /** validate: also audit minimumDependencyAge across checked-out repos. */
+  deps?: boolean;
 }
