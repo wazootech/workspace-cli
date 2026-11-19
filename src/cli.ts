@@ -171,13 +171,10 @@ export async function run(args: string[]): Promise<number> {
   const manifest = await loadManifest(manifestPath);
   const g = new SystemGit();
 
-  switch (opts.command) {
-    case "validate": {
-      const code = validateCmd.run(manifest);
-      // `--deps` audits checkouts, so it continues into the resolved tree below.
-      if (code !== 0 || !opts.deps) return code;
-    }
-  }
+  // validate checks the manifest alone first, then falls through to the same
+  // resolution and conflict gate as check/install so it never reports valid
+  // for a tree those commands reject (#144).
+  if (opts.command === "validate") validateCmd.check(manifest);
 
   // Every command below resolves once; detected sub-workspaces reflect
   // whatever is currently on disk.
@@ -198,6 +195,11 @@ export async function run(args: string[]): Promise<number> {
   switch (opts.command) {
     case "workspaces":
       return await workspacesCmd.run(opts, resolvedTree);
+    case "validate": {
+      // `--deps` audits checkouts, so it continues into the resolved tree below.
+      const code = validateCmd.report(manifest);
+      if (!opts.deps) return code;
+    }
   }
 
   const resolvedManifest = flattenResolved(resolvedTree, manifest);
