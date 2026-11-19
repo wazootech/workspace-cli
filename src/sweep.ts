@@ -2,12 +2,8 @@ import type { GitRunner } from "./git.ts";
 import {
   deleteBranch,
   deleteRemoteBranch,
-  diffQuiet,
   fetch,
-  hasRef,
   isDirty,
-  revListCount,
-  treeHash,
   type WorktreeEntry,
   worktreeList,
 } from "./git.ts";
@@ -16,6 +12,11 @@ import { purgeDirectory } from "./purge.ts";
 import { ROOT_LABEL, type SweepAction } from "./types.ts";
 import type { RepositoryEntry } from "./types.ts";
 import { inspectRepo } from "./repo-inspect.ts";
+import {
+  proveMerged,
+  type RemoteProofOptions,
+  resolveBaseline,
+} from "./sweep-proof.ts";
 
 export interface SweepOptions {
   dryRun?: boolean;
@@ -26,59 +27,17 @@ export interface SweepOptions {
   force?: boolean;
   /** Omit the workspace root when scoping to a sub-workspace. */
   includeRoot?: boolean;
+  /**
+   * A `gh` runner for the remote proof tier, which recognises branches whose
+   * PR was squash- or rebase-merged. Omit it to prove merges offline only.
+   */
+  gh?: GitRunner;
 }
 
-/** How a merge was proven, for the human-readable detail column. */
-interface Proof {
-  detail: string;
-}
-
-/**
- * Prove that `branch`'s work is already contained in `baseline`.
- *
- * The ladder is cheapest-first and entirely offline. Tree equality and an
- * empty diff are what authorise cleanup of rebase/squash merges, whose commits
- * have different SHAs than anything on the default branch and which
- * `git branch -d` refuses to delete.
- */
-async function proveMerged(
-  g: GitRunner,
-  cwd: string,
-  baseline: string,
-  branch: string,
-): Promise<Proof | undefined> {
-  const baselineTree = await treeHash(g, cwd, baseline);
-  const branchTree = await treeHash(g, cwd, branch);
-  if (baselineTree !== undefined && baselineTree === branchTree) {
-    return { detail: `trees identical (${baselineTree.slice(0, 7)})` };
-  }
-  if (await diffQuiet(g, cwd, baseline, branch)) {
-    return { detail: `no diff against ${baseline}` };
-  }
-  const ahead = await revListCount(g, cwd, `${baseline}..${branch}`);
-  if (ahead === 0) {
-    return { detail: `contained in ${baseline}` };
-  }
-  return undefined;
-}
-
-/**
- * Choose the baseline a merge is proven against.
- *
- * This is load-bearing. Right after a merge the canonical checkout is usually
- * still behind `origin/<default>`, so proving against the local default ref
- * would refuse cleanup in exactly the case the command exists for.
- */
-async function resolveBaseline(
-  g: GitRunner,
-  cwd: string,
-  defaultBranchName: string,
-): Promise<string> {
-  const remote = `origin/${defaultBranchName}`;
-  return await hasRef(g, cwd, `refs/remotes/${remote}`)
-    ? remote
-    : defaultBranchName;
-}
+/** The options every per-worktree step reads, defaults applied. */
+type ResolvedOptions =
+  & Required<Pick<SweepOptions, "dryRun" | "force" | "deleteRemote">>
+  & Pick<SweepOptions, "gh">;
 
 /** Remove the worktree, falling back to a directory purge when git refuses. */
 async function removeWorktree(
@@ -103,7 +62,8 @@ async function sweepWorktree(
   repoPath: string,
   entry: WorktreeEntry,
   baseline: string,
-  opts: Required<Pick<SweepOptions, "dryRun" | "force" | "deleteRemote">>,
+  defaultBranchName: string,
+  opts: ResolvedOptions,
 ): Promise<SweepAction> {
   const branch = entry.branch;
 
@@ -126,7 +86,12 @@ async function sweepWorktree(
     };
   }
 
-  const proof = await proveMerged(g, repoPath, baseline, branch);
+  const remote: RemoteProofOptions | undefined = opts.gh && {
+    gh: opts.gh,
+    baseBranch: defaultBranchName,
+    fetchMissing: !opts.dryRun,
+  };
+  const proof = await proveMerged(g, repoPath, baseline, branch, remote);
   if (!proof && !opts.force) {
     return {
       kind: "SKIP_NOT_MERGED",
@@ -175,7 +140,7 @@ async function sweepRepo(
   g: GitRunner,
   name: string,
   repoPath: string,
-  opts: Required<Pick<SweepOptions, "dryRun" | "force" | "deleteRemote">>,
+  opts: ResolvedOptions,
 ): Promise<SweepAction[]> {
   // Guard on a real checkout before running git. Without this, `git -C <dir>
   // worktree list` on a non-repo directory (e.g. repos/worktrees/) silently
@@ -215,7 +180,17 @@ async function sweepRepo(
       });
       continue;
     }
-    rows.push(await sweepWorktree(g, name, repoPath, entry, baseline, opts));
+    rows.push(
+      await sweepWorktree(
+        g,
+        name,
+        repoPath,
+        entry,
+        baseline,
+        defaultBranchName,
+        opts,
+      ),
+    );
   }
   return rows;
 }
@@ -233,9 +208,10 @@ export async function runSweep(
     deleteRemote = false,
     force = false,
     includeRoot = true,
+    gh,
   }: SweepOptions = {},
 ): Promise<SweepAction[]> {
-  const opts = { dryRun, force, deleteRemote };
+  const opts: ResolvedOptions = { dryRun, force, deleteRemote, gh };
   const rows: SweepAction[] = [];
 
   // The workspace root carries the manifest's own worktrees, which are not

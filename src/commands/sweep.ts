@@ -1,4 +1,4 @@
-import type { GitRunner } from "@/git.ts";
+import { type GitRunner, SystemGit } from "@/git.ts";
 import type { ManifestPaths } from "@/manifest.ts";
 import type { CliOptions } from "@/shared.ts";
 import { printRows, scopeManifest } from "@/shared.ts";
@@ -19,6 +19,9 @@ export async function run(
     force: opts.force,
     // Scoped runs leave the root out: sweep only what was asked for.
     includeRoot: opts.workspace === undefined,
+    // Squash- and rebase-merged PRs leave nothing a local proof can see; ask
+    // GitHub unless the caller opted out.
+    gh: opts.offline ? undefined : new SystemGit("gh"),
   });
   printRows(rows, opts.json);
   // Refusals are reported, not fatal (matching `update`); only a mutation that

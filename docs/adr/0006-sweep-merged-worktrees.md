@@ -3,8 +3,9 @@
 - Status: accepted
 - Date: 2026-09
 - Amends: ADR-0005
-- Related: ADR-0002 (conservative update policy), issue
-  [#153](https://github.com/wazootech/workspace-cli/issues/153)
+- Related: ADR-0002 (conservative update policy), issues
+  [#153](https://github.com/wazootech/workspace-cli/issues/153) and
+  [#170](https://github.com/wazootech/workspace-cli/issues/170)
 
 ## Context
 
@@ -109,8 +110,36 @@ is already merged.
 - Merged branches that never had a worktree are out of scope; the command acts
   on linked worktrees, which is where the worktree-isolation pattern leaves its
   residue.
-- The remote-proof tier (`gh pr view <branch> --json state`) is deliberately
-  **not** implemented. The offline tiers cover the rebase/squash cases that
+- The remote-proof tier (`gh pr view <branch> --json state`) was deliberately
+  **not** implemented at first. The offline tiers cover the rebase cases that
   plain `git branch -d` mishandles, and keeping the common path free of network
   calls keeps a workspace-wide sweep fast. Revisit if proof coverage proves
-  insufficient in practice.
+  insufficient in practice. **Superseded by the amendment below.**
+
+## Amendment (2026-11): a remote proof tier for squash merges
+
+Coverage proved insufficient (#170). After a squash merge the default branch has
+moved on, so tree equality, an empty diff, and ancestry all fail for the feature
+branch, and `wspace sweep --dry-run` reported `SKIP_NOT_MERGED` for branches
+whose PRs were merged. Decision 3's ladder gains a last rung:
+
+- **Remote tier.** When every offline tier fails and a `gh` runner is available,
+  run `gh pr list --head <branch> --base <default> --state merged`. The branch
+  is proven merged when a returned PR's `headRefOid` equals the branch tip, or
+  that head commit's tree equals the branch tip's tree (the local tip was
+  rebased or reworded). Detail: `PR #N merged, tip == PR head` or
+  `PR #N merged, tip tree == PR head`. A tip that has new content past the PR
+  head matches neither and is never swept, so post-merge work is safe.
+- **It is the last resort.** It runs only for branches the offline tiers could
+  not prove, so a sweep of already-proven branches makes no `gh` call.
+- **It degrades to the offline result.** If `gh` is not installed, not
+  authenticated, offline, or returns malformed output, the tier yields no proof
+  and the row stays `SKIP_NOT_MERGED`. `--offline` skips it explicitly.
+- **Decision 8 is relaxed, narrowly.** `--dry-run` still never mutates and never
+  runs `git fetch`, but it may issue the read-only `gh pr list` query, because a
+  dry run that cannot see a squash merge would not report what a real run does.
+  A real run additionally fetches `refs/pull/<n>/head` when the PR head commit
+  is absent locally, to compare trees; a dry run skips that fetch and simply
+  finds no proof in that case.
+- **Gates are unchanged.** The clean-tree gate and `--force` apply to a
+  PR-proven branch exactly as to an offline-proven one.
