@@ -45,7 +45,8 @@ Design principles:
   tools; plain output is for humans.
 - **Exit code contract.** `wspace check` exits `0` when the workspace is clean
   and `1` when any repository is dirty, diverged, missing, or otherwise not in
-  sync. `FEATURE_CLEAN` also exits `0`.
+  sync. `FEATURE_CLEAN` and `UNMANAGED` stray warnings also exit `0`;
+  `wspace check --strict` promotes every stray to a failure.
 - **Committing does not make a default branch `CLEAN`.** A clean checkout on its
   default branch is `CLEAN` only when it matches its upstream. Committing there
   trades `DIRTY` for `DIVERGED` (`N ahead, 0 behind`) and the check still exits
@@ -59,10 +60,13 @@ Design principles:
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
   `FEATURE_CLEAN`, `DIVERGED`, `UNKNOWN`, `MISSING`, and `UNMANAGED` states.
-  When the workspace root directory is itself a git checkout, it is reported
-  first as `(workspace root)` and non-clean states fail the check. Untracked
-  files at the root never count as dirty, and `--workspace <name>` checks only
-  the named sub-workspace.
+  `UNMANAGED` rows are strays: non-git directories, files, and unmanaged
+  checkouts under the repositories or workspaces directory, plus git checkouts
+  dropped at the workspace root (named `(stray) <name>`; a name matching a
+  declared repo is tagged as its duplicate). When the workspace root directory
+  is itself a git checkout, it is reported first as `(workspace root)` and
+  non-clean states fail the check. Untracked files at the root never count as
+  dirty, and `--workspace <name>` checks only the named sub-workspace.
 - `wspace init [--host <host>] [--owner <owner>] [<repo...>]` — one-time
   scaffold for an empty directory: writes a fresh `workspace.json` (schema v4)
   with optional host/owner and seeded shorthand entries, and creates the

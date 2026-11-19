@@ -18,7 +18,7 @@ export interface CliOptions {
   deleteRemote?: boolean;
   /** sweep: override the merge-proof and clean-tree gates. */
   force?: boolean;
-  /** sweep: treat refusals as failures, not just reported rows. */
+  /** sweep: treat refusals as failures; check: treat stray rows as failures. */
   strict?: boolean;
   /** sweep: skip the `gh` merged-PR proof tier and prove merges locally. */
   offline?: boolean;

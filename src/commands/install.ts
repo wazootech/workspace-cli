@@ -12,6 +12,7 @@ import {
   workspaceManifestMissing,
 } from "@/commands/install-rows.ts";
 import { clearBlockingPath } from "@/commands/install-force.ts";
+import { rootStrayRows } from "@/strays.ts";
 
 async function cloneMissing(
   g: GitRunner,
@@ -133,6 +134,16 @@ export async function run(
     dryRun: opts.dryRun,
     force: opts.force,
   });
+  // Warn (never fail) when a target already exists as a duplicate checkout at
+  // the workspace root, outside its declared path.
+  rows.push(
+    ...await rootStrayRows(
+      scoped.repositories.filter((r) =>
+        targets.length === 0 || targets.includes(r.name)
+      ),
+      paths,
+    ),
+  );
   printRows(rows, opts.json);
 
   const failed = rows.some(isBadInstallRow);

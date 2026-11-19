@@ -16,7 +16,8 @@ export async function run(
   // was asked for, so an unrelated root state cannot flip the exit code.
   const rows = await collectStatus(g, scoped, paths, {
     includeRoot: opts.workspace === undefined,
+    knownRepositories: manifest.repositories,
   });
   printRows(rows, opts.json);
-  return hasErrors(rows) ? 1 : 0;
+  return hasErrors(rows, { strict: opts.strict }) ? 1 : 0;
 }
