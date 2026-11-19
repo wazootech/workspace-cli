@@ -66,9 +66,13 @@ checkable condition before the next begins.
 5. **Push and open a PR.** Push the branch and create the PR from inside the
    worktree. Watch the workflow to completion; do not merge while it is pending
    or failing.
-6. **Clean up.** After merge, remove the worktree: `git worktree remove <path>`
-   and prune stale references. Leave the worktree clean before moving to the
-   next task.
+6. **Clean up.** After merge, run `wspace sweep --dry-run` to preview, then
+   `wspace sweep` (add `--delete-remote` to drop `origin/<branch>`). It removes
+   every merged linked worktree workspace-wide, including squash- and
+   rebase-merged PRs (proven through `gh`; pass `--offline` to skip that), and
+   purges directories that `git worktree remove` cannot on Windows
+   (`Filename too long`). Raw `git worktree remove <path>` plus prune also
+   works. Leave the worktree clean before moving to the next task.
 7. **Reconcile state.** From the workspace root, run `wspace check` and confirm
    the touched repo is `CLEAN` or `FEATURE_CLEAN` and that no new stray or
    unmanaged repo appeared during the session (see **State reconcile** below).

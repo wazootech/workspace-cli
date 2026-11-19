@@ -54,7 +54,7 @@ wspace check [--json] [--workspace <name>]
   wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
   wspace sweep [--dry-run] [--json] [--delete-remote] [--force] [--strict]
-              [--workspace <name>]
+              [--offline] [--workspace <name>]
   wspace workspaces [--json]
   wspace validate [--deps] [--json]
 
@@ -73,6 +73,7 @@ Options:
   --delete-remote     sweep: also delete origin/<branch> (default: keep remotes)
   --force             sweep: override the merge-proof and clean-tree gates
   --strict            sweep: exit non-zero on refusals, not only on failures
+  --offline           sweep: prove merges from local refs only; never call gh
   --deps              validate: also check minimumDependencyAge for first-party JSR imports
   --as-workspace       add: place the entry in the workspaces array and require a child manifest
 
@@ -102,6 +103,7 @@ function parseCliArgs(args: string[]): CliOptions {
       "delete-remote",
       "force",
       "strict",
+      "offline",
       "deps",
     ],
     string: [
@@ -144,6 +146,7 @@ function parseCliArgs(args: string[]): CliOptions {
     deleteRemote: parsed["delete-remote"] ?? false,
     force: parsed.force ?? false,
     strict: parsed.strict ?? false,
+    offline: parsed.offline ?? false,
     deps: parsed.deps ?? false,
   };
 }
