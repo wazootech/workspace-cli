@@ -210,6 +210,16 @@ Use the `/cli` subpath export — the runnable CLI entry — not the bare
 `--allow-read --allow-write --allow-run=git,gh,robocopy,rmdir,rm`) or use
 Prompts.
 
+If a release you just published still resolves to the previous version, Deno's
+24-hour dependency age policy is holding it back. Add `--min-dep-age 0` to the
+install:
+
+```sh
+deno install -g -A --name wspace --min-dep-age 0 jsr:@wazoo/workspace/cli
+```
+
+(Deno 2.9+ names the compile-time flag `--minimum-dependency-age 0`; see #135.)
+
 Or build a local binary:
 
 ```sh
