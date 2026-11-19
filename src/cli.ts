@@ -19,6 +19,7 @@ import * as removeCmd from "./commands/remove.ts";
 import * as sweepCmd from "./commands/sweep.ts";
 import * as updateCmd from "./commands/update.ts";
 import * as validateCmd from "./commands/validate.ts";
+import * as validateDepsCmd from "./commands/validate-deps.ts";
 import * as workspacesCmd from "./commands/workspaces.ts";
 
 const COMMANDS = [
@@ -53,9 +54,9 @@ wspace check [--json] [--workspace <name>]
   wspace path <query> [--json]
   wspace update [--json] [--workspace <name>] [--dry-run]
   wspace sweep [--dry-run] [--json] [--delete-remote] [--force] [--strict]
-              [--workspace <name>]
+              [--offline] [--workspace <name>]
   wspace workspaces [--json]
-  wspace validate
+  wspace validate [--deps] [--json]
 
 Options:
   --manifest <path>   Manifest path override (default: auto-detected by walking
@@ -72,6 +73,8 @@ Options:
   --delete-remote     sweep: also delete origin/<branch> (default: keep remotes)
   --force             sweep: override the merge-proof and clean-tree gates
   --strict            sweep: exit non-zero on refusals, not only on failures
+  --offline           sweep: prove merges from local refs only; never call gh
+  --deps              validate: also check minimumDependencyAge for first-party JSR imports
   --as-workspace       add: place the entry in the workspaces array and require a child manifest
 
 Sweep Command:
@@ -100,6 +103,8 @@ function parseCliArgs(args: string[]): CliOptions {
       "delete-remote",
       "force",
       "strict",
+      "offline",
+      "deps",
     ],
     string: [
       "manifest",
@@ -141,6 +146,8 @@ function parseCliArgs(args: string[]): CliOptions {
     deleteRemote: parsed["delete-remote"] ?? false,
     force: parsed.force ?? false,
     strict: parsed.strict ?? false,
+    offline: parsed.offline ?? false,
+    deps: parsed.deps ?? false,
   };
 }
 
@@ -165,8 +172,11 @@ export async function run(args: string[]): Promise<number> {
   const g = new SystemGit();
 
   switch (opts.command) {
-    case "validate":
-      return await validateCmd.run(manifest);
+    case "validate": {
+      const code = validateCmd.run(manifest);
+      // `--deps` audits checkouts, so it continues into the resolved tree below.
+      if (code !== 0 || !opts.deps) return code;
+    }
   }
 
   // Every command below resolves once; detected sub-workspaces reflect
@@ -194,6 +204,8 @@ export async function run(args: string[]): Promise<number> {
   const paths = manifestPaths(manifest, manifestPath);
 
   switch (opts.command) {
+    case "validate":
+      return await validateDepsCmd.run(opts, resolvedManifest, paths);
     case "check":
       return await checkCmd.run(opts, resolvedManifest, paths, g);
     case "install":

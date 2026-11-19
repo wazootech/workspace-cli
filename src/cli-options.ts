@@ -20,4 +20,8 @@ export interface CliOptions {
   force?: boolean;
   /** sweep: treat refusals as failures, not just reported rows. */
   strict?: boolean;
+  /** sweep: skip the `gh` merged-PR proof tier and prove merges locally. */
+  offline?: boolean;
+  /** validate: also audit minimumDependencyAge across checked-out repos. */
+  deps?: boolean;
 }

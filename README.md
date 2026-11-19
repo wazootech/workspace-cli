@@ -69,20 +69,30 @@ Design principles:
   Untracked workspace content (`repos/`, `worktrees/`) does not mark the root
   dirty. `--workspace <name>` updates only the named sub-workspace and leaves
   the root out.
-- `wspace sweep [--dry-run] [--json] [--delete-remote] [--force] [--strict]` —
-  remove every linked worktree whose branch is already merged, workspace-wide,
+- `wspace sweep [--dry-run] [--json] [--delete-remote] [--force] [--strict] [--offline]`
+  — remove every linked worktree whose branch is already merged, workspace-wide,
   including the workspace root's own worktrees. Worktrees are discovered from
   `git worktree list`, so no on-disk location convention is imposed (see
-  ADR-0005). Nothing is deleted until the merge is proven — offline, by tree
-  equality, an empty diff, or ancestry, which also covers rebase and squash
-  merges that `git branch -d` refuses. Refusals (`SKIP_NOT_MERGED`,
-  `SKIP_DIRTY`, `SKIP_DETACHED`, `SKIP_DEFAULT`) are reported rather than fatal,
-  so the exit code is non-zero only when a mutation actually broke; `--strict`
-  promotes refusals too. `--force` overrides the merge-proof and clean-tree
-  gates. Remote branches are kept unless `--delete-remote` is passed.
-  Fast-forwards are left to `wspace update`, so the usual pairing is
-  `wspace sweep && wspace update`. See ADR-0006.
-- `wspace validate` — validate the manifest without touching any repository.
+  ADR-0005). Nothing is deleted until the merge is proven: offline, by tree
+  equality, an empty diff, or ancestry, which covers rebase merges that
+  `git branch -d` refuses; and, for branches those cannot prove (squash merges
+  leave the default branch moved on), by asking `gh` whether the branch's PR was
+  merged into the default branch with a head equal to the branch tip or whose
+  tree equals the branch tree. Pass `--offline` to skip the `gh` check; a
+  missing or failing `gh` leaves the offline result unchanged. Refusals
+  (`SKIP_NOT_MERGED`, `SKIP_DIRTY`, `SKIP_DETACHED`, `SKIP_DEFAULT`) are
+  reported rather than fatal, so the exit code is non-zero only when a mutation
+  actually broke; `--strict` promotes refusals too. `--force` overrides the
+  merge-proof and clean-tree gates. Remote branches are kept unless
+  `--delete-remote` is passed. Fast-forwards are left to `wspace update`, so the
+  usual pairing is `wspace sweep && wspace update`. See ADR-0006.
+- `wspace validate [--deps] [--json]` — validate the manifest without touching
+  any repository. With `--deps`, also audit every checked-out repo's
+  `deno.json`: a repo that imports a first-party JSR package (a scope some
+  checked-out repo publishes) must list it in `minimumDependencyAge.exclude`,
+  and `minimumDependencyAge` must not be `0`. Exits 1 on findings. Deno 2.9
+  refuses releases younger than 24 hours, so an unlisted first-party package
+  fails CI on release day or silently resolves to the previous version.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
   counts. `check`, `install`, and `update` accept `--workspace <name>` to scope
   the command to one sub-workspace.
@@ -209,6 +219,16 @@ Use the `/cli` subpath export — the runnable CLI entry — not the bare
 `wspace` needs; omit it if you prefer to grant specific flags (e.g.
 `--allow-read --allow-write --allow-run=git,gh,robocopy,rmdir,rm`) or use
 Prompts.
+
+If a release you just published still resolves to the previous version, Deno's
+24-hour dependency age policy is holding it back. Add `--min-dep-age 0` to the
+install:
+
+```sh
+deno install -g -A --name wspace --min-dep-age 0 jsr:@wazoo/workspace/cli
+```
+
+(Deno 2.9+ names the compile-time flag `--minimum-dependency-age 0`; see #135.)
 
 Or build a local binary:
 
