@@ -82,7 +82,13 @@ Design principles:
   gates. Remote branches are kept unless `--delete-remote` is passed.
   Fast-forwards are left to `wspace update`, so the usual pairing is
   `wspace sweep && wspace update`. See ADR-0006.
-- `wspace validate` — validate the manifest without touching any repository.
+- `wspace validate [--deps] [--json]` — validate the manifest without touching
+  any repository. With `--deps`, also audit every checked-out repo's
+  `deno.json`: a repo that imports a first-party JSR package (a scope some
+  checked-out repo publishes) must list it in `minimumDependencyAge.exclude`,
+  and `minimumDependencyAge` must not be `0`. Exits 1 on findings. Deno 2.9
+  refuses releases younger than 24 hours, so an unlisted first-party package
+  fails CI on release day or silently resolves to the previous version.
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
   counts. `check`, `install`, and `update` accept `--workspace <name>` to scope
   the command to one sub-workspace.
