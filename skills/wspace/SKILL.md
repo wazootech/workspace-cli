@@ -228,7 +228,10 @@ The map is the source of truth for which of those two happened.
   rewrites history. It skips dirty and feature branches, including the workspace
   root's own checkout (whose untracked `repos/`/`worktrees/` contents never
   count as dirty). Respect that contract; do not work around it with raw git
-  destructive commands.
+  destructive commands. The one sanctioned deletion is `wspace install --force`,
+  which clears only empty placeholder directories blocking a clone (preview with
+  `--dry-run`); anything holding a file, a symlink, or a checkout stays
+  `PATH_BLOCKED` for a human.
 - **Root anchor.** All paths resolve relative to the directory containing the
   manifest. Use the `"$PWD/..."` form when running raw `git -C repos/<repo>`.
 - **Central secret vault.** Never write `.env` files directly in `repos/` or
