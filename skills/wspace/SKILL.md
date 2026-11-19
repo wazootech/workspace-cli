@@ -251,6 +251,12 @@ directory, abandoned worktrees, uncommitted changes).
   appeared mid-session: no stray/unmanaged repo, and any repo you touched is
   `CLEAN` or `FEATURE_CLEAN`.
 - Prefer `wspace check --json` over ad-hoc per-repo `ls`/`git status` probes.
+- **Committing is not enough to reach `CLEAN`.** On a default branch, a local
+  commit turns `DIRTY` into `DIVERGED` (`N ahead`) and `check` still exits 1;
+  only a commit that reaches the default branch on the remote gives `CLEAN`
+  (commit, push, merge, `wspace update`). Work on a feature branch or worktree
+  instead: it reports `FEATURE_CLEAN` (exit 0) once committed, pushed or not.
+  After the PR merges, run `wspace sweep --dry-run`, then `wspace sweep`.
 - `wspace check` reports the workspace root's own checkout as `(workspace root)`
   when it is a git repo (a dirty/diverged root fails the check; untracked
   `repos/`/`worktrees/` contents never mark it dirty) and flags unmanaged repos

@@ -37,7 +37,15 @@ Design principles:
   tools; plain output is for humans.
 - **Exit code contract.** `wspace check` exits `0` when the workspace is clean
   and `1` when any repository is dirty, diverged, missing, or otherwise not in
-  sync.
+  sync. `FEATURE_CLEAN` also exits `0`.
+- **Committing does not make a default branch `CLEAN`.** A clean checkout on its
+  default branch is `CLEAN` only when it matches its upstream. Committing there
+  trades `DIRTY` for `DIVERGED` (`N ahead, 0 behind`) and the check still exits
+  `1`; the repo reads `CLEAN` again only after the commit reaches the default
+  branch on the remote (push, merge, then `wspace update`). Do the work on a
+  feature branch or worktree instead: a clean non-default branch reports
+  `FEATURE_CLEAN` whether or not it is pushed. After the PR merges, run
+  `wspace sweep` to remove the merged worktree.
 
 ## Commands
 
