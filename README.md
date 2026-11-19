@@ -13,6 +13,14 @@
 
 # wspace — Wazoo workspace CLI
 
+- **Owner:** [@EthanThatOneKid](https://github.com/EthanThatOneKid) (see
+  [`.github/CODEOWNERS`](.github/CODEOWNERS)).
+- **Purpose:** manage a multi-repo Wazoo workspace from one `workspace.json`
+  manifest.
+- **Set up, build, test:** with Deno v2+ installed, run `deno task ci`; it
+  formats, lints, type-checks, and tests against the frozen lockfile. See
+  [Development](#development). `deno task build` compiles the `wspace` binary.
+
 ## Goal
 
 `wspace` is a small, git-native CLI that manages a multi-repo Wazoo workspace
@@ -265,8 +273,9 @@ JSR forwards `exports` but not `bin`, so this runs the CLI rather than putting a
 deno task ci
 ```
 
-Runs `deno fmt --check`, `deno lint`, `deno check`, and `deno test` (includes
-integration tests against real local git repositories).
+Runs `deno fmt --check`, `deno lint`, `deno task lint:imports`, `deno check`,
+and `deno test` (includes integration tests against real local git
+repositories).
 
 ## Docs
 
