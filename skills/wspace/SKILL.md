@@ -264,6 +264,8 @@ directory, abandoned worktrees, uncommitted changes).
   when it is a git repo (a dirty/diverged root fails the check; untracked
   `repos/`/`worktrees/` contents never mark it dirty) and flags unmanaged repos
   inside `repos/`. Scoped runs with `--workspace <name>` leave the root out.
-  Until the root stray scan lands, manually confirm no extra git clone landed in
-  the workspace root itself (a stray at the root typically means the wrong
-  working directory was used).
+  Strays (non-git directories, files, unmanaged checkouts under `repos/` or the
+  workspaces directory, and git checkouts at the workspace root, shown as
+  `(stray) <name>`) are `UNMANAGED` warnings: exit `0`, so read the output; use
+  `wspace check --strict` to fail on them. A stray at the root usually means the
+  wrong working directory was used.

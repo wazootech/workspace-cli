@@ -45,7 +45,7 @@ function usage(): void {
   console.log(`workspace-cli (wspace)
 
 Usage:
-wspace check [--json] [--workspace <name>]
+wspace check [--json] [--workspace <name>] [--strict]
   wspace init [--host <host>] [--owner <owner>] [<repo...>]
   wspace install [<repo...>] [--json] [--workspace <name>] [--dry-run] [--force]
   wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run] [--force]  (alias for install)
@@ -74,6 +74,7 @@ Options:
   --force             sweep: override the merge-proof and clean-tree gates;
                       install: clear empty placeholder dirs that block a clone
   --strict            sweep: exit non-zero on refusals, not only on failures
+                      check: exit non-zero on stray (unmanaged) entries too
   --offline           sweep: prove merges from local refs only; never call gh
   --deps              validate: also check minimumDependencyAge for first-party JSR imports
   --as-workspace       add: place the entry in the workspaces array and require a child manifest

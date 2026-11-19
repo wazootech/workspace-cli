@@ -62,6 +62,7 @@ export type RepoState =
   | "DIVERGED"
   | "CLEAN"
   | "UNKNOWN"
+  | "UNMANAGED"
   | "ERROR";
 
 export interface RepoStatus {
@@ -74,6 +75,12 @@ export interface RepoStatus {
   behind?: number;
   state: RepoState;
   detail?: string;
+  /**
+   * Set on rows for things on disk that no manifest declares (a stray
+   * checkout, directory, or file). `check` treats them as warnings and
+   * `check --strict` as failures.
+   */
+  unmanaged?: boolean;
 }
 
 /** Minimal workspace context needed for repository resolution. */
