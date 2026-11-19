@@ -69,7 +69,10 @@ Design principles:
   standard `repos/` directory. Fails closed if any manifest already exists.
 - `wspace install [<repo...>]` — clone missing repositories from the manifest
   (or only a specified subset of repos). Prints a warning that fresh clones lack
-  gitignored files and repo-specific setup.
+  gitignored files and repo-specific setup. A path that exists but is not a Git
+  repository reports `PATH_BLOCKED`; `--force` clears it first, but only when it
+  is an empty directory (or a tree of empty directories). `--force --dry-run`
+  previews with `WOULD_CLEAR`.
 - `wspace add [<name>] [--url <url>] [--name <n>] [--as-workspace] [--create]
   [--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or

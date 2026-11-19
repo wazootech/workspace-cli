@@ -31,11 +31,13 @@
 
 import { spawn } from "node:child_process";
 import {
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   rm,
+  rmdir,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -227,6 +229,20 @@ export async function pathExists(path: string): Promise<boolean> {
  */
 export function removePath(path: string): Promise<void> {
   return rm(path, { recursive: true });
+}
+
+/** Whether the path is itself a directory. A symlink is not, even to one. */
+export async function isRealDirectory(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Remove one directory, rejecting unless it is empty. Never recursive. */
+export function removeEmptyDirectory(path: string): Promise<void> {
+  return rmdir(path);
 }
 
 /** Create a unique temporary directory under the OS temp root. */

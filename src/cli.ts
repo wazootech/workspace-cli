@@ -47,8 +47,8 @@ function usage(): void {
 Usage:
 wspace check [--json] [--workspace <name>]
   wspace init [--host <host>] [--owner <owner>] [<repo...>]
-  wspace install [<repo...>] [--json] [--workspace <name>] [--dry-run]
-  wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run]      (alias for install)
+  wspace install [<repo...>] [--json] [--workspace <name>] [--dry-run] [--force]
+  wspace i [<repo...>] [--json] [--workspace <name>] [--dry-run] [--force]  (alias for install)
   wspace add [<name>] [--url <url>] [--name <n>] [--as-workspace] [--create] [--visibility <public|private>]
   wspace remove <repo>
   wspace path <query> [--json]
@@ -71,7 +71,8 @@ Options:
   --dry-run           Preview write operations without modifying files or running network calls
   --workspace <name>  Scope command to a specific sub-workspace (by name)
   --delete-remote     sweep: also delete origin/<branch> (default: keep remotes)
-  --force             sweep: override the merge-proof and clean-tree gates
+  --force             sweep: override the merge-proof and clean-tree gates;
+                      install: clear empty placeholder dirs that block a clone
   --strict            sweep: exit non-zero on refusals, not only on failures
   --offline           sweep: prove merges from local refs only; never call gh
   --deps              validate: also check minimumDependencyAge for first-party JSR imports

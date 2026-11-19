@@ -6,49 +6,19 @@ import type { CliOptions } from "@/cli-options.ts";
 import { printRows } from "@/output.ts";
 import { makeDirectory, pathExists } from "@/runtime.ts";
 import type { WorkspaceManifest } from "@/types.ts";
-import { findExistingManifest } from "@/manifest-discovery.ts";
-
-type InstallRow = { name: string; state: string; detail?: string };
-
-function isBadInstallRow(row: InstallRow): boolean {
-  return (
-    row.state === "CLONE_FAILED" || row.state === "PATH_BLOCKED" ||
-    row.state === "INVALID" || row.state === "UNKNOWN_REPO"
-  );
-}
-
-async function workspaceManifestMissing(
-  repository: { name: string; isWorkspace?: boolean; error?: string },
-  repoPath: string,
-): Promise<InstallRow | undefined> {
-  if (!repository.isWorkspace) return undefined;
-  // Resolution already flagged this checkout (exists but not git, or lacks a
-  // child manifest); surface its error verbatim.
-  if (repository.error) {
-    return {
-      name: repository.name,
-      state: "INVALID",
-      detail: repository.error,
-    };
-  }
-  // Fresh clone that turned out manifest-less.
-  if (!(await findExistingManifest(repoPath))) {
-    return {
-      name: repository.name,
-      state: "INVALID",
-      detail:
-        `Workspace repository does not contain workspace.json at ${repoPath}`,
-    };
-  }
-  return undefined;
-}
+import {
+  type InstallRow,
+  isBadInstallRow,
+  workspaceManifestMissing,
+} from "@/commands/install-rows.ts";
+import { clearBlockingPath } from "@/commands/install-force.ts";
 
 async function cloneMissing(
   g: GitRunner,
   manifest: WorkspaceManifest,
   paths: ManifestPaths,
   targets: string[] = [],
-  { dryRun = false }: { dryRun?: boolean } = {},
+  { dryRun = false, force = false }: { dryRun?: boolean; force?: boolean } = {},
 ): Promise<InstallRow[]> {
   if (!dryRun) {
     await makeDirectory(paths.repositoriesDirectory);
@@ -74,6 +44,19 @@ async function cloneMissing(
   const rows: InstallRow[] = [];
   for (const repository of repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
+    let cleared = false;
+    if (force) {
+      const clearance = await clearBlockingPath(
+        repository.name,
+        repoPath,
+        dryRun,
+      );
+      if (clearance.kind === "row") {
+        rows.push(clearance.row);
+        continue;
+      }
+      cleared = clearance.kind === "cleared";
+    }
     if (await pathExists(repoPath)) {
       const invalidWorkspace = await workspaceManifestMissing(
         repository,
@@ -108,7 +91,11 @@ async function cloneMissing(
         repoPath,
       );
       rows.push(
-        invalidWorkspace ?? { name: repository.name, state: "CLONED" },
+        invalidWorkspace ?? {
+          name: repository.name,
+          state: "CLONED",
+          ...(cleared && { detail: "cleared empty placeholder directory" }),
+        },
       );
     } else {
       rows.push({
@@ -144,6 +131,7 @@ export async function run(
 
   const rows = await cloneMissing(g, scoped, paths, targets, {
     dryRun: opts.dryRun,
+    force: opts.force,
   });
   printRows(rows, opts.json);
 
