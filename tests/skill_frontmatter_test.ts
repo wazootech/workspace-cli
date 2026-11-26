@@ -1,7 +1,9 @@
-import { assert, assertEquals } from "@std/assert";
-import { expandGlob } from "@std/fs";
+import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
+import { test } from "node:test";
 import { basename, dirname, join } from "@std/path";
 import { parse as parseYaml } from "@std/yaml";
+import { readText } from "./helpers.ts";
 
 /**
  * Skill packaging contract: every skills/**\/SKILL.md must carry frontmatter
@@ -16,7 +18,7 @@ interface SkillFrontmatter {
 }
 
 async function loadFrontmatter(skillMdPath: string): Promise<SkillFrontmatter> {
-  const raw = await Deno.readTextFile(skillMdPath);
+  const raw = await readText(skillMdPath);
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
   assert(match !== null, `${skillMdPath}: missing frontmatter block`);
   const parsed = parseYaml(match[1]) as Partial<SkillFrontmatter>;
@@ -24,7 +26,7 @@ async function loadFrontmatter(skillMdPath: string): Promise<SkillFrontmatter> {
     typeof parsed.name === "string" && parsed.name.length > 0,
     `${skillMdPath}: frontmatter "name" must be a non-empty string`,
   );
-  assertEquals(
+  assert.deepEqual(
     parsed.name,
     basename(dirname(skillMdPath)),
     `${skillMdPath}: frontmatter "name" must equal its directory name`,
@@ -36,13 +38,10 @@ async function loadFrontmatter(skillMdPath: string): Promise<SkillFrontmatter> {
   return parsed as SkillFrontmatter;
 }
 
-Deno.test("every packaged SKILL.md has strictly-valid YAML frontmatter", async () => {
-  const entries = [];
-  for await (
-    const entry of expandGlob(join("skills", "**", "SKILL.md"))
-  ) {
-    entries.push(entry.path);
-  }
+test("every packaged SKILL.md has strictly-valid YAML frontmatter", async () => {
+  const entries = (await readdir("skills", { recursive: true }))
+    .filter((path) => basename(path) === "SKILL.md")
+    .map((path) => join("skills", path));
   assert(entries.length > 0, "expected at least one packaged skill");
   for (const path of entries) {
     await loadFrontmatter(path);

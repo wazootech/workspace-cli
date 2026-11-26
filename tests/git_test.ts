@@ -1,4 +1,5 @@
-import { assertEquals } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { branchAb, configuredUpstream, defaultBranch } from "@/git.ts";
 import type { GitResult, GitRunner } from "@/git.ts";
 
@@ -23,17 +24,17 @@ function fail(stderr = ""): GitResult {
   return { code: 1, stdout: "", stderr };
 }
 
-Deno.test("defaultBranch falls back to origin/main when origin/HEAD missing", async () => {
+test("defaultBranch falls back to origin/main when origin/HEAD missing", async () => {
   const g = respond({
     "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
     "rev-parse --verify refs/remotes/origin/main": ok(
       "refs/remotes/origin/main\n",
     ),
   });
-  assertEquals(await defaultBranch(g, "/repo"), "main");
+  assert.deepEqual(await defaultBranch(g, "/repo"), "main");
 });
 
-Deno.test("defaultBranch falls back to origin/master when only master exists", async () => {
+test("defaultBranch falls back to origin/master when only master exists", async () => {
   const g = respond({
     "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
     "rev-parse --verify refs/remotes/origin/main": fail(),
@@ -41,71 +42,71 @@ Deno.test("defaultBranch falls back to origin/master when only master exists", a
       "refs/remotes/origin/master\n",
     ),
   });
-  assertEquals(await defaultBranch(g, "/repo"), "master");
+  assert.deepEqual(await defaultBranch(g, "/repo"), "master");
 });
 
-Deno.test("defaultBranch returns undefined when no origin remote refs exist", async () => {
+test("defaultBranch returns undefined when no origin remote refs exist", async () => {
   const g = respond({
     "symbolic-ref --short refs/remotes/origin/HEAD": fail(),
     "rev-parse --verify refs/remotes/origin/main": fail(),
     "rev-parse --verify refs/remotes/origin/master": fail(),
   });
-  assertEquals(await defaultBranch(g, "/repo"), undefined);
+  assert.deepEqual(await defaultBranch(g, "/repo"), undefined);
 });
 
-Deno.test("configuredUpstream resolves remote and merge ref", async () => {
+test("configuredUpstream resolves remote and merge ref", async () => {
   const g = respond({
     "config --get branch.main.remote": ok("origin"),
     "config --get branch.main.merge": ok("refs/heads/main"),
   });
-  assertEquals(await configuredUpstream(g, "/repo", "main"), "origin/main");
+  assert.deepEqual(await configuredUpstream(g, "/repo", "main"), "origin/main");
 });
 
-Deno.test("configuredUpstream returns undefined when unset", async () => {
+test("configuredUpstream returns undefined when unset", async () => {
   const g = respond({
     "config --get branch.main.remote": fail(),
     "config --get branch.main.merge": fail(),
   });
-  assertEquals(await configuredUpstream(g, "/repo", "main"), undefined);
+  assert.deepEqual(await configuredUpstream(g, "/repo", "main"), undefined);
 });
 
-Deno.test("branchAb parses tab-separated rev-list fallback", async () => {
+test("branchAb parses tab-separated rev-list fallback", async () => {
   const g = respond({
     "status --porcelain=v2 --branch": ok("# branch.head main"),
     "rev-list --left-right --count HEAD...origin/main": ok("1\t2"),
   });
-  assertEquals(await branchAb(g, "/repo", "origin/main"), {
+  assert.deepEqual(await branchAb(g, "/repo", "origin/main"), {
     ahead: 1,
     behind: 2,
   });
 });
 
-Deno.test("branchAb parses space-separated rev-list fallback", async () => {
+test("branchAb parses space-separated rev-list fallback", async () => {
   const g = respond({
     "status --porcelain=v2 --branch": ok("# branch.head main"),
     "rev-list --left-right --count HEAD...origin/main": ok("0 0"),
   });
-  assertEquals(await branchAb(g, "/repo", "origin/main"), {
+  assert.deepEqual(await branchAb(g, "/repo", "origin/main"), {
     ahead: 0,
     behind: 0,
   });
 });
 
-Deno.test("branchAb returns undefined when rev-list fails", async () => {
+test("branchAb returns undefined when rev-list fails", async () => {
   const g = respond({
     "status --porcelain=v2 --branch": ok("# branch.head main"),
     "rev-list --left-right --count HEAD...origin/main": fail(),
   });
-  assertEquals(await branchAb(g, "/repo", "origin/main"), undefined);
+  assert.deepEqual(await branchAb(g, "/repo", "origin/main"), undefined);
 });
 
-Deno.test("branchAb reads ahead/behind from porcelain v2", async () => {
+test("branchAb reads ahead/behind from porcelain v2", async () => {
   const g = respond({
     "status --porcelain=v2 --branch": ok(
       "# branch.head main\n# branch.ab +3 -5",
     ),
   });
-  assertEquals(await branchAb(g, "/repo", "origin/main"), {
+  assert.deepEqual(await branchAb(g, "/repo", "origin/main"), {
     ahead: 3,
     behind: 5,
   });
