@@ -4,6 +4,10 @@
   "type": "module",
   "description": "Bun toolchain manifest for @wazoo/workspace. The published package is described by deno.json (jsr.json after the cutover); scripts/check-manifests.ts keeps the two in sync.",
   "packageManager": "bun@1.4.5",
+  "scripts": {
+    "lint:imports": "bun scripts/lint_imports.ts",
+    "test": "bun test --timeout 120000"
+  },
   "dependencies": {
     "@std/cli": "npm:@jsr/std__cli@^1.0.32",
     "@std/jsonc": "npm:@jsr/std__jsonc@^1.0.3",
