@@ -1,4 +1,8 @@
-import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import process from "node:process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { assertRejects, assertThrows, makeTempDir } from "./helpers.ts";
 import { dirname, join, normalize, resolve } from "@std/path";
 import {
   detectConflicts,
@@ -15,14 +19,14 @@ import {
 import { validateSafeName } from "@/manifest.ts";
 import type { WorkspaceManifest } from "@/types.ts";
 
-Deno.test("validateManifest accepts a valid manifest", () => {
+test("validateManifest accepts a valid manifest", () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "https://example.com/a.git" }],
   };
   validateManifest(manifest);
 });
 
-Deno.test("validateManifest rejects duplicate repository names", () => {
+test("validateManifest rejects duplicate repository names", () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "https://example.com/a.git" },
@@ -32,7 +36,7 @@ Deno.test("validateManifest rejects duplicate repository names", () => {
   assertThrows(() => validateManifest(manifest), Error, "Duplicate");
 });
 
-Deno.test("validateManifest rejects a repository without a url", () => {
+test("validateManifest rejects a repository without a url", () => {
   const manifest = {
     repositories: [{ name: "a" }],
   } as unknown as WorkspaceManifest;
@@ -43,16 +47,16 @@ Deno.test("validateManifest rejects a repository without a url", () => {
   );
 });
 
-Deno.test("validateManifest rejects a newer schema version", () => {
+test("validateManifest rejects a newer schema version", () => {
   const manifest: WorkspaceManifest = { schemaVersion: 99, repositories: [] };
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
 });
 
-Deno.test("loadManifest rejects yaml manifests (unsupported format)", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects yaml manifests (unsupported format)", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.yaml");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       `schemaVersion: 4\nowner: acme\nrepositories:\n  - shared-reference\n`,
     );
@@ -63,94 +67,94 @@ Deno.test("loadManifest rejects yaml manifests (unsupported format)", async () =
       "Unsupported manifest format",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects unsupported manifest extensions", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects unsupported manifest extensions", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.toml");
-    await Deno.writeTextFile(manifestPath, "repositories = []");
+    await writeFile(manifestPath, "repositories = []");
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
       "Unsupported manifest format",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects yaml documents (unsupported format)", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects yaml documents (unsupported format)", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.yaml");
-    await Deno.writeTextFile(manifestPath, "repositories: 3\n");
+    await writeFile(manifestPath, "repositories: 3\n");
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
       "Unsupported manifest format",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("findDefaultManifestPath discovers json manifests", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("findDefaultManifestPath discovers json manifests", async () => {
+  const tempDir = await makeTempDir();
   try {
     const jsonPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(jsonPath, "{}\n");
-    assertEquals(await findDefaultManifestPath(tempDir), jsonPath);
+    await writeFile(jsonPath, "{}\n");
+    assert.deepEqual(await findDefaultManifestPath(tempDir), jsonPath);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("validateManifest accepts schema version 4", () => {
+test("validateManifest accepts schema version 4", () => {
   validateManifest({ schemaVersion: 4, repositories: [] });
 });
 
-Deno.test("validateManifest rejects schema version 5", () => {
+test("validateManifest rejects schema version 5", () => {
   const manifest: WorkspaceManifest = { schemaVersion: 5, repositories: [] };
   assertThrows(() => validateManifest(manifest), Error, "newer than supported");
 });
 
-Deno.test("manifestPaths applies defaults under the manifest directory", () => {
+test("manifestPaths applies defaults under the manifest directory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
-  const manifestFile = join(Deno.cwd(), "ws", "repos.json");
+  const manifestFile = join(process.cwd(), "ws", "repos.json");
   const paths = manifestPaths(manifest, manifestFile);
-  assertEquals(paths.root, dirname(manifestFile));
-  assertEquals(
+  assert.deepEqual(paths.root, dirname(manifestFile));
+  assert.deepEqual(
     paths.repositoriesDirectory,
     join(dirname(manifestFile), "repos"),
   );
 });
 
-Deno.test("manifestPaths resolves relative workspaceRoot from manifest directory", () => {
+test("manifestPaths resolves relative workspaceRoot from manifest directory", () => {
   const manifest: WorkspaceManifest = { workspaceRoot: "..", repositories: [] };
-  const manifestFile = join(Deno.cwd(), "ws", "repos.json");
+  const manifestFile = join(process.cwd(), "ws", "repos.json");
   const paths = manifestPaths(manifest, manifestFile);
-  assertEquals(paths.root, dirname(dirname(manifestFile)));
+  assert.deepEqual(paths.root, dirname(dirname(manifestFile)));
 });
 
-Deno.test("manifestPaths honors absolute workspaceRoot", () => {
+test("manifestPaths honors absolute workspaceRoot", () => {
   const manifest: WorkspaceManifest = {
-    workspaceRoot: Deno.build.os === "windows" ? "C:\\wazoo" : "/wazoo",
+    workspaceRoot: process.platform === "win32" ? "C:\\wazoo" : "/wazoo",
     repositories: [],
   };
-  const manifestFile = Deno.build.os === "windows"
+  const manifestFile = process.platform === "win32"
     ? "C:\\ws\\repos.json"
     : "/ws/repos.json";
   const paths = manifestPaths(manifest, manifestFile);
-  assertEquals(
+  assert.deepEqual(
     paths.root,
-    Deno.build.os === "windows" ? "C:\\wazoo" : "/wazoo",
+    process.platform === "win32" ? "C:\\wazoo" : "/wazoo",
   );
 });
 
-Deno.test("validateManifest rejects invalid repo names or traversal", () => {
+test("validateManifest rejects invalid repo names or traversal", () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "../traversal", url: "https://example.com/a.git" }],
   };
@@ -161,7 +165,7 @@ Deno.test("validateManifest rejects invalid repo names or traversal", () => {
   );
 });
 
-Deno.test("validateManifest accepts dotted and underscored repo names", () => {
+test("validateManifest accepts dotted and underscored repo names", () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: ".github", url: "https://github.com/acme/.github.git" },
@@ -175,7 +179,7 @@ Deno.test("validateManifest accepts dotted and underscored repo names", () => {
   validateManifest(manifest);
 });
 
-Deno.test("validateManifest rejects .git suffix and reserved names", () => {
+test("validateManifest rejects .git suffix and reserved names", () => {
   const badNames = ["ends-with.git", ".", ".."];
   for (const name of badNames) {
     assertThrows(
@@ -188,11 +192,11 @@ Deno.test("validateManifest rejects .git suffix and reserved names", () => {
   }
 });
 
-Deno.test("loadManifest accepts .github and dotted repo shorthand", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest accepts .github and dotted repo shorthand", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         schemaVersion: 4,
@@ -202,42 +206,42 @@ Deno.test("loadManifest accepts .github and dotted repo shorthand", async () => 
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.repositories.length, 4);
-    assertEquals(manifest.repositories[0].name, ".github");
-    assertEquals(
+    assert.deepEqual(manifest.repositories.length, 4);
+    assert.deepEqual(manifest.repositories[0].name, ".github");
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://github.com/wazootech/.github",
     );
-    assertEquals(manifest.repositories[1].name, "docs.wazoo.dev");
-    assertEquals(manifest.repositories[3].name, "my_repo");
+    assert.deepEqual(manifest.repositories[1].name, "docs.wazoo.dev");
+    assert.deepEqual(manifest.repositories[3].name, "my_repo");
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("findDefaultManifestPath defaults to workspace.json", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("findDefaultManifestPath defaults to workspace.json", async () => {
+  const tempDir = await makeTempDir();
   try {
     // When no manifest exists, defaults to workspace.json
-    assertEquals(
+    assert.deepEqual(
       await findDefaultManifestPath(tempDir),
       join(tempDir, "workspace.json"),
     );
 
     // If workspace.json exists, resolves it
     const workspacePath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(workspacePath, "{}");
-    assertEquals(await findDefaultManifestPath(tempDir), workspacePath);
+    await writeFile(workspacePath, "{}");
+    assert.deepEqual(await findDefaultManifestPath(tempDir), workspacePath);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest expands bare-string entries against owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest expands bare-string entries against owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         schemaVersion: 4,
@@ -247,27 +251,27 @@ Deno.test("loadManifest expands bare-string entries against owner", async () => 
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.owner, "ethanthatonekid");
-    assertEquals(manifest.repositories.length, 2);
-    assertEquals(manifest.repositories[0].name, "etok");
-    assertEquals(
+    assert.deepEqual(manifest.owner, "ethanthatonekid");
+    assert.deepEqual(manifest.repositories.length, 2);
+    assert.deepEqual(manifest.repositories[0].name, "etok");
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://github.com/ethanthatonekid/etok",
     );
-    assertEquals(
+    assert.deepEqual(
       manifest.repositories[1].url,
       "https://github.com/ethanthatonekid/memsdk",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects a bare-string entry without an owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects a bare-string entry without an owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({ repositories: ["etok"] }),
     );
@@ -277,15 +281,15 @@ Deno.test("loadManifest rejects a bare-string entry without an owner", async () 
       "Invalid repository owner",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest keeps object entries untouched by owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest keeps object entries untouched by owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         owner: "wazootech",
@@ -296,40 +300,40 @@ Deno.test("loadManifest keeps object entries untouched by owner", async () => {
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://gitlab.com/other/elsewhere.git",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest expands owner/name slash strings without top-level owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest expands owner/name slash strings without top-level owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({ repositories: ["wazootech/memsdk"] }),
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.repositories[0].name, "memsdk");
-    assertEquals(
+    assert.deepEqual(manifest.repositories[0].name, "memsdk");
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://github.com/wazootech/memsdk",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest lets inline owner override the top-level owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest lets inline owner override the top-level owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         owner: "ethanthatonekid",
@@ -338,24 +342,24 @@ Deno.test("loadManifest lets inline owner override the top-level owner", async (
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://github.com/wazootech/memsdk",
     );
-    assertEquals(
+    assert.deepEqual(
       manifest.repositories[1].url,
       "https://github.com/ethanthatonekid/etok",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects shorthand strings with multiple slashes", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects shorthand strings with multiple slashes", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({ repositories: ["a/b/c"] }),
     );
@@ -365,15 +369,15 @@ Deno.test("loadManifest rejects shorthand strings with multiple slashes", async 
       "Unable to parse repository string",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest expands { name, owner } object shorthands against host", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest expands { name, owner } object shorthands against host", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         host: "gitlab.com",
@@ -382,21 +386,21 @@ Deno.test("loadManifest expands { name, owner } object shorthands against host",
     );
 
     const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.repositories[0].name, "memsdk");
-    assertEquals(
+    assert.deepEqual(manifest.repositories[0].name, "memsdk");
+    assert.deepEqual(
       manifest.repositories[0].url,
       "https://gitlab.com/wazootech/memsdk",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects entries setting both url and owner", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects entries setting both url and owner", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         repositories: [{
@@ -412,15 +416,15 @@ Deno.test("loadManifest rejects entries setting both url and owner", async () =>
       "mutually exclusive",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects a non-hostname host value", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects a non-hostname host value", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         host: "https://github.com",
@@ -433,15 +437,15 @@ Deno.test("loadManifest rejects a non-hostname host value", async () => {
       "must be a bare hostname",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("loadManifest rejects a legacy vaultDirectory key", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest rejects a legacy vaultDirectory key", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({ repositories: [], vaultDirectory: "secrets" }),
     );
@@ -451,15 +455,15 @@ Deno.test("loadManifest rejects a legacy vaultDirectory key", async () => {
       'vaultDirectory" was removed',
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("resolveWorkspaceTree resolves object entries against child path", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("resolveWorkspaceTree resolves object entries against child path", async () => {
+  const tempDir = await makeTempDir();
   try {
     const parentManifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       parentManifestPath,
       JSON.stringify({
         repositories: [
@@ -472,14 +476,14 @@ Deno.test("resolveWorkspaceTree resolves object entries against child path", asy
     const manifest = await loadManifest(parentManifestPath);
     const resolved = await resolveWorkspaceTree(manifest, parentManifestPath);
 
-    assertEquals(resolved.repositories.length, 1);
-    assertEquals(resolved.repositories[0].name, "explicit");
+    assert.deepEqual(resolved.repositories.length, 1);
+    assert.deepEqual(resolved.repositories[0].name, "explicit");
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("detectConflicts finds duplicate repo names across workspaces", () => {
+test("detectConflicts finds duplicate repo names across workspaces", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -489,12 +493,12 @@ Deno.test("detectConflicts finds duplicate repo names across workspaces", () => 
     ],
   };
   const conflicts = detectConflicts(resolved);
-  assertEquals(conflicts.length, 1);
-  assertEquals(conflicts[0].repoName, "shared");
-  assertEquals(conflicts[0].claimedBy, ["(root)", "child-a"]);
+  assert.deepEqual(conflicts.length, 1);
+  assert.deepEqual(conflicts[0].repoName, "shared");
+  assert.deepEqual(conflicts[0].claimedBy, ["(root)", "child-a"]);
 });
 
-Deno.test("detectConflicts returns empty when no conflicts", () => {
+test("detectConflicts returns empty when no conflicts", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -502,10 +506,10 @@ Deno.test("detectConflicts returns empty when no conflicts", () => {
       { name: "b", url: "u2", workspace: "child" },
     ],
   };
-  assertEquals(detectConflicts(resolved).length, 0);
+  assert.deepEqual(detectConflicts(resolved).length, 0);
 });
 
-Deno.test("detectConflicts does not flag same-named repos in different workspaces with distinct paths", () => {
+test("detectConflicts does not flag same-named repos in different workspaces with distinct paths", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -523,10 +527,10 @@ Deno.test("detectConflicts does not flag same-named repos in different workspace
       },
     ],
   };
-  assertEquals(detectConflicts(resolved).length, 0);
+  assert.deepEqual(detectConflicts(resolved).length, 0);
 });
 
-Deno.test("detectConflicts flags entries resolving to the same checkout path", () => {
+test("detectConflicts flags entries resolving to the same checkout path", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -545,13 +549,13 @@ Deno.test("detectConflicts flags entries resolving to the same checkout path", (
     ],
   };
   const conflicts = detectConflicts(resolved);
-  assertEquals(conflicts.length, 1);
-  assertEquals(conflicts[0].repoName, "memory");
-  assertEquals(conflicts[0].path, normalize(resolve("/ws/repos/memory")));
-  assertEquals(conflicts[0].claimedBy, ["(root)", "wazootech"]);
+  assert.deepEqual(conflicts.length, 1);
+  assert.deepEqual(conflicts[0].repoName, "memory");
+  assert.deepEqual(conflicts[0].path, normalize(resolve("/ws/repos/memory")));
+  assert.deepEqual(conflicts[0].claimedBy, ["(root)", "wazootech"]);
 });
 
-Deno.test("listWorkspaces returns root with all repos", () => {
+test("listWorkspaces returns root with all repos", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -560,61 +564,61 @@ Deno.test("listWorkspaces returns root with all repos", () => {
     ],
   };
   const ws = listWorkspaces(resolved);
-  assertEquals(ws.length, 1);
-  assertEquals(ws[0], { name: "(root)", repos: 2, child: false });
+  assert.deepEqual(ws.length, 1);
+  assert.deepEqual(ws[0], { name: "(root)", repos: 2, child: false });
 });
 
-Deno.test("validateManifestText expands bare-string shorthand with owner", () => {
+test("validateManifestText expands bare-string shorthand with owner", () => {
   const raw = JSON.stringify({
     owner: "acme",
     repositories: ["api"],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assertEquals(manifest.repositories[0].name, "api");
-  assertEquals(
+  assert.deepEqual(manifest.repositories[0].name, "api");
+  assert.deepEqual(
     manifest.repositories[0].url,
     "https://github.com/acme/api",
   );
 });
 
-Deno.test("validateManifestText expands owner/name inline shorthand", () => {
+test("validateManifestText expands owner/name inline shorthand", () => {
   const raw = JSON.stringify({
     repositories: ["acme/api"],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assertEquals(manifest.repositories[0].name, "api");
-  assertEquals(
+  assert.deepEqual(manifest.repositories[0].name, "api");
+  assert.deepEqual(
     manifest.repositories[0].url,
     "https://github.com/acme/api",
   );
 });
 
-Deno.test("validateManifestText inline owner overrides top-level owner", () => {
+test("validateManifestText inline owner overrides top-level owner", () => {
   const raw = JSON.stringify({
     owner: "acme",
     repositories: ["other/repo"],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assertEquals(
+  assert.deepEqual(
     manifest.repositories[0].url,
     "https://github.com/other/repo",
   );
 });
 
-Deno.test("validateManifestText expands shorthand against custom host", () => {
+test("validateManifestText expands shorthand against custom host", () => {
   const raw = JSON.stringify({
     host: "gitlab.com",
     owner: "acme",
     repositories: ["api"],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assertEquals(
+  assert.deepEqual(
     manifest.repositories[0].url,
     "https://gitlab.com/acme/api",
   );
 });
 
-Deno.test("validateManifestText rejects shorthand without owner", () => {
+test("validateManifestText rejects shorthand without owner", () => {
   const raw = JSON.stringify({
     repositories: ["api"],
   });
@@ -625,7 +629,7 @@ Deno.test("validateManifestText rejects shorthand without owner", () => {
   );
 });
 
-Deno.test("validateManifestText rejects multiple slashes in shorthand", () => {
+test("validateManifestText rejects multiple slashes in shorthand", () => {
   const raw = JSON.stringify({
     repositories: ["a/b/c"],
   });
@@ -636,7 +640,7 @@ Deno.test("validateManifestText rejects multiple slashes in shorthand", () => {
   );
 });
 
-Deno.test("validateManifestText rejects shorthand with empty owner half", () => {
+test("validateManifestText rejects shorthand with empty owner half", () => {
   const raw = JSON.stringify({
     repositories: ["/api"],
   });
@@ -647,7 +651,7 @@ Deno.test("validateManifestText rejects shorthand with empty owner half", () => 
   );
 });
 
-Deno.test("validateManifestText rejects shorthand with empty name half", () => {
+test("validateManifestText rejects shorthand with empty name half", () => {
   const raw = JSON.stringify({
     repositories: ["acme/"],
   });
@@ -658,131 +662,131 @@ Deno.test("validateManifestText rejects shorthand with empty name half", () => {
   );
 });
 
-Deno.test("validateManifestText expands { name, owner } object shorthand", () => {
+test("validateManifestText expands { name, owner } object shorthand", () => {
   const raw = JSON.stringify({
     host: "gitlab.com",
     repositories: [{ name: "api", owner: "acme" }],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assertEquals(manifest.repositories[0].name, "api");
-  assertEquals(
+  assert.deepEqual(manifest.repositories[0].name, "api");
+  assert.deepEqual(
     manifest.repositories[0].url,
     "https://gitlab.com/acme/api",
   );
 });
 
-Deno.test("resolveRepositoryPath computes default path from reposDirectory", () => {
+test("resolveRepositoryPath computes default path from reposDirectory", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  assertEquals(
+  assert.deepEqual(
     resolveRepositoryPath({ name: "api" }, paths),
     join(wsDir, "repos", "api"),
   );
 });
 
-Deno.test("resolveRepositoryPath uses pre-set resolvedPath when available", () => {
+test("resolveRepositoryPath uses pre-set resolvedPath when available", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  const expected = Deno.build.os === "windows"
+  const expected = process.platform === "win32"
     ? "C:\\custom\\path"
     : "/custom/path";
-  assertEquals(
+  assert.deepEqual(
     resolveRepositoryPath({ name: "api", resolvedPath: expected }, paths),
     expected,
   );
 });
 
-Deno.test("resolveRepositoryPath respects custom repositoriesDirectory", () => {
+test("resolveRepositoryPath respects custom repositoriesDirectory", () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
     repositories: [],
   };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  assertEquals(
+  assert.deepEqual(
     resolveRepositoryPath({ name: "api" }, paths),
     join(wsDir, "libs", "api"),
   );
 });
 
-Deno.test("resolveWorkspaceTree computes resolvedPath for each repo", async () => {
+test("resolveWorkspaceTree computes resolvedPath for each repo", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "https://example.com/a.git" },
       { name: "b", url: "https://example.com/b.git" },
     ],
   };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const resolved = await resolveWorkspaceTree(
     manifest,
     join(wsDir, "workspace.json"),
   );
-  assertEquals(resolved.repositories.length, 2);
-  assertEquals(
+  assert.deepEqual(resolved.repositories.length, 2);
+  assert.deepEqual(
     resolved.repositories[0].resolvedPath,
     join(wsDir, "repos", "a"),
   );
-  assertEquals(
+  assert.deepEqual(
     resolved.repositories[1].resolvedPath,
     join(wsDir, "repos", "b"),
   );
 });
 
-Deno.test("resolveWorkspaceTree sets workspace to undefined for root repos", async () => {
+test("resolveWorkspaceTree sets workspace to undefined for root repos", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "u" }],
   };
   const resolved = await resolveWorkspaceTree(manifest, "/ws/workspace.json");
-  assertEquals(resolved.repositories[0].workspace, undefined);
+  assert.deepEqual(resolved.repositories[0].workspace, undefined);
 });
 
-Deno.test("resolveWorkspaceTree uses custom repositoriesDirectory", async () => {
+test("resolveWorkspaceTree uses custom repositoriesDirectory", async () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
     repositories: [{ name: "a", url: "u" }],
   };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const resolved = await resolveWorkspaceTree(
     manifest,
     join(wsDir, "workspace.json"),
   );
-  assertEquals(
+  assert.deepEqual(
     resolved.repositories[0].resolvedPath,
     join(wsDir, "libs", "a"),
   );
 });
 
-Deno.test("resolveWorkspaceTree preserves pre-set resolvedPath", async () => {
-  const expected = Deno.build.os === "windows" ? "C:\\opt\\a" : "/opt/a";
+test("resolveWorkspaceTree preserves pre-set resolvedPath", async () => {
+  const expected = process.platform === "win32" ? "C:\\opt\\a" : "/opt/a";
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "u", resolvedPath: expected },
     ],
   };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const resolved = await resolveWorkspaceTree(
     manifest,
     join(wsDir, "workspace.json"),
   );
-  assertEquals(resolved.repositories[0].resolvedPath, expected);
+  assert.deepEqual(resolved.repositories[0].resolvedPath, expected);
 });
 
-Deno.test("manifestPaths resolves relative repositoriesDirectory", () => {
+test("manifestPaths resolves relative repositoriesDirectory", () => {
   const manifest: WorkspaceManifest = {
     repositoriesDirectory: "libs",
     repositories: [],
   };
-  const wsDir = join(Deno.cwd(), "ws");
+  const wsDir = join(process.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  assertEquals(paths.repositoriesDirectory, join(wsDir, "libs"));
+  assert.deepEqual(paths.repositoriesDirectory, join(wsDir, "libs"));
 });
 
-Deno.test("validateSafeName", async (t) => {
+test("validateSafeName", async (t) => {
   const validCases = ["my-repo", "repo_name", "a.b", "123"];
   for (const name of validCases) {
-    await t.step(`accepts "${name}"`, () => {
+    await t.test(`accepts "${name}"`, () => {
       validateSafeName(name);
     });
   }
@@ -796,13 +800,13 @@ Deno.test("validateSafeName", async (t) => {
   ];
 
   for (const { input, pattern } of errorCases) {
-    await t.step(`rejects "${input}"`, () => {
+    await t.test(`rejects "${input}"`, () => {
       assertThrows(() => validateSafeName(input), Error, pattern);
     });
   }
 });
 
-Deno.test("detectConflicts finds conflicts across three workspaces", () => {
+test("detectConflicts finds conflicts across three workspaces", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -812,12 +816,12 @@ Deno.test("detectConflicts finds conflicts across three workspaces", () => {
     ],
   };
   const conflicts = detectConflicts(resolved);
-  assertEquals(conflicts.length, 1);
-  assertEquals(conflicts[0].repoName, "shared");
-  assertEquals(conflicts[0].claimedBy.length, 3);
+  assert.deepEqual(conflicts.length, 1);
+  assert.deepEqual(conflicts[0].repoName, "shared");
+  assert.deepEqual(conflicts[0].claimedBy.length, 3);
 });
 
-Deno.test("detectConflicts finds multiple distinct conflicts", () => {
+test("detectConflicts finds multiple distinct conflicts", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -828,18 +832,18 @@ Deno.test("detectConflicts finds multiple distinct conflicts", () => {
     ],
   };
   const conflicts = detectConflicts(resolved);
-  assertEquals(conflicts.length, 2);
+  assert.deepEqual(conflicts.length, 2);
 });
 
-Deno.test("listWorkspaces returns empty for empty repositories", () => {
+test("listWorkspaces returns empty for empty repositories", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [],
   };
-  assertEquals(listWorkspaces(resolved).length, 0);
+  assert.deepEqual(listWorkspaces(resolved).length, 0);
 });
 
-Deno.test("listWorkspaces groups repos by workspace name", () => {
+test("listWorkspaces groups repos by workspace name", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -850,66 +854,66 @@ Deno.test("listWorkspaces groups repos by workspace name", () => {
     ],
   };
   const ws = listWorkspaces(resolved);
-  assertEquals(ws.length, 3);
-  assertEquals(ws[0], { name: "(root)", repos: 1, child: false });
-  assertEquals(ws[1], { name: "child-x", repos: 2, child: true });
-  assertEquals(ws[2], { name: "child-y", repos: 1, child: true });
+  assert.deepEqual(ws.length, 3);
+  assert.deepEqual(ws[0], { name: "(root)", repos: 1, child: false });
+  assert.deepEqual(ws[1], { name: "child-x", repos: 2, child: true });
+  assert.deepEqual(ws[2], { name: "child-y", repos: 1, child: true });
 });
 
 // --- findManifestWalkingUp tests ---
 
-Deno.test("findManifestWalkingUp finds manifest in current directory", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("findManifestWalkingUp finds manifest in current directory", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(manifestPath, "{}\n");
-    assertEquals(await findManifestWalkingUp(tempDir), manifestPath);
+    await writeFile(manifestPath, "{}\n");
+    assert.deepEqual(await findManifestWalkingUp(tempDir), manifestPath);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("findManifestWalkingUp finds manifest in parent directory", async () => {
-  const parent = await Deno.makeTempDir();
+test("findManifestWalkingUp finds manifest in parent directory", async () => {
+  const parent = await makeTempDir();
   const child = join(parent, "child", "nested");
-  await Deno.mkdir(child, { recursive: true });
+  await mkdir(child, { recursive: true });
   try {
     const manifestPath = join(parent, "workspace.json");
-    await Deno.writeTextFile(manifestPath, "{}\n");
-    assertEquals(await findManifestWalkingUp(child), manifestPath);
+    await writeFile(manifestPath, "{}\n");
+    assert.deepEqual(await findManifestWalkingUp(child), manifestPath);
   } finally {
-    await Deno.remove(parent, { recursive: true });
+    await rm(parent, { recursive: true });
   }
 });
 
-Deno.test("findManifestWalkingUp returns undefined when no manifest exists", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("findManifestWalkingUp returns undefined when no manifest exists", async () => {
+  const tempDir = await makeTempDir();
   try {
-    assertEquals(await findManifestWalkingUp(tempDir), undefined);
+    assert.deepEqual(await findManifestWalkingUp(tempDir), undefined);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("findDefaultManifestPath uses walk-up discovery", async () => {
-  const parent = await Deno.makeTempDir();
+test("findDefaultManifestPath uses walk-up discovery", async () => {
+  const parent = await makeTempDir();
   const child = join(parent, "subdir");
-  await Deno.mkdir(child, { recursive: true });
+  await mkdir(child, { recursive: true });
   try {
     // Manifest in parent, calling from child — walk-up should find it
     const manifestPath = join(parent, "workspace.json");
-    await Deno.writeTextFile(manifestPath, "{}\n");
-    assertEquals(await findDefaultManifestPath(child), manifestPath);
+    await writeFile(manifestPath, "{}\n");
+    assert.deepEqual(await findDefaultManifestPath(child), manifestPath);
   } finally {
-    await Deno.remove(parent, { recursive: true });
+    await rm(parent, { recursive: true });
   }
 });
 
-Deno.test("loadManifest accepts a workspaces array with repository entries", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("loadManifest accepts a workspaces array with repository entries", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         repositories: [],
@@ -917,14 +921,17 @@ Deno.test("loadManifest accepts a workspaces array with repository entries", asy
       }),
     );
     const manifest = await loadManifest(manifestPath);
-    assertEquals(manifest.workspaces?.[0].name, "child");
-    assertEquals(manifest.workspaces?.[0].url, "https://github.com/acme/child");
+    assert.deepEqual(manifest.workspaces?.[0].name, "child");
+    assert.deepEqual(
+      manifest.workspaces?.[0].url,
+      "https://github.com/acme/child",
+    );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("validateManifest rejects duplicate names across repositories and workspaces", () => {
+test("validateManifest rejects duplicate names across repositories and workspaces", () => {
   assertThrows(
     () =>
       validateManifest({
@@ -936,15 +943,15 @@ Deno.test("validateManifest rejects duplicate names across repositories and work
   );
 });
 
-Deno.test("resolveWorkspaceTree loads declared workspace repositories recursively", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("resolveWorkspaceTree loads declared workspace repositories recursively", async () => {
+  const tempDir = await makeTempDir();
   try {
     const rootPath = join(tempDir, "workspace.json");
     const childDir = join(tempDir, "repos", "platform");
     const childPath = join(childDir, "workspace.json");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.mkdir(join(childDir, ".git"));
-    await Deno.writeTextFile(
+    await mkdir(childDir, { recursive: true });
+    await mkdir(join(childDir, ".git"));
+    await writeFile(
       rootPath,
       JSON.stringify({
         repositories: [{ name: "plain", url: "https://example.com/plain.git" }],
@@ -954,7 +961,7 @@ Deno.test("resolveWorkspaceTree loads declared workspace repositories recursivel
         }],
       }),
     );
-    await Deno.writeTextFile(
+    await writeFile(
       childPath,
       JSON.stringify({
         repositories: [{ name: "leaf", url: "https://example.com/leaf.git" }],
@@ -963,34 +970,34 @@ Deno.test("resolveWorkspaceTree loads declared workspace repositories recursivel
 
     const manifest = await loadManifest(rootPath);
     const resolved = await resolveWorkspaceTree(manifest, rootPath);
-    assertEquals(resolved.repositories.map((repo) => repo.name), [
+    assert.deepEqual(resolved.repositories.map((repo) => repo.name), [
       "plain",
       "platform",
       "leaf",
     ]);
-    assertEquals(resolved.repositories[1].isWorkspace, true);
-    assertEquals(resolved.repositories[2].workspace, "platform");
+    assert.deepEqual(resolved.repositories[1].isWorkspace, true);
+    assert.deepEqual(resolved.repositories[2].workspace, "platform");
     // Without workspacesDirectory, the workspace checkout falls back to the
     // repositories directory alongside ordinary repos.
-    assertEquals(resolved.repositories[1].resolvedPath, childDir);
-    assertEquals(
+    assert.deepEqual(resolved.repositories[1].resolvedPath, childDir);
+    assert.deepEqual(
       resolved.repositories[2].resolvedPath,
       join(childDir, "repos", "leaf"),
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("resolveWorkspaceTree places workspace checkouts under workspacesDirectory when declared", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("resolveWorkspaceTree places workspace checkouts under workspacesDirectory when declared", async () => {
+  const tempDir = await makeTempDir();
   try {
     const rootPath = join(tempDir, "workspace.json");
     const childDir = join(tempDir, "subworkspaces", "platform");
     const childPath = join(childDir, "workspace.json");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.mkdir(join(childDir, ".git"));
-    await Deno.writeTextFile(
+    await mkdir(childDir, { recursive: true });
+    await mkdir(join(childDir, ".git"));
+    await writeFile(
       rootPath,
       JSON.stringify({
         workspacesDirectory: "subworkspaces",
@@ -1001,7 +1008,7 @@ Deno.test("resolveWorkspaceTree places workspace checkouts under workspacesDirec
         }],
       }),
     );
-    await Deno.writeTextFile(
+    await writeFile(
       childPath,
       JSON.stringify({
         repositories: [{ name: "leaf", url: "https://example.com/leaf.git" }],
@@ -1011,25 +1018,25 @@ Deno.test("resolveWorkspaceTree places workspace checkouts under workspacesDirec
     const manifest = await loadManifest(rootPath);
     const resolved = await resolveWorkspaceTree(manifest, rootPath);
     const workspace = resolved.repositories.find((r) => r.isWorkspace);
-    assertEquals(workspace?.resolvedPath, childDir);
+    assert.deepEqual(workspace?.resolvedPath, childDir);
     const leaf = resolved.repositories.find((r) => r.name === "leaf");
-    assertEquals(
+    assert.deepEqual(
       leaf?.resolvedPath,
       join(childDir, "repos", "leaf"),
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("resolveWorkspaceTree marks an existing workspace checkout without a manifest as an error entry", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("resolveWorkspaceTree marks an existing workspace checkout without a manifest as an error entry", async () => {
+  const tempDir = await makeTempDir();
   try {
     const rootPath = join(tempDir, "workspace.json");
     const childDir = join(tempDir, "repos", "platform");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.mkdir(join(childDir, ".git"));
-    await Deno.writeTextFile(
+    await mkdir(childDir, { recursive: true });
+    await mkdir(join(childDir, ".git"));
+    await writeFile(
       rootPath,
       JSON.stringify({
         repositories: [],
@@ -1041,8 +1048,8 @@ Deno.test("resolveWorkspaceTree marks an existing workspace checkout without a m
     );
     const manifest = await loadManifest(rootPath);
     const resolved = await resolveWorkspaceTree(manifest, rootPath);
-    assertEquals(resolved.workspaceEntries?.length, 1);
-    assertEquals(resolved.repositories[0].isWorkspace, true);
+    assert.deepEqual(resolved.workspaceEntries?.length, 1);
+    assert.deepEqual(resolved.repositories[0].isWorkspace, true);
     assert(
       resolved.repositories[0].error?.includes(
         "does not contain a workspace.json manifest",
@@ -1050,17 +1057,17 @@ Deno.test("resolveWorkspaceTree marks an existing workspace checkout without a m
       `expected manifest-missing error, got: ${resolved.repositories[0].error}`,
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("resolveWorkspaceTree marks a non-git workspace checkout as an error entry", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("resolveWorkspaceTree marks a non-git workspace checkout as an error entry", async () => {
+  const tempDir = await makeTempDir();
   try {
     const rootPath = join(tempDir, "workspace.json");
     const childDir = join(tempDir, "repos", "platform");
-    await Deno.mkdir(childDir, { recursive: true });
-    await Deno.writeTextFile(
+    await mkdir(childDir, { recursive: true });
+    await writeFile(
       rootPath,
       JSON.stringify({
         repositories: [],
@@ -1077,6 +1084,6 @@ Deno.test("resolveWorkspaceTree marks a non-git workspace checkout as an error e
       `expected non-git error, got: ${resolved.repositories[0].error}`,
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
