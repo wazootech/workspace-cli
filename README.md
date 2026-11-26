@@ -56,6 +56,21 @@ Design principles:
   `FEATURE_CLEAN` whether or not it is pushed. After the PR merges, run
   `wspace sweep` to remove the merged worktree.
 
+## How it works
+
+```mermaid
+flowchart TB
+  manifest["workspace.json<br/>the manifest"] -->|declares what belongs| wspace(["wspace"])
+  remotes[("Git remotes")] -->|source of clones and updates| wspace
+  wspace -->|install, update, check| checkouts["Managed checkouts<br/>repos/ and workspaces/"]
+  checkouts -->|git worktree add| trees["Linked worktrees<br/>feature work"]
+  trees -->|wspace sweep, after merge| gone(["Removed"])
+```
+
+`workspaces/` applies when the manifest sets `workspacesDirectory`; otherwise
+sub-workspaces are checked out under `repos/`. You create worktrees with plain
+`git`, and `wspace sweep` cleans them up after their branches merge.
+
 ## Commands
 
 - `wspace check` — read-only baseline check. Reports `CLEAN`, `DIRTY`,
