@@ -60,22 +60,11 @@ Design principles:
 
 ```mermaid
 flowchart TB
-  manifest["workspace.json<br/>the manifest"]
-  wspace(["wspace"])
-  remotes[("Git remotes")]
-
-  subgraph root["Workspace root"]
-    repos["repos/&lt;name&gt;<br/>managed checkouts"]
-    child["workspaces/&lt;name&gt;<br/>sub-workspaces, each with<br/>its own workspace.json"]
-    trees["linked worktrees<br/>feature work"]
-  end
-
-  manifest -->|declares what belongs| wspace
-  remotes -->|install clones<br/>update fast-forwards| wspace
-  wspace -->|install, update, check| repos
-  wspace -->|install, update, check| child
-  repos -->|git worktree add| trees
-  wspace -->|sweep removes merged| trees
+  manifest["workspace.json<br/>the manifest"] -->|declares what belongs| wspace(["wspace"])
+  remotes[("Git remotes")] -->|source of clones and updates| wspace
+  wspace -->|install, update, check| checkouts["Managed checkouts<br/>repos/ and workspaces/"]
+  checkouts -->|git worktree add| trees["Linked worktrees<br/>feature work"]
+  trees -->|wspace sweep, after merge| gone(["Removed"])
 ```
 
 `workspaces/` applies when the manifest sets `workspacesDirectory`; otherwise
