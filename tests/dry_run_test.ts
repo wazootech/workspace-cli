@@ -1,5 +1,8 @@
-import { assert, assertEquals } from "@std/assert";
-import { exists } from "@std/fs";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { makeTempDir, runCli } from "./helpers.ts";
+import { pathExists } from "@/runtime.ts";
 import { join } from "@std/path";
 import { run } from "@/cli.ts";
 import { runUpdate } from "@/update.ts";
@@ -23,34 +26,27 @@ async function makeRepoWithMain(dir: string, name: string): Promise<string> {
   await configure(seed);
   const r3 = await g.run(["checkout", "-b", "main"], seed);
   assert(r3.code === 0, "checkout main");
-  await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+  await writeFile(join(seed, "a.txt"), "one\n");
   await g.run(["add", "."], seed);
   const r4 = await g.run(["commit", "-m", "seed"], seed);
   assert(r4.code === 0, "seed commit");
   const r5 = await g.run(["push", origin, "main"], seed);
   assert(r5.code === 0, "push main");
   await g.run(["symbolic-ref", "HEAD", "refs/heads/main"], origin);
-  await Deno.remove(seed, { recursive: true });
+  await rm(seed, { recursive: true });
   return origin;
 }
 
 async function removeTempDir(dir: string): Promise<void> {
-  await Deno.remove(dir, { recursive: true }).catch(() => {});
+  await rm(dir, { recursive: true }).catch(() => {});
 }
 
-const CLI_PATH = join(
-  import.meta.dirname ?? ".",
-  "..",
-  "src",
-  "cli.ts",
-);
-
-Deno.test("install --dry-run reports WOULD_CLONE without creating dirs", async () => {
-  const dir = await Deno.makeTempDir();
+test("install --dry-run reports WOULD_CLONE without creating dirs", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "dry-repo");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -66,9 +62,9 @@ Deno.test("install --dry-run reports WOULD_CLONE without creating dirs", async (
       manifestPath,
       "--dry-run",
     ]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(dir, "repos", "dry-repo")),
+    assert.deepEqual(code, 0);
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "dry-repo")),
       false,
       "repo should NOT be cloned during dry-run",
     );
@@ -77,12 +73,12 @@ Deno.test("install --dry-run reports WOULD_CLONE without creating dirs", async (
   }
 });
 
-Deno.test("install --dry-run --json outputs WOULD_CLONE", async () => {
-  const dir = await Deno.makeTempDir();
+test("install --dry-run --json outputs WOULD_CLONE", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "dry-json");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -92,28 +88,20 @@ Deno.test("install --dry-run --json outputs WOULD_CLONE", async () => {
       }),
     );
 
-    const cmd = new Deno.Command("deno", {
-      args: [
-        "run",
-        "--allow-all",
-        CLI_PATH,
-        "install",
-        "--manifest",
-        manifestPath,
-        "--dry-run",
-        "--json",
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const output = await cmd.output();
-    const stdout = new TextDecoder().decode(output.stdout);
+    const output = await runCli([
+      "install",
+      "--manifest",
+      manifestPath,
+      "--dry-run",
+      "--json",
+    ]);
+    const stdout = output.stdout;
     assert(
       stdout.includes("WOULD_CLONE"),
       `expected WOULD_CLONE in output, got: ${stdout}`,
     );
-    assertEquals(
-      await exists(join(dir, "repos", "dry-json")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "dry-json")),
       false,
       "repo should NOT be cloned during dry-run",
     );
@@ -122,8 +110,8 @@ Deno.test("install --dry-run --json outputs WOULD_CLONE", async () => {
   }
 });
 
-Deno.test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async () => {
-  const dir = await Deno.makeTempDir();
+test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async () => {
+  const dir = await makeTempDir();
   try {
     const origin = await makeRepoWithMain(dir, "upd");
     const cloneDir = join(dir, "repos", "upd");
@@ -133,11 +121,11 @@ Deno.test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async 
     const seed = join(dir, "upd-seed");
     await g.run(["clone", origin, seed]);
     await configure(seed);
-    await Deno.writeTextFile(join(seed, "b.txt"), "two\n");
+    await writeFile(join(seed, "b.txt"), "two\n");
     await g.run(["add", "."], seed);
     await g.run(["commit", "-m", "second"], seed);
     await g.run(["push", "origin", "main"], seed);
-    await Deno.remove(seed, { recursive: true });
+    await rm(seed, { recursive: true });
 
     const paths = {
       root: dir,
@@ -154,20 +142,15 @@ Deno.test("update --dry-run reports WOULD_FAST_FORWARD without fetching", async 
       wouldFf,
       `expected WOULD_FAST_FORWARD action, got: ${JSON.stringify(actions)}`,
     );
-    assertEquals(wouldFf.name, "upd");
+    assert.deepEqual(wouldFf.name, "upd");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("--dry-run appears in global help text", async () => {
-  const cmd = new Deno.Command("deno", {
-    args: ["run", "--allow-all", CLI_PATH, "--help"],
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const output = await cmd.output();
-  const stdout = new TextDecoder().decode(output.stdout);
+test("--dry-run appears in global help text", async () => {
+  const output = await runCli(["--help"]);
+  const stdout = output.stdout;
   assert(stdout.includes("--dry-run"), "expected --dry-run in help text");
   assert(
     stdout.includes("Preview write operations"),
@@ -175,14 +158,14 @@ Deno.test("--dry-run appears in global help text", async () => {
   );
 });
 
-Deno.test("install reports INVALID for an existing workspace checkout missing its manifest", async () => {
-  const dir = await Deno.makeTempDir();
+test("install reports INVALID for an existing workspace checkout missing its manifest", async () => {
+  const dir = await makeTempDir();
   try {
     const workspaceDir = join(dir, "repos", "platform");
-    await Deno.mkdir(workspaceDir, { recursive: true });
-    await Deno.mkdir(join(workspaceDir, ".git"));
+    await mkdir(workspaceDir, { recursive: true });
+    await mkdir(join(workspaceDir, ".git"));
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -191,22 +174,14 @@ Deno.test("install reports INVALID for an existing workspace checkout missing it
       }),
     );
 
-    const cmd = new Deno.Command("deno", {
-      args: [
-        "run",
-        "--allow-all",
-        CLI_PATH,
-        "install",
-        "--manifest",
-        manifestPath,
-        "--json",
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const output = await cmd.output();
-    const stdout = new TextDecoder().decode(output.stdout);
-    const stderr = new TextDecoder().decode(output.stderr);
+    const output = await runCli([
+      "install",
+      "--manifest",
+      manifestPath,
+      "--json",
+    ]);
+    const stdout = output.stdout;
+    const stderr = output.stderr;
     assert(
       stdout.includes('"state": "INVALID"'),
       `expected INVALID row in stdout, got: ${stdout}\nstderr: ${stderr}`,
@@ -215,7 +190,7 @@ Deno.test("install reports INVALID for an existing workspace checkout missing it
       stdout.includes("does not contain a workspace.json manifest"),
       `expected manifest-missing detail, got: ${stdout}`,
     );
-    assertEquals(output.code, 1);
+    assert.deepEqual(output.code, 1);
   } finally {
     await removeTempDir(dir);
   }
