@@ -39,12 +39,12 @@ export interface DependencyAgeFinding {
 const CONFIG_NAME = /^deno\.jsonc?$/;
 const SKIP = [
   /node_modules/,
-  /[\/]\.git([\/]|$)/,
-  /[\/]_fresh([\/]|$)/,
-  /[\/]dist([\/]|$)/,
-  /[\/]vendor([\/]|$)/,
-  /[\/]generated([\/]|$)/,
-  /[\/]\.wrangler([\/]|$)/,
+  /[/]\.git([/]|$)/,
+  /[/]_fresh([/]|$)/,
+  /[/]dist([/]|$)/,
+  /[/]vendor([/]|$)/,
+  /[/]generated([/]|$)/,
+  /[/]\.wrangler([/]|$)/,
 ];
 
 /** Find and parse every Deno config under `repoPaths` (`name` → checkout dir). */
