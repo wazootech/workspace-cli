@@ -35,7 +35,7 @@ test("runProcess resolves rather than throwing on a non-zero exit", async () => 
 
 test("runProcess rejects when the binary cannot be spawned", async () => {
   await assertRejects(() =>
-    runProcess("wspace-definitely-not-a-real-binary-xyz", [])
+    runProcess("wspace-definitely-not-a-real-binary-xyz", []),
   );
 });
 
@@ -118,8 +118,9 @@ test("walkDirectoryTree returns the root, then its depth-first descendants", asy
 
     const entries = await walkDirectoryTree(dir, { maxDepth: 3 });
     const seen = entries
-      .map((entry) =>
-        `${relativeLabel(dir, entry.path)}${entry.isDirectory ? "/" : ""}`
+      .map(
+        (entry) =>
+          `${relativeLabel(dir, entry.path)}${entry.isDirectory ? "/" : ""}`,
       )
       .sort();
     assert.deepEqual(seen, [
@@ -140,10 +141,14 @@ test("walkDirectoryTree counts the root as depth 0 for maxDepth", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     await makeDirectory(join(dir, "one", "two"));
-    const depth1 = (await walkDirectoryTree(dir, {
-      maxDepth: 1,
-      includeFiles: false,
-    })).map((entry) => relativeLabel(dir, entry.path)).sort();
+    const depth1 = (
+      await walkDirectoryTree(dir, {
+        maxDepth: 1,
+        includeFiles: false,
+      })
+    )
+      .map((entry) => relativeLabel(dir, entry.path))
+      .sort();
     assert.deepEqual(depth1, [".", "one"]);
   } finally {
     await removePath(dir);

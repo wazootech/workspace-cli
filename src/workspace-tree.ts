@@ -74,15 +74,13 @@ export async function resolveWorkspaceTree(
       const checkoutPath = workspace.resolvedPath!;
       const checkoutExists = await pathExists(checkoutPath);
       if (checkoutExists && !(await pathExists(join(checkoutPath, ".git")))) {
-        workspace.error =
-          `Workspace repository "${workspace.name}" at ${checkoutPath} is not a Git repository`;
+        workspace.error = `Workspace repository "${workspace.name}" at ${checkoutPath} is not a Git repository`;
         continue;
       }
       const childManifestPath = await findExistingManifest(checkoutPath);
       if (!childManifestPath) {
         if (checkoutExists) {
-          workspace.error =
-            `Workspace repository "${workspace.name}" at ${checkoutPath} does not contain a workspace.json manifest`;
+          workspace.error = `Workspace repository "${workspace.name}" at ${checkoutPath} does not contain a workspace.json manifest`;
         }
         continue;
       }
@@ -113,9 +111,10 @@ export function detectConflicts(
   >();
   for (const repo of resolved.repositories) {
     const owner = repo.workspace ?? "(root)";
-    const key = repo.resolvedPath !== undefined
-      ? normalize(resolve(repo.resolvedPath))
-      : repo.name;
+    const key =
+      repo.resolvedPath !== undefined
+        ? normalize(resolve(repo.resolvedPath))
+        : repo.name;
     const existing = claims.get(key) ?? {
       repoName: repo.name,
       path: key,

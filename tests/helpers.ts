@@ -40,9 +40,8 @@ export function assertThrows(
   errorClass?: ErrorClass,
   messageIncludes?: string,
 ): void {
-  assert.throws(
-    fn,
-    (error: unknown) => matches(error, errorClass, messageIncludes),
+  assert.throws(fn, (error: unknown) =>
+    matches(error, errorClass, messageIncludes),
   );
 }
 
@@ -52,9 +51,8 @@ export async function assertRejects(
   errorClass?: ErrorClass,
   messageIncludes?: string,
 ): Promise<void> {
-  await assert.rejects(
-    fn,
-    (error: unknown) => matches(error, errorClass, messageIncludes),
+  await assert.rejects(fn, (error: unknown) =>
+    matches(error, errorClass, messageIncludes),
   );
 }
 

@@ -29,8 +29,8 @@ export async function run(
   const failed = rows.some(isSweepFailure);
   // SKIPPED_REMOTE is a successful local cleanup with the remote ref kept by
   // design, so it is not a refusal.
-  const refused = rows.some((row) =>
-    row.kind.startsWith("SKIP_") && row.kind !== "SKIPPED_REMOTE"
+  const refused = rows.some(
+    (row) => row.kind.startsWith("SKIP_") && row.kind !== "SKIPPED_REMOTE",
   );
   return failed || (opts.strict && refused) ? 1 : 0;
 }

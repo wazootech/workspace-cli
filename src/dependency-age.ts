@@ -137,7 +137,9 @@ export function auditDependencyAge(
       if (!name || config.name === name) continue;
       const scope = scopeOf(name);
       if (
-        scope && firstPartyScopes.has(scope) && !excluded.has(`jsr:${name}`)
+        scope &&
+        firstPartyScopes.has(scope) &&
+        !excluded.has(`jsr:${name}`)
       ) {
         missing.add(`jsr:${name}`);
       }
@@ -149,8 +151,7 @@ export function auditDependencyAge(
         repo,
         file,
         kind: "missing-exclude",
-        message:
-          `imports first-party ${name} but minimumDependencyAge.exclude does not list it`,
+        message: `imports first-party ${name} but minimumDependencyAge.exclude does not list it`,
       });
     }
   }

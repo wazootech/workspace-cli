@@ -50,6 +50,8 @@ export async function findManifestWalkingUp(
 export async function findDefaultManifestPath(
   cwd: string = currentDirectory(),
 ): Promise<string> {
-  return (await findManifestWalkingUp(cwd)) ??
-    resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0]);
+  return (
+    (await findManifestWalkingUp(cwd)) ??
+    resolve(cwd, DEFAULT_MANIFEST_FILENAMES[0] + MANIFEST_EXTENSIONS[0])
+  );
 }

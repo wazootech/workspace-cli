@@ -107,11 +107,13 @@ async function planRepoUpdate(
   }
 
   const ok = await fastForwardMerge(g, repoPath, upstream);
-  return ok ? { kind: "FAST_FORWARD", name, commits: ab.behind } : {
-    kind: "FAST_FORWARD_FAILED",
-    name,
-    detail: upstream,
-  };
+  return ok
+    ? { kind: "FAST_FORWARD", name, commits: ab.behind }
+    : {
+        kind: "FAST_FORWARD_FAILED",
+        name,
+        detail: upstream,
+      };
 }
 
 /**
@@ -144,7 +146,10 @@ export async function planUpdate(
   g: GitRunner,
   repositories: RepositoryEntry[],
   paths: ManifestPaths,
-  { dryRun = false, includeRoot = true }: {
+  {
+    dryRun = false,
+    includeRoot = true,
+  }: {
     dryRun?: boolean;
     includeRoot?: boolean;
   } = {},
@@ -157,13 +162,9 @@ export async function planUpdate(
   // are the expected workspace contents, not user work. Omitted when the
   // command is scoped to a sub-workspace.
   if (includeRoot) {
-    const rootAction = await planGitUpdate(
-      g,
-      ROOT_LABEL,
-      paths.root,
-      dryRun,
-      { ignoreUntracked: true },
-    );
+    const rootAction = await planGitUpdate(g, ROOT_LABEL, paths.root, dryRun, {
+      ignoreUntracked: true,
+    });
     if (rootAction) {
       actions.push(rootAction);
     }
@@ -188,7 +189,10 @@ export async function runUpdate(
   g: GitRunner,
   manifest: { repositories: RepositoryEntry[] },
   paths: ManifestPaths,
-  { dryRun = false, includeRoot = true }: {
+  {
+    dryRun = false,
+    includeRoot = true,
+  }: {
     dryRun?: boolean;
     includeRoot?: boolean;
   } = {},

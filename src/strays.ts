@@ -47,14 +47,16 @@ async function scanDirectory(
     if (!entry.isDirectory) {
       rows.push(stray(label, path, "stray file"));
     } else if (await pathExists(join(path, ".git"))) {
-      rows.push({ ...await checkout(label, path), unmanaged: true });
+      rows.push({ ...(await checkout(label, path)), unmanaged: true });
     } else {
       const empty = (await readDirectory(path)).length === 0;
-      rows.push(stray(
-        label,
-        path,
-        `${empty ? "empty directory" : "directory"}, not a Git checkout`,
-      ));
+      rows.push(
+        stray(
+          label,
+          path,
+          `${empty ? "empty directory" : "directory"}, not a Git checkout`,
+        ),
+      );
     }
   }
   return rows;
@@ -73,13 +75,15 @@ async function scanRoot(
     const claimed = [...configured, ...known.paths];
     if (claimed.some((p) => p === path || isInside(path, p))) continue;
     if (!(await pathExists(join(path, ".git")))) continue;
-    rows.push(stray(
-      `(stray) ${entry.name}`,
-      path,
-      known.names.has(entry.name)
-        ? `unmanaged duplicate of registered repo "${entry.name}"`
-        : "unmanaged Git checkout at the workspace root",
-    ));
+    rows.push(
+      stray(
+        `(stray) ${entry.name}`,
+        path,
+        known.names.has(entry.name)
+          ? `unmanaged duplicate of registered repo "${entry.name}"`
+          : "unmanaged Git checkout at the workspace root",
+      ),
+    );
   }
   return rows;
 }
@@ -107,11 +111,11 @@ export async function scanStrays(
   const dirs = [...new Set(configured.map((d) => normalize(d)))];
   const rows: RepoStatus[] = [];
   for (const dir of dirs) {
-    rows.push(...await scanDirectory(dir, known, checkout));
+    rows.push(...(await scanDirectory(dir, known, checkout)));
   }
   // When the root is itself a scanned directory its entries are already covered.
   if (includeRoot && !dirs.includes(normalize(paths.root))) {
-    rows.push(...await scanRoot(paths, known, dirs));
+    rows.push(...(await scanRoot(paths, known, dirs)));
   }
   return rows;
 }
@@ -136,8 +140,7 @@ export async function rootStrayRows(
       rows.push({
         name: `(stray) ${repository.name}`,
         state: "UNMANAGED",
-        detail:
-          `unmanaged duplicate of registered repo "${repository.name}" at ${rootPath}`,
+        detail: `unmanaged duplicate of registered repo "${repository.name}" at ${rootPath}`,
       });
     }
   }

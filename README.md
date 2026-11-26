@@ -79,7 +79,7 @@ Design principles:
   is an empty directory (or a tree of empty directories). `--force --dry-run`
   previews with `WOULD_CLEAR`.
 - `wspace add [<name>] [--url <url>] [--name <n>] [--as-workspace] [--create]
-  [--visibility <public|private>]`
+[--visibility <public|private>]`
   — append an entry to the manifest: a bare or `owner/name` shorthand string, or
   an object entry via `--url` (name defaults to the URL basename, overridable
   with `--name` or a positional name). Edits are surgical and preserve existing

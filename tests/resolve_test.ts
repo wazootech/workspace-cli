@@ -44,25 +44,28 @@ test("parseRepository", async (t) => {
 
 test("resolveRepository", async (t) => {
   await t.test("expands bare string with workspace owner", () => {
-    assert.deepEqual(
-      resolveRepository({ owner: "acme" }, "api"),
-      { name: "api", url: "https://github.com/acme/api" },
-    );
+    assert.deepEqual(resolveRepository({ owner: "acme" }, "api"), {
+      name: "api",
+      url: "https://github.com/acme/api",
+    });
   });
 
   await t.test("expands owner/name inline shorthand", () => {
-    assert.deepEqual(
-      resolveRepository({ owner: "acme" }, "other/repo"),
-      { name: "repo", url: "https://github.com/other/repo" },
-    );
+    assert.deepEqual(resolveRepository({ owner: "acme" }, "other/repo"), {
+      name: "repo",
+      url: "https://github.com/other/repo",
+    });
   });
 
   await t.test("inline owner overrides workspace owner", () => {
     assert.deepEqual(
-      resolveRepository({ owner: "acme" }, {
-        name: "repo",
-        owner: "other",
-      }),
+      resolveRepository(
+        { owner: "acme" },
+        {
+          name: "repo",
+          owner: "other",
+        },
+      ),
       { name: "repo", url: "https://github.com/other/repo" },
     );
   });
@@ -79,41 +82,38 @@ test("resolveRepository", async (t) => {
 
   await t.test("uses custom host from repository", () => {
     assert.deepEqual(
-      resolveRepository({ owner: "acme" }, {
-        name: "api",
-        host: "gitlab.com",
-      }),
+      resolveRepository(
+        { owner: "acme" },
+        {
+          name: "api",
+          host: "gitlab.com",
+        },
+      ),
       { name: "api", url: "https://gitlab.com/acme/api" },
     );
   });
 
   await t.test("normalizes bare hostname to https", () => {
     assert.deepEqual(
-      resolveRepository(
-        { host: "github.com", owner: "acme" },
-        "api",
-      ),
+      resolveRepository({ host: "github.com", owner: "acme" }, "api"),
       { name: "api", url: "https://github.com/acme/api" },
     );
   });
 
   await t.test("accepts dotted repo name (.github)", () => {
-    assert.deepEqual(
-      resolveRepository({ owner: "acme" }, ".github"),
-      { name: ".github", url: "https://github.com/acme/.github" },
-    );
+    assert.deepEqual(resolveRepository({ owner: "acme" }, ".github"), {
+      name: ".github",
+      url: "https://github.com/acme/.github",
+    });
   });
 
   await t.test(
     "accepts multi-segment dotted repo name (docs.wazoo.dev)",
     () => {
-      assert.deepEqual(
-        resolveRepository({ owner: "acme" }, "docs.wazoo.dev"),
-        {
-          name: "docs.wazoo.dev",
-          url: "https://github.com/acme/docs.wazoo.dev",
-        },
-      );
+      assert.deepEqual(resolveRepository({ owner: "acme" }, "docs.wazoo.dev"), {
+        name: "docs.wazoo.dev",
+        url: "https://github.com/acme/docs.wazoo.dev",
+      });
     },
   );
 
@@ -168,11 +168,7 @@ test("resolveRepository", async (t) => {
 
   for (const { workspace, repo, pattern } of errorCases) {
     await t.test(`throws on ${pattern}`, () => {
-      assertThrows(
-        () => resolveRepository(workspace, repo),
-        Error,
-        pattern,
-      );
+      assertThrows(() => resolveRepository(workspace, repo), Error, pattern);
     });
   }
 });
@@ -246,11 +242,7 @@ test("resolveRepository rejects invalid owner segments", async (t) => {
   ];
   for (const { owner, pattern } of errorCases) {
     await t.test(`rejects owner "${owner}"`, () => {
-      assertThrows(
-        () => resolveRepository({ owner }, "api"),
-        Error,
-        pattern,
-      );
+      assertThrows(() => resolveRepository({ owner }, "api"), Error, pattern);
     });
   }
 });

@@ -5,9 +5,7 @@ import type { InstallRow } from "@/commands/install-rows.ts";
 
 /** What `install --force` did about whatever occupies a repository path. */
 export type Clearance =
-  | { kind: "none" }
-  | { kind: "cleared" }
-  | { kind: "row"; row: InstallRow };
+  { kind: "none" } | { kind: "cleared" } | { kind: "row"; row: InstallRow };
 
 /**
  * Clear a placeholder that blocks a clone, but only when that loses no data
@@ -29,8 +27,7 @@ export async function clearBlockingPath(
       row: {
         name,
         state: "PATH_BLOCKED",
-        detail:
-          `Path exists but is not a Git repository and ${blocker}; --force only clears empty directories`,
+        detail: `Path exists but is not a Git repository and ${blocker}; --force only clears empty directories`,
       },
     };
   }

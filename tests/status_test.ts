@@ -82,12 +82,14 @@ test("collectStatus reports error-marked workspace entries as INVALID rows", asy
   const rows = await collectStatus(
     {} as GitRunner,
     {
-      repositories: [{
-        name: "platform",
-        url: "",
-        error:
-          'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
-      }],
+      repositories: [
+        {
+          name: "platform",
+          url: "",
+          error:
+            'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
+        },
+      ],
     },
     { root: "/ws", repositoriesDirectory: "/ws/repos" },
     { includeRoot: false },

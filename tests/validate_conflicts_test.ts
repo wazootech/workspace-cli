@@ -29,10 +29,12 @@ async function makeTree(
     manifestPath,
     JSON.stringify({
       repositories: [{ name: "shared", url: "https://example.com/shared.git" }],
-      workspaces: [{
-        name: "platform",
-        url: "https://example.com/platform.git",
-      }],
+      workspaces: [
+        {
+          name: "platform",
+          url: "https://example.com/platform.git",
+        },
+      ],
     }),
   );
   return manifestPath;

@@ -5,18 +5,18 @@ export type UpdateAction =
   | { kind: "MISSING"; name: string }
   | { kind: "INVALID"; name: string; detail?: string }
   | {
-    kind:
-      | "SKIP_DIRTY"
-      | "SKIP_FEATURE"
-      | "SKIP_NO_DEFAULT"
-      | "SKIP_AHEAD"
-      | "CURRENT"
-      | "FETCH_FAILED"
-      | "FAST_FORWARD_FAILED"
-      | "WOULD_FAST_FORWARD";
-    name: string;
-    detail?: string;
-  }
+      kind:
+        | "SKIP_DIRTY"
+        | "SKIP_FEATURE"
+        | "SKIP_NO_DEFAULT"
+        | "SKIP_AHEAD"
+        | "CURRENT"
+        | "FETCH_FAILED"
+        | "FAST_FORWARD_FAILED"
+        | "WOULD_FAST_FORWARD";
+      name: string;
+      detail?: string;
+    }
   | { kind: "FAST_FORWARD"; name: string; commits: number };
 
 /**
@@ -26,27 +26,27 @@ export type UpdateAction =
  */
 export type SweepAction =
   | {
-    kind: "REMOVED" | "WOULD_REMOVE";
-    name: string;
-    branch: string;
-    worktree: string;
-    /** How the merge was proven, or why --force was needed. */
-    detail?: string;
-  }
+      kind: "REMOVED" | "WOULD_REMOVE";
+      name: string;
+      branch: string;
+      worktree: string;
+      /** How the merge was proven, or why --force was needed. */
+      detail?: string;
+    }
   | {
-    kind:
-      | "SKIP_NOT_MERGED"
-      | "SKIP_DIRTY"
-      | "SKIP_DETACHED"
-      | "SKIP_DEFAULT"
-      | "SKIP_NO_DEFAULT"
-      | "FAILED"
-      | "SKIPPED_REMOTE";
-    name: string;
-    branch?: string;
-    worktree?: string;
-    detail?: string;
-  };
+      kind:
+        | "SKIP_NOT_MERGED"
+        | "SKIP_DIRTY"
+        | "SKIP_DETACHED"
+        | "SKIP_DEFAULT"
+        | "SKIP_NO_DEFAULT"
+        | "FAILED"
+        | "SKIPPED_REMOTE";
+      name: string;
+      branch?: string;
+      worktree?: string;
+      detail?: string;
+    };
 
 /** A mutation that broke, as opposed to a refusal to act. */
 export function isSweepFailure(action: SweepAction): boolean {

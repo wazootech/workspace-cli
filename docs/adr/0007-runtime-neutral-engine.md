@@ -86,7 +86,7 @@ no cross-platform runtime code but does ship a large artifact matrix.
 7. **The compiled binary's permission set is corrected.** `deno task build`
    allowed only `--allow-run=git`, but the code also spawns `gh`
    (`wspace add
-   --create`) and `robocopy`, `rmdir` and `rm` (the ADR-0006
+--create`) and `robocopy`, `rmdir` and `rm` (the ADR-0006
    purge ladder); `deno compile` bakes permissions in, so those paths would
    throw `PermissionDenied`. The allowlist now names all five.
 
@@ -108,7 +108,7 @@ no cross-platform runtime code but does ship a large artifact matrix.
 
 - **The npm-compat package becomes runnable, not merely installable.**
   `npx jsr
-  add @wazoo/workspace` still needs no Deno, and
+add @wazoo/workspace` still needs no Deno, and
   `node .../src/cli.js <cmd>` now executes. ADR-0006's purge ladder,
   `wspace check --json`, and the rest of the engine come with it.
 - **No `node_modules/` directory is created for the repo.** `@types/node` is

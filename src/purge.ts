@@ -69,9 +69,7 @@ async function robocopyPurge(target: string): Promise<boolean> {
  * Returns undefined when the directory could not be removed, so callers can
  * report a failure rather than assume success.
  */
-export async function purgeDirectory(
-  dir: string,
-): Promise<string | undefined> {
+export async function purgeDirectory(dir: string): Promise<string | undefined> {
   // Strategy 1: a plain recursive delete. On non-Windows platforms, and for
   // most Windows paths, this is all that is needed.
   try {

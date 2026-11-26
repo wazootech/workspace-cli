@@ -50,9 +50,7 @@ test("install --dry-run reports WOULD_CLONE without creating dirs", async () => 
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
-        repositories: [
-          { name: "dry-repo", url: join(dir, "dry-repo.git") },
-        ],
+        repositories: [{ name: "dry-repo", url: join(dir, "dry-repo.git") }],
       }),
     );
 
@@ -82,9 +80,7 @@ test("install --dry-run --json outputs WOULD_CLONE", async () => {
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
-        repositories: [
-          { name: "dry-json", url: join(dir, "dry-json.git") },
-        ],
+        repositories: [{ name: "dry-json", url: join(dir, "dry-json.git") }],
       }),
     );
 

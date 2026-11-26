@@ -103,20 +103,23 @@ async function provePullRequestMerged(
 ): Promise<Proof | undefined> {
   let listed;
   try {
-    listed = await gh.run([
-      "pr",
-      "list",
-      "--head",
-      branch,
-      "--base",
-      baseBranch,
-      "--state",
-      "merged",
-      "--json",
-      "number,headRefOid",
-      "--limit",
-      "30",
-    ], cwd);
+    listed = await gh.run(
+      [
+        "pr",
+        "list",
+        "--head",
+        branch,
+        "--base",
+        baseBranch,
+        "--state",
+        "merged",
+        "--json",
+        "number,headRefOid",
+        "--limit",
+        "30",
+      ],
+      cwd,
+    );
   } catch {
     return undefined;
   }
@@ -128,7 +131,7 @@ async function provePullRequestMerged(
     if (pr.headRefOid === tip) {
       return { detail: `PR #${pr.number} merged, tip == PR head` };
     }
-    if (await pullRequestTree(g, cwd, pr, fetchMissing) === branchTree) {
+    if ((await pullRequestTree(g, cwd, pr, fetchMissing)) === branchTree) {
       return { detail: `PR #${pr.number} merged, tip tree == PR head` };
     }
   }
@@ -148,7 +151,7 @@ export async function resolveBaseline(
   defaultBranchName: string,
 ): Promise<string> {
   const remote = `origin/${defaultBranchName}`;
-  return await hasRef(g, cwd, `refs/remotes/${remote}`)
+  return (await hasRef(g, cwd, `refs/remotes/${remote}`))
     ? remote
     : defaultBranchName;
 }

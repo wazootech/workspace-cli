@@ -41,18 +41,14 @@ async function searchWorkspace(
 
   // Depth limits per top-level directory (relative to that dir, not root).
   // other: 1 (nested sub-workspace dirs).
-  const depthLimit = new Map([
-    ["repos", 1],
-  ]);
+  const depthLimit = new Map([["repos", 1]]);
 
   try {
-    for (
-      const entry of await walkDirectoryTree(paths.root, {
-        maxDepth: 3,
-        includeFiles: false,
-        skip: [/^\./, /node_modules/, /^\.git$/],
-      })
-    ) {
+    for (const entry of await walkDirectoryTree(paths.root, {
+      maxDepth: 3,
+      includeFiles: false,
+      skip: [/^\./, /node_modules/, /^\.git$/],
+    })) {
       if (entry.path === paths.root) continue;
       if (!entry.isDirectory) continue;
       // Prune: skip entries deeper than their top-level dir allows.
@@ -101,9 +97,7 @@ export async function run(
 ): Promise<number> {
   const query = opts.positional[0];
   if (!query) {
-    console.error(
-      "Usage: wspace path <query> [--json]",
-    );
+    console.error("Usage: wspace path <query> [--json]");
     return 2;
   }
 

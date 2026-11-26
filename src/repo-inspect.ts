@@ -61,9 +61,10 @@ export async function inspectRepo(
   const branch = await currentBranch(g, repoPath);
   const defaultBranchName = await defaultBranch(g, repoPath);
   const dirty = await isDirty(g, repoPath, opts.ignoreUntracked);
-  const defaultBranchCheckedOutInWorktree = defaultBranchName !== undefined &&
+  const defaultBranchCheckedOutInWorktree =
+    defaultBranchName !== undefined &&
     branch !== defaultBranchName &&
-    await hasDefaultBranchWorktree(g, repoPath, defaultBranchName);
+    (await hasDefaultBranchWorktree(g, repoPath, defaultBranchName));
 
   return {
     exists: true,

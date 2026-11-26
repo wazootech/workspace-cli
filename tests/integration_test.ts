@@ -131,11 +131,13 @@ test("update fast-forwards a clean default branch", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assert.deepEqual(actions, [{
-      kind: "FAST_FORWARD",
-      name: "a",
-      commits: 1,
-    }]);
+    assert.deepEqual(actions, [
+      {
+        kind: "FAST_FORWARD",
+        name: "a",
+        commits: 1,
+      },
+    ]);
     assert.deepEqual(await isDirty(g, work), false);
   } finally {
     await removeTempDir(dir);
@@ -185,11 +187,13 @@ test("update reports CURRENT when already in sync", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assert.deepEqual(actions, [{
-      kind: "CURRENT",
-      name: "a",
-      detail: "origin/main",
-    }]);
+    assert.deepEqual(actions, [
+      {
+        kind: "CURRENT",
+        name: "a",
+        detail: "origin/main",
+      },
+    ]);
   } finally {
     await removeTempDir(dir);
   }
@@ -276,11 +280,13 @@ test("update reports CURRENT for an in-sync workspace root", async () => {
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assert.deepEqual(actions, [{
-      kind: "CURRENT",
-      name: "(workspace root)",
-      detail: "origin/main",
-    }]);
+    assert.deepEqual(actions, [
+      {
+        kind: "CURRENT",
+        name: "(workspace root)",
+        detail: "origin/main",
+      },
+    ]);
   } finally {
     await removeTempDir(dir);
   }
@@ -300,11 +306,13 @@ test("update omits the workspace root when it is not a git repo", async () => {
       !actions.some((a) => a.name === "(workspace root)"),
       "plain-directory root should not produce an update action",
     );
-    assert.deepEqual(actions, [{
-      kind: "FAST_FORWARD",
-      name: "a",
-      commits: 1,
-    }]);
+    assert.deepEqual(actions, [
+      {
+        kind: "FAST_FORWARD",
+        name: "a",
+        commits: 1,
+      },
+    ]);
   } finally {
     await removeTempDir(dir);
   }
@@ -444,10 +452,15 @@ test("collectStatus omits the workspace root when scoped", async () => {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
     await writeFile(join(rootDir, "a.txt"), "local change\n");
-    const rows = await collectStatus(g, { repositories: [] }, {
-      root: rootDir,
-      repositoriesDirectory: join(dir, "repos"),
-    }, { includeRoot: false });
+    const rows = await collectStatus(
+      g,
+      { repositories: [] },
+      {
+        root: rootDir,
+        repositoriesDirectory: join(dir, "repos"),
+      },
+      { includeRoot: false },
+    );
     assert(
       !rows.some((r) => r.name === "(workspace root)"),
       "scoped check should omit the workspace root",
@@ -627,11 +640,13 @@ test("repoStatus reports INVALID when path has no .git", async () => {
     const rows = await collectStatus(
       g,
       {
-        repositories: [{
-          name: "empty",
-          url: "u",
-          resolvedPath: empty,
-        }],
+        repositories: [
+          {
+            name: "empty",
+            url: "u",
+            resolvedPath: empty,
+          },
+        ],
       },
       pathsFor(dir),
     );
@@ -650,19 +665,23 @@ test("update reports INVALID with a clear detail when a repo path is not a git r
     const actions = await runUpdate(
       g,
       {
-        repositories: [{
-          name: "empty",
-          url: "u",
-          resolvedPath: empty,
-        }],
+        repositories: [
+          {
+            name: "empty",
+            url: "u",
+            resolvedPath: empty,
+          },
+        ],
       },
       pathsFor(dir),
     );
-    assert.deepEqual(actions, [{
-      kind: "INVALID",
-      name: "empty",
-      detail: "Path exists but is not a Git repository",
-    }]);
+    assert.deepEqual(actions, [
+      {
+        kind: "INVALID",
+        name: "empty",
+        detail: "Path exists but is not a Git repository",
+      },
+    ]);
   } finally {
     await removeTempDir(dir);
   }
@@ -1040,10 +1059,7 @@ test("wspace remove deletes the entry but keeps the checkout on disk", async () 
         repositories: [{ name: "a", url: join(dir, "a.git") }],
       }),
     );
-    assert.deepEqual(
-      await run(["remove", "a", "--manifest", manifestPath]),
-      0,
-    );
+    assert.deepEqual(await run(["remove", "a", "--manifest", manifestPath]), 0);
     const { repositories } = await loadManifest(manifestPath);
     assert.deepEqual(repositories.length, 0);
     assert.deepEqual(
@@ -1073,10 +1089,7 @@ test("wspace remove fails on unknown names and dry-run writes nothing", async ()
       2,
       "unknown repository should exit 2",
     );
-    assert.deepEqual(
-      await readText(manifestPath),
-      original,
-    );
+    assert.deepEqual(await readText(manifestPath), original);
 
     assert.deepEqual(
       await run(["remove", "api", "--dry-run", "--manifest", manifestPath]),
@@ -1232,9 +1245,11 @@ async function withOwnerRewrite(
   const cfgPath = join(dir, "git-config-global");
   // Git config values treat backslashes as escapes; use forward slashes.
   const base = dir.replaceAll("\\", "/");
-  const sections = rules.map((r) =>
-    `[url "${base}/"]\n\tinsteadOf = https://${r.host}/${r.owner}/\n`
-  ).join("");
+  const sections = rules
+    .map(
+      (r) => `[url "${base}/"]\n\tinsteadOf = https://${r.host}/${r.owner}/\n`,
+    )
+    .join("");
   await writeFile(cfgPath, sections);
   const prior = process.env.GIT_CONFIG_GLOBAL;
   process.env.GIT_CONFIG_GLOBAL = cfgPath;

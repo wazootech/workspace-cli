@@ -66,12 +66,14 @@ test("strays: workspacesDirectory is scanned too", async () => {
     const rows = await collectStatus(
       g,
       {
-        repositories: [{
-          name: "declared",
-          url: "u",
-          isWorkspace: true,
-          resolvedPath: join(dir, "workspaces", "declared"),
-        }],
+        repositories: [
+          {
+            name: "declared",
+            url: "u",
+            isWorkspace: true,
+            resolvedPath: join(dir, "workspaces", "declared"),
+          },
+        ],
       },
       layout(dir, "workspaces"),
     );
@@ -143,11 +145,13 @@ test("strays: a declared checkout at the root is not a stray", async () => {
     const rows = await collectStatus(
       g,
       {
-        repositories: [{
-          name: "memory",
-          url: "u",
-          resolvedPath: join(dir, "memory"),
-        }],
+        repositories: [
+          {
+            name: "memory",
+            url: "u",
+            resolvedPath: join(dir, "memory"),
+          },
+        ],
       },
       layout(dir),
     );
@@ -160,12 +164,10 @@ test("strays: scoped runs skip root strays but judge against all repos", async (
     await mkdir(join(dir, "scratch", ".git"), { recursive: true });
     await mkdir(join(dir, "repos", "other", ".git"), { recursive: true });
     const other = { name: "other", url: "u" };
-    const rows = await collectStatus(
-      g,
-      { repositories: [] },
-      layout(dir),
-      { includeRoot: false, knownRepositories: [other] },
-    );
+    const rows = await collectStatus(g, { repositories: [] }, layout(dir), {
+      includeRoot: false,
+      knownRepositories: [other],
+    });
     assert(!byName(rows, "(stray) scratch"));
     assert(!byName(rows, "(unmanaged) other"));
   });

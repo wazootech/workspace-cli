@@ -16,9 +16,9 @@ export type ManifestCollection = "repositories" | "workspaces";
 /** Render an entry as it is written into .json manifests. */
 export function formatEntry(entry: NewEntry): string {
   if (entry.kind === "shorthand") return JSON.stringify(entry.raw);
-  return `{ "name": ${JSON.stringify(entry.name)}, "url": ${
-    JSON.stringify(entry.url)
-  } }`;
+  return `{ "name": ${JSON.stringify(entry.name)}, "url": ${JSON.stringify(
+    entry.url,
+  )} }`;
 }
 
 /** Insert an entry into a manifest collection. */
@@ -64,7 +64,8 @@ export function removeEntry(
     const candidateIndex = doc[candidate].findIndex(
       (entry: unknown) =>
         entry === targetName ||
-        (typeof entry === "object" && entry !== null &&
+        (typeof entry === "object" &&
+          entry !== null &&
           (entry as Record<string, unknown>).name === targetName) ||
         (typeof entry === "string" &&
           resolvedName(entry, owner, host) === targetName),

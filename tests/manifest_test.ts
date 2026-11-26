@@ -144,9 +144,8 @@ test("manifestPaths honors absolute workspaceRoot", () => {
     workspaceRoot: process.platform === "win32" ? "C:\\wazoo" : "/wazoo",
     repositories: [],
   };
-  const manifestFile = process.platform === "win32"
-    ? "C:\\ws\\repos.json"
-    : "/ws/repos.json";
+  const manifestFile =
+    process.platform === "win32" ? "C:\\ws\\repos.json" : "/ws/repos.json";
   const paths = manifestPaths(manifest, manifestFile);
   assert.deepEqual(
     paths.root,
@@ -271,10 +270,7 @@ test("loadManifest rejects a bare-string entry without an owner", async () => {
   const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ repositories: ["etok"] }),
-    );
+    await writeFile(manifestPath, JSON.stringify({ repositories: ["etok"] }));
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
@@ -359,10 +355,7 @@ test("loadManifest rejects shorthand strings with multiple slashes", async () =>
   const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "repos.json");
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ repositories: ["a/b/c"] }),
-    );
+    await writeFile(manifestPath, JSON.stringify({ repositories: ["a/b/c"] }));
     await assertRejects(
       () => loadManifest(manifestPath),
       Error,
@@ -403,11 +396,13 @@ test("loadManifest rejects entries setting both url and owner", async () => {
     await writeFile(
       manifestPath,
       JSON.stringify({
-        repositories: [{
-          name: "a",
-          url: "https://example.com/a.git",
-          owner: "acme",
-        }],
+        repositories: [
+          {
+            name: "a",
+            url: "https://example.com/a.git",
+            owner: "acme",
+          },
+        ],
       }),
     );
     await assertRejects(
@@ -575,10 +570,7 @@ test("validateManifestText expands bare-string shorthand with owner", () => {
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
   assert.deepEqual(manifest.repositories[0].name, "api");
-  assert.deepEqual(
-    manifest.repositories[0].url,
-    "https://github.com/acme/api",
-  );
+  assert.deepEqual(manifest.repositories[0].url, "https://github.com/acme/api");
 });
 
 test("validateManifestText expands owner/name inline shorthand", () => {
@@ -587,10 +579,7 @@ test("validateManifestText expands owner/name inline shorthand", () => {
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
   assert.deepEqual(manifest.repositories[0].name, "api");
-  assert.deepEqual(
-    manifest.repositories[0].url,
-    "https://github.com/acme/api",
-  );
+  assert.deepEqual(manifest.repositories[0].url, "https://github.com/acme/api");
 });
 
 test("validateManifestText inline owner overrides top-level owner", () => {
@@ -612,10 +601,7 @@ test("validateManifestText expands shorthand against custom host", () => {
     repositories: ["api"],
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
-  assert.deepEqual(
-    manifest.repositories[0].url,
-    "https://gitlab.com/acme/api",
-  );
+  assert.deepEqual(manifest.repositories[0].url, "https://gitlab.com/acme/api");
 });
 
 test("validateManifestText rejects shorthand without owner", () => {
@@ -669,10 +655,7 @@ test("validateManifestText expands { name, owner } object shorthand", () => {
   });
   const manifest = validateManifestText(raw, "/fake/workspace.json");
   assert.deepEqual(manifest.repositories[0].name, "api");
-  assert.deepEqual(
-    manifest.repositories[0].url,
-    "https://gitlab.com/acme/api",
-  );
+  assert.deepEqual(manifest.repositories[0].url, "https://gitlab.com/acme/api");
 });
 
 test("resolveRepositoryPath computes default path from reposDirectory", () => {
@@ -689,9 +672,8 @@ test("resolveRepositoryPath uses pre-set resolvedPath when available", () => {
   const manifest: WorkspaceManifest = { repositories: [] };
   const wsDir = join(process.cwd(), "ws");
   const paths = manifestPaths(manifest, join(wsDir, "workspace.json"));
-  const expected = process.platform === "win32"
-    ? "C:\\custom\\path"
-    : "/custom/path";
+  const expected =
+    process.platform === "win32" ? "C:\\custom\\path" : "/custom/path";
   assert.deepEqual(
     resolveRepositoryPath({ name: "api", resolvedPath: expected }, paths),
     expected,
@@ -761,9 +743,7 @@ test("resolveWorkspaceTree uses custom repositoriesDirectory", async () => {
 test("resolveWorkspaceTree preserves pre-set resolvedPath", async () => {
   const expected = process.platform === "win32" ? "C:\\opt\\a" : "/opt/a";
   const manifest: WorkspaceManifest = {
-    repositories: [
-      { name: "a", url: "u", resolvedPath: expected },
-    ],
+    repositories: [{ name: "a", url: "u", resolvedPath: expected }],
   };
   const wsDir = join(process.cwd(), "ws");
   const resolved = await resolveWorkspaceTree(
@@ -955,10 +935,12 @@ test("resolveWorkspaceTree loads declared workspace repositories recursively", a
       rootPath,
       JSON.stringify({
         repositories: [{ name: "plain", url: "https://example.com/plain.git" }],
-        workspaces: [{
-          name: "platform",
-          url: "https://example.com/platform.git",
-        }],
+        workspaces: [
+          {
+            name: "platform",
+            url: "https://example.com/platform.git",
+          },
+        ],
       }),
     );
     await writeFile(
@@ -970,11 +952,10 @@ test("resolveWorkspaceTree loads declared workspace repositories recursively", a
 
     const manifest = await loadManifest(rootPath);
     const resolved = await resolveWorkspaceTree(manifest, rootPath);
-    assert.deepEqual(resolved.repositories.map((repo) => repo.name), [
-      "plain",
-      "platform",
-      "leaf",
-    ]);
+    assert.deepEqual(
+      resolved.repositories.map((repo) => repo.name),
+      ["plain", "platform", "leaf"],
+    );
     assert.deepEqual(resolved.repositories[1].isWorkspace, true);
     assert.deepEqual(resolved.repositories[2].workspace, "platform");
     // Without workspacesDirectory, the workspace checkout falls back to the
@@ -1002,10 +983,12 @@ test("resolveWorkspaceTree places workspace checkouts under workspacesDirectory 
       JSON.stringify({
         workspacesDirectory: "subworkspaces",
         repositories: [{ name: "plain", url: "https://example.com/plain.git" }],
-        workspaces: [{
-          name: "platform",
-          url: "https://example.com/platform.git",
-        }],
+        workspaces: [
+          {
+            name: "platform",
+            url: "https://example.com/platform.git",
+          },
+        ],
       }),
     );
     await writeFile(
@@ -1020,10 +1003,7 @@ test("resolveWorkspaceTree places workspace checkouts under workspacesDirectory 
     const workspace = resolved.repositories.find((r) => r.isWorkspace);
     assert.deepEqual(workspace?.resolvedPath, childDir);
     const leaf = resolved.repositories.find((r) => r.name === "leaf");
-    assert.deepEqual(
-      leaf?.resolvedPath,
-      join(childDir, "repos", "leaf"),
-    );
+    assert.deepEqual(leaf?.resolvedPath, join(childDir, "repos", "leaf"));
   } finally {
     await rm(tempDir, { recursive: true });
   }
@@ -1040,10 +1020,12 @@ test("resolveWorkspaceTree marks an existing workspace checkout without a manife
       rootPath,
       JSON.stringify({
         repositories: [],
-        workspaces: [{
-          name: "platform",
-          url: "https://example.com/platform.git",
-        }],
+        workspaces: [
+          {
+            name: "platform",
+            url: "https://example.com/platform.git",
+          },
+        ],
       }),
     );
     const manifest = await loadManifest(rootPath);
@@ -1071,10 +1053,12 @@ test("resolveWorkspaceTree marks a non-git workspace checkout as an error entry"
       rootPath,
       JSON.stringify({
         repositories: [],
-        workspaces: [{
-          name: "platform",
-          url: "https://example.com/platform.git",
-        }],
+        workspaces: [
+          {
+            name: "platform",
+            url: "https://example.com/platform.git",
+          },
+        ],
       }),
     );
     const manifest = await loadManifest(rootPath);

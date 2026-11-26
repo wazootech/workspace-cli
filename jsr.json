@@ -16,12 +16,6 @@
     "@std/path": "jsr:@std/path@^1.1.6"
   },
   "publish": {
-    "include": [
-      "src/",
-      "schema/",
-      "skills/",
-      "LICENSE",
-      "README.md"
-    ]
+    "include": ["src/", "schema/", "skills/", "LICENSE", "README.md"]
   }
 }

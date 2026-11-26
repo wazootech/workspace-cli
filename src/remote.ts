@@ -7,11 +7,7 @@ export interface RemoteProbeResult {
   stderr?: string;
 }
 
-const MISSING_PATTERNS = [
-  /could not resolve/i,
-  /not found/i,
-  /\b404\b/,
-];
+const MISSING_PATTERNS = [/could not resolve/i, /not found/i, /\b404\b/];
 
 /**
  * Probe whether a GitHub repository exists. Only the not-found shape of
@@ -39,12 +35,7 @@ export async function createGitHubRepo(
   slug: string,
   visibility: "public" | "private",
 ): Promise<{ ok: boolean; stderr?: string }> {
-  const result = await gh.run([
-    "repo",
-    "create",
-    slug,
-    `--${visibility}`,
-  ]);
+  const result = await gh.run(["repo", "create", slug, `--${visibility}`]);
   if (result.code === 0) return { ok: true };
   return { ok: false, stderr: result.stderr || result.stdout };
 }
