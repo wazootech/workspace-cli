@@ -1,5 +1,5 @@
 [install]
-# One-day supply-chain delay, as deno.json's minimumDependencyAge enforced.
+# One-day supply-chain delay (the policy deno.json's minimumDependencyAge used to enforce).
 minimumReleaseAge = 86400
 
 [install.scopes]

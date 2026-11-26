@@ -1,0 +1,3 @@
+# Not formatted by bun fmt: lockfile, JSON Schema, and the compiled binary.
+bun.lock
+schema/
