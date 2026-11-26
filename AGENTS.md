@@ -15,17 +15,22 @@ does not manage their location or lifecycle.
 
 ## Conventions
 
-- Deno 2, TypeScript, strict mode. `@std` packages are the default dependency;
-  the sole exception is the runtime edge, `src/runtime.ts`, which uses `node:`
-  builtins so the engine also runs on Node through JSR's npm-compatibility layer
-  (see ADR-0007). It is the only module allowed to import `node:*`, and the only
-  one permitted to reference `npm:@types/node`. `src/` must not import `@std/fs`
-  either: that package is Deno-only (`exists` and `walk` call the `Deno` global,
-  so it works under `deno test` and throws under Node), which is why existence
-  checks and tree walks go through the runtime edge's `pathExists` and
+- Bun toolchain, TypeScript, strict mode ("Node-compatible code, Bun tooling").
+  `jsr.json` describes the published JSR package, `package.json` is the Bun
+  manifest, and `scripts/check-manifests.ts` keeps the two in sync (`@std`
+  packages are the default dependency, aliased as `npm:@jsr/...` in
+  `package.json`). The sole module that touches the host runtime is the runtime
+  edge, `src/runtime.ts`, which uses `node:` builtins so the engine runs on
+  Bun, Node and Deno (through JSR's npm-compatibility layer and the published
+  package; see ADR-0007). It is the only module allowed to import `node:*`.
+  `src/` must not import `@std/fs` either: that package is Deno-only (`exists`
+  and `walk` call the `Deno` global and throw under Node and Bun), which is why
+  existence checks and tree walks go through the runtime edge's `pathExists` and
   `walkDirectoryTree`.
-- TypeScript source in `src/`, tests in `tests/`. `tests/integration_test.ts`
-  exercises real local git repositories under a temp dir.
+- TypeScript source in `src/`, tests in `tests/` (`node:test` and
+  `node:assert/strict`, run by `bun test`; `tests/helpers.ts` holds the shared
+  helpers). `tests/integration_test.ts` exercises real local git repositories
+  under a temp dir.
 - Machine-readable git: use `--porcelain` output formats and `GitRunner` (an
   interface over `git`/`gh`/filesystem) so logic stays testable.
 - Commands never mutate user work: update fast-forwards clean default branches
@@ -39,7 +44,8 @@ does not manage their location or lifecycle.
 ## Verification
 
 ```sh
-deno task ci
+bun install --frozen-lockfile --ignore-scripts
+bun run ci
 ```
 
 ## Agent skills
@@ -55,12 +61,20 @@ Family-wide rules live in the
 [wazootech workspace constitution](https://github.com/wazootech/workspace/blob/main/AGENTS.md#code-health-standards);
 this repo's specifics:
 
-- **Before pushing**, run `deno task ci` (fmt, lint, `lint:imports`, check,
-  test); CI runs the same task.
-- `no-explicit-any` is enforced by `deno lint` with no suppressions; `deno.json`
-  sets `strict` and `lock.frozen`.
-- CI uses Deno `v2.9.8`; third-party actions are pinned to full commit SHAs with
-  a version comment.
+- **Before pushing**, run `bun run ci` (`bun fmt --check`, Oxlint,
+  `lint:imports`, `bun check`, `check:manifests`, tests); CI runs the same task
+  plus `bunx jsr publish --dry-run` and a `bun build --compile` smoke test.
+- `no-explicit-any` is enforced by Oxlint (`--deny-warnings`,
+  `.oxlintrc.json`) with no suppressions; `tsconfig.json` sets `strict` and
+  CI installs with `--frozen-lockfile`.
+- CI uses `oven-sh/setup-bun` with `bun-version: "1.x"` (Bun is the one
+  deliberately unpinned toolchain); third-party actions are pinned to full
+  commit SHAs with a version comment. The `jsr` CLI (pinned in
+  `devDependencies`) bundles its own Deno-based publisher, so no Deno install is
+  needed. Publishing runs on push to `main` and only when `jsr.json`'s version is
+  not yet on JSR.
+- `validate`'s dependency-age audit still reads `deno.json`/`deno.jsonc` files in
+  other checkouts; that is CLI behavior, not this repo's toolchain.
 - `secret-scan.yml` (gitleaks) runs on every PR and push to main; never suppress
   a finding.
 - `code-health.yml` is warn-only (file length, TODO/FIXME without an issue

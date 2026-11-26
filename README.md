@@ -17,9 +17,10 @@
   [`.github/CODEOWNERS`](.github/CODEOWNERS)).
 - **Purpose:** manage a multi-repo Wazoo workspace from one `workspace.json`
   manifest.
-- **Set up, build, test:** with Deno v2+ installed, run `deno task ci`; it
-  formats, lints, type-checks, and tests against the frozen lockfile. See
-  [Development](#development). `deno task build` compiles the `wspace` binary.
+- **Set up, build, test:** with Bun installed, run
+  `bun install --frozen-lockfile --ignore-scripts && bun run ci`; it formats,
+  lints, type-checks, and tests against the frozen lockfile. See
+  [Development](#development). `bun run build` compiles the `wspace` binary.
 
 ## Goal
 
@@ -256,10 +257,11 @@ deno install -g -A --name wspace --min-dep-age 0 jsr:@wazoo/workspace/cli
 Or build a local binary:
 
 ```sh
-deno task build
+bun run build
 ```
 
-Requires a Deno runtime (v2+). The `wspace` binary has no runtime dependencies.
+Building needs Bun; `deno install` above needs a Deno runtime (v2+). The built
+`wspace` binary has no runtime dependencies.
 
 ### Running without a Deno install
 
@@ -277,12 +279,14 @@ JSR forwards `exports` but not `bin`, so this runs the CLI rather than putting a
 ## Development
 
 ```sh
-deno task ci
+bun install --frozen-lockfile --ignore-scripts
+bun run ci
 ```
 
-Runs `deno fmt --check`, `deno lint`, `deno task lint:imports`, `deno check`,
-and `deno test` (includes integration tests against real local git
-repositories).
+Runs `bun fmt --check`, Oxlint, `lint:imports`, `bun check`, `check:manifests`
+(`package.json` and `jsr.json` agree), and `bun test` (includes integration
+tests against real local git repositories). `bun run publish:dry` runs
+`jsr publish --dry-run`.
 
 ## Docs
 

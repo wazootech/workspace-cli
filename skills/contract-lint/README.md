@@ -53,6 +53,6 @@ that job, which is what
 [workspace-cli#163](https://github.com/wazootech/workspace-cli/issues/163)
 reported.
 
-CI runs it as its own step rather than through `deno task ci`, because the
-documented `deno task ci` is expected to work on a bare Windows checkout and
+CI runs it as its own step rather than through `bun run ci`, because the
+documented `bun run ci` is expected to work on a bare Windows checkout and
 this test is bash.
