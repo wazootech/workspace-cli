@@ -9,19 +9,12 @@ permissions:
   contents: read
 
 jobs:
+  # Format, lint, import-alias lint, type check, manifest check and tests all
+  # run on Bun (bun run ci). Bun floats on 1.x on purpose so a Bun regression
+  # surfaces early. The publish dry run goes through the jsr CLI (a
+  # devDependency that bundles its own publisher), so no Deno is installed
+  # anywhere in CI.
   check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with:
-          deno-version: v2.9.8
-      - run: deno task ci
-      - name: Contract lint self-test
-        run: bash skills/contract-lint/lint_test.sh
-  # The tests, test helpers and scripts run on Deno and Bun. Format, lint,
-  # type check and the publish dry run stay on Deno until the Bun cutover.
-  bun:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -29,5 +22,10 @@ jobs:
         with:
           bun-version: "1.x"
       - run: bun install --frozen-lockfile --ignore-scripts
-      - run: bun run lint:imports
-      - run: bun run test
+      - run: bun run ci
+      - run: bun run publish:dry
+      - name: Contract lint self-test
+        run: bash skills/contract-lint/lint_test.sh
+      # The compiled `wspace` binary must build and answer a command.
+      - run: bun run build
+      - run: ./wspace --help | grep -q "wspace check"
