@@ -47,9 +47,7 @@ export async function run(opts: CliOptions): Promise<number> {
     const normalized = normalizeManifest(doc, target);
     validateManifest(normalized);
   } catch (error) {
-    console.error(
-      error instanceof Error ? error.message : String(error),
-    );
+    console.error(error instanceof Error ? error.message : String(error));
     return 2;
   }
 

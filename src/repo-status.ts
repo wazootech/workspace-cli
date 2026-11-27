@@ -41,8 +41,7 @@ export function classifyState(input: ClassifyInput): {
   if (input.aheadBehind.ahead > 0 || input.aheadBehind.behind > 0) {
     return {
       state: "DIVERGED",
-      detail:
-        `${input.aheadBehind.ahead} ahead, ${input.aheadBehind.behind} behind`,
+      detail: `${input.aheadBehind.ahead} ahead, ${input.aheadBehind.behind} behind`,
     };
   }
   return { state: "CLEAN" };
@@ -100,9 +99,8 @@ export async function repoStatus(
       hasDefaultBranch: defaultBr !== undefined,
       upstream,
       upstreamRefExists,
-      aheadBehind: ahead !== undefined
-        ? { ahead, behind: behind ?? 0 }
-        : undefined,
+      aheadBehind:
+        ahead !== undefined ? { ahead, behind: behind ?? 0 } : undefined,
     });
 
     return {

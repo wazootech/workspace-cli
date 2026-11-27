@@ -96,12 +96,12 @@ export async function configuredUpstream(
   cwd: string,
   branch: string,
 ): Promise<string | undefined> {
-  const remote =
-    (await g.run(["config", "--get", `branch.${branch}.remote`], cwd))
-      .stdout;
-  const merge =
-    (await g.run(["config", "--get", `branch.${branch}.merge`], cwd))
-      .stdout;
+  const remote = (
+    await g.run(["config", "--get", `branch.${branch}.remote`], cwd)
+  ).stdout;
+  const merge = (
+    await g.run(["config", "--get", `branch.${branch}.merge`], cwd)
+  ).stdout;
   return remote && merge
     ? `${remote}/${merge.replace(/^refs\/heads\//, "")}`
     : undefined;
@@ -123,9 +123,9 @@ export async function hasDefaultBranchWorktree(
 ): Promise<boolean> {
   const result = await g.run(["worktree", "list", "--porcelain"], cwd);
   if (result.code !== 0) return false;
-  return result.stdout.split("\n").some((line) =>
-    line === `branch refs/heads/${defaultBranchName}`
-  );
+  return result.stdout
+    .split("\n")
+    .some((line) => line === `branch refs/heads/${defaultBranchName}`);
 }
 
 export async function fetch(g: GitRunner, cwd: string): Promise<boolean> {

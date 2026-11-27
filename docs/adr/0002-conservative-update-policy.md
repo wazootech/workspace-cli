@@ -19,7 +19,7 @@ safe, predictable progress and clearly report what it skipped and why.
    branch, and has an upstream.
 4. Fast-forward only when the branch is strictly behind its upstream
    (`git
-   merge --ff-only`). Report `CURRENT` when already in sync.
+merge --ff-only`). Report `CURRENT` when already in sync.
 5. Never reset, rebase, stash, or force. Never touch dirty repositories, feature
    branches, missing repos, repos without upstreams, or branches that are ahead
    or diverged.

@@ -65,9 +65,10 @@ export function manifestPaths(
   const paths: ManifestPaths = {
     root,
     repositoriesDirectory: dirOption(manifest.repositoriesDirectory, "repos"),
-    workspacesDirectory: manifest.workspacesDirectory === undefined
-      ? undefined
-      : dirOption(manifest.workspacesDirectory, "repos"),
+    workspacesDirectory:
+      manifest.workspacesDirectory === undefined
+        ? undefined
+        : dirOption(manifest.workspacesDirectory, "repos"),
   };
   return paths;
 }

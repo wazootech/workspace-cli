@@ -97,11 +97,12 @@ test("sweep removes a rebase-merged worktree that branch -d would refuse", async
     );
     // The default: remote refs survive.
     assert(
-      (await g.run([
-        "rev-parse",
-        "--verify",
-        "refs/remotes/origin/feat/rebased",
-      ], work)).code !== 0,
+      (
+        await g.run(
+          ["rev-parse", "--verify", "refs/remotes/origin/feat/rebased"],
+          work,
+        )
+      ).code !== 0,
       "remote branch must be kept without --delete-remote",
     );
   } finally {
@@ -329,10 +330,7 @@ test("sweep exits 0 for refusals and 1 for failures", async () => {
     const rootDir = join(dir, "root");
     const work = await makeRepoWithMain(dir, "root");
     await addWorktree(work, dir, "feat/wip2");
-    await writeFile(
-      join(rootDir, "..", "wt-feat-wip2", "a.txt"),
-      "wip\n",
-    );
+    await writeFile(join(rootDir, "..", "wt-feat-wip2", "a.txt"), "wip\n");
     const wt = join(dir, "wt-feat-wip2");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "wip"], wt);
@@ -381,10 +379,7 @@ test("sweep --json emits machine-readable rows", async () => {
   try {
     const work = await makeRepoWithMain(dir, "a");
     await addWorktree(work, dir, "feat/unmerged3");
-    await writeFile(
-      join(work, "..", "wt-feat-unmerged3", "a.txt"),
-      "x\n",
-    );
+    await writeFile(join(work, "..", "wt-feat-unmerged3", "a.txt"), "x\n");
     const wt = join(dir, "wt-feat-unmerged3");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "x"], wt);

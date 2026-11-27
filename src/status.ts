@@ -51,12 +51,12 @@ export async function collectStatus(
   }
 
   rows.push(
-    ...await scanStrays(
+    ...(await scanStrays(
       knownRepositories ?? manifest.repositories,
       paths,
       (name, path) => repoStatus(g, { name, url: "" }, path),
       includeRoot,
-    ),
+    )),
   );
 
   for (const repository of manifest.repositories) {
@@ -86,7 +86,10 @@ export function hasErrors(
 ): boolean {
   return statuses.some((s) => {
     if (strict && s.unmanaged) return true;
-    return s.state !== "CLEAN" && s.state !== "FEATURE_CLEAN" &&
-      s.state !== "UNMANAGED";
+    return (
+      s.state !== "CLEAN" &&
+      s.state !== "FEATURE_CLEAN" &&
+      s.state !== "UNMANAGED"
+    );
   });
 }

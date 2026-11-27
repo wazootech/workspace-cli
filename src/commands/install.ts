@@ -32,11 +32,13 @@ async function cloneMissing(
     const validNames = new Set(manifest.repositories.map((r) => r.name));
     for (const name of targets) {
       if (!validNames.has(name)) {
-        return [{
-          name,
-          state: "UNKNOWN_REPO",
-          detail: `Repository "${name}" not found in manifest`,
-        }];
+        return [
+          {
+            name,
+            state: "UNKNOWN_REPO",
+            detail: `Repository "${name}" not found in manifest`,
+          },
+        ];
       }
     }
     const targetSet = new Set(targets);
@@ -123,11 +125,11 @@ export async function run(
 
   const scoped = opts.workspace
     ? {
-      ...manifest,
-      repositories: manifest.repositories.filter(
-        (r) => r.workspace === opts.workspace,
-      ),
-    }
+        ...manifest,
+        repositories: manifest.repositories.filter(
+          (r) => r.workspace === opts.workspace,
+        ),
+      }
     : manifest;
 
   const rows = await cloneMissing(g, scoped, paths, targets, {
@@ -137,12 +139,12 @@ export async function run(
   // Warn (never fail) when a target already exists as a duplicate checkout at
   // the workspace root, outside its declared path.
   rows.push(
-    ...await rootStrayRows(
-      scoped.repositories.filter((r) =>
-        targets.length === 0 || targets.includes(r.name)
+    ...(await rootStrayRows(
+      scoped.repositories.filter(
+        (r) => targets.length === 0 || targets.includes(r.name),
       ),
       paths,
-    ),
+    )),
   );
   printRows(rows, opts.json);
 

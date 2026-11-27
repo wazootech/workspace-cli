@@ -2,7 +2,7 @@
  * lint_imports.ts — Fails if any "../" relative imports remain in src/ or
  * tests/. Internal codebase imports should use the "@" import-map alias.
  *
- * Runs on Deno and Bun: `bun scripts/lint_imports.ts`.
+ * Run with `bun scripts/lint_imports.ts`.
  */
 
 import { readdir, readFile } from "node:fs/promises";

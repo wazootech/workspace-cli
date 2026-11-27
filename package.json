@@ -2,10 +2,22 @@
   "name": "@wazoo/workspace",
   "private": true,
   "type": "module",
-  "description": "Bun toolchain manifest for @wazoo/workspace. The published package is described by deno.json (jsr.json after the cutover); scripts/check-manifests.ts keeps the two in sync.",
+  "description": "Bun toolchain manifest for @wazoo/workspace. The published package is described by jsr.json; scripts/check-manifests.ts keeps the two in sync.",
   "packageManager": "bun@1.4.5",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./cli": "./src/cli.ts"
+  },
   "scripts": {
+    "build": "bun build --compile --outfile wspace src/cli.ts",
+    "check": "bun check --no-script",
+    "check:manifests": "bun scripts/check-manifests.ts",
+    "ci": "bun run fmt:check && bun run lint && bun run lint:imports && bun run check && bun run check:manifests && bun run test",
+    "fmt": "bun fmt --no-script",
+    "fmt:check": "bun fmt --no-script --check",
+    "lint": "oxlint --deny-warnings",
     "lint:imports": "bun scripts/lint_imports.ts",
+    "publish:dry": "jsr publish --dry-run --allow-dirty",
     "test": "bun test --timeout 120000"
   },
   "dependencies": {
@@ -15,6 +27,8 @@
   },
   "devDependencies": {
     "@std/yaml": "npm:@jsr/std__yaml@^1.3.0",
-    "@types/node": "^26.6.6"
+    "@types/node": "^26.6.6",
+    "jsr": "0.14.3",
+    "oxlint": "1.94.0"
   }
 }

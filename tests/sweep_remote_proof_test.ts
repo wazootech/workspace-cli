@@ -64,10 +64,7 @@ async function squashMergedBranch(dir: string, branch: string) {
   return { work, wt, prHead: await sha(wt, "HEAD") };
 }
 
-async function sweep(
-  dir: string,
-  options: SweepOptions,
-) {
+async function sweep(dir: string, options: SweepOptions) {
   return await runSweep(
     g,
     { repositories: [{ name: "a", url: "u" }] },
@@ -227,11 +224,12 @@ test("a real sweep fetches a PR head it lacks; a dry run does not", async () => 
     assert.deepEqual(rows[0].detail, "PR #5 merged, tip tree == PR head");
     assert.deepEqual(await pathExists(wt), false, "tree gone from disk");
     assert(
-      (await g.run(
-        ["rev-parse", "--verify", "refs/heads/feat/lost-head"],
-        work,
-      ))
-        .code !== 0,
+      (
+        await g.run(
+          ["rev-parse", "--verify", "refs/heads/feat/lost-head"],
+          work,
+        )
+      ).code !== 0,
       "local branch deleted",
     );
   } finally {

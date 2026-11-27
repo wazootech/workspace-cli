@@ -36,7 +36,7 @@ const COMMANDS = [
 ];
 
 const COMMAND_ALIASES: Record<string, string> = {
-  "i": "install",
+  i: "install",
 };
 
 class CliHelp extends Error {}

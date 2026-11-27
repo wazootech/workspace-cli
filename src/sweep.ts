@@ -35,9 +35,10 @@ export interface SweepOptions {
 }
 
 /** The options every per-worktree step reads, defaults applied. */
-type ResolvedOptions =
-  & Required<Pick<SweepOptions, "dryRun" | "force" | "deleteRemote">>
-  & Pick<SweepOptions, "gh">;
+type ResolvedOptions = Required<
+  Pick<SweepOptions, "dryRun" | "force" | "deleteRemote">
+> &
+  Pick<SweepOptions, "gh">;
 
 /** Remove the worktree, falling back to a directory purge when git refuses. */
 async function removeWorktree(
@@ -78,7 +79,7 @@ async function sweepWorktree(
   // Narrowed to a definite branch, so every row below carries a branch name.
   const base = { name, branch, worktree: entry.path };
 
-  if (!opts.force && await isDirty(g, entry.path)) {
+  if (!opts.force && (await isDirty(g, entry.path))) {
     return {
       kind: "SKIP_DIRTY",
       ...base,
@@ -217,12 +218,12 @@ export async function runSweep(
   // The workspace root carries the manifest's own worktrees, which are not
   // reachable through any manifest entry, so it is swept like any other repo.
   if (includeRoot) {
-    rows.push(...await sweepRepo(g, ROOT_LABEL, paths.root, opts));
+    rows.push(...(await sweepRepo(g, ROOT_LABEL, paths.root, opts)));
   }
 
   for (const repository of manifest.repositories) {
     const repoPath = resolveRepositoryPath(repository, paths);
-    rows.push(...await sweepRepo(g, repository.name, repoPath, opts));
+    rows.push(...(await sweepRepo(g, repository.name, repoPath, opts)));
   }
   return rows;
 }

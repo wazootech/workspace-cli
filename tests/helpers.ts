@@ -1,7 +1,6 @@
 /**
- * Runtime-neutral test helpers. Tests run on Deno (`deno test`) and Bun
- * (`bun test`), so they use `node:test`, `node:assert/strict` and `node:fs`
- * instead of `Deno.*` and `@std/assert`.
+ * Test helpers. Tests run under `bun test` and use `node:test`,
+ * `node:assert/strict` and `node:fs`, so they stay runtime-neutral.
  */
 import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
@@ -41,9 +40,8 @@ export function assertThrows(
   errorClass?: ErrorClass,
   messageIncludes?: string,
 ): void {
-  assert.throws(
-    fn,
-    (error: unknown) => matches(error, errorClass, messageIncludes),
+  assert.throws(fn, (error: unknown) =>
+    matches(error, errorClass, messageIncludes),
   );
 }
 
@@ -53,21 +51,14 @@ export async function assertRejects(
   errorClass?: ErrorClass,
   messageIncludes?: string,
 ): Promise<void> {
-  await assert.rejects(
-    fn,
-    (error: unknown) => matches(error, errorClass, messageIncludes),
+  await assert.rejects(fn, (error: unknown) =>
+    matches(error, errorClass, messageIncludes),
   );
 }
 
 const CLI_PATH = join(import.meta.dirname ?? ".", "..", "src", "cli.ts");
 
-/**
- * Run `src/cli.ts` in a child process under the runtime running the tests:
- * `deno run --allow-all` on Deno, `bun` on Bun.
- */
+/** Run `src/cli.ts` in a child process under the runtime running the tests. */
 export function runCli(args: string[]): Promise<ProcessResult> {
-  const runtimeArgs = "deno" in process.versions
-    ? ["run", "--allow-all", CLI_PATH, ...args]
-    : [CLI_PATH, ...args];
-  return runProcess(process.execPath, runtimeArgs);
+  return runProcess(process.execPath, [CLI_PATH, ...args]);
 }

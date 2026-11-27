@@ -45,10 +45,10 @@ async function runAdd(
   if (result === undefined) return 2;
   const { entry, entryName, rows } = result;
 
-  const duplicate = [...manifest.repositories, ...(manifest.workspaces ?? [])]
-    .find(
-      (r) => r.name === entryName,
-    );
+  const duplicate = [
+    ...manifest.repositories,
+    ...(manifest.workspaces ?? []),
+  ].find((r) => r.name === entryName);
   if (duplicate) {
     console.error(`Duplicate repository name: ${entryName}`);
     return 2;
@@ -100,8 +100,8 @@ async function resolveEntry(
       return undefined;
     }
 
-    const entryName = opts.name ?? opts.positional[0] ??
-      deriveNameFromUrl(opts.url!);
+    const entryName =
+      opts.name ?? opts.positional[0] ?? deriveNameFromUrl(opts.url!);
     if (!tryValidateName(entryName)) return undefined;
 
     return {
@@ -146,10 +146,9 @@ async function resolveEntry(
     const git = new SystemGit();
     const exists = await probeRemote(git, expanded.url);
     if (!exists) {
-      const slug = new URL(expanded.url).pathname.replace(/^\//, "").replace(
-        /\.git$/,
-        "",
-      );
+      const slug = new URL(expanded.url).pathname
+        .replace(/^\//, "")
+        .replace(/\.git$/, "");
       const ghOutcome = await createGitHubRepoWithFallback(slug, opts);
       if (typeof ghOutcome === "string") {
         console.error(ghOutcome);
@@ -172,10 +171,7 @@ async function resolveEntry(
 }
 
 /** Check if a remote URL exists via git ls-remote. */
-async function probeRemote(
-  git: SystemGit,
-  url: string,
-): Promise<boolean> {
+async function probeRemote(git: SystemGit, url: string): Promise<boolean> {
   const result = await git.run(["ls-remote", "--exit-code", url]);
   return result.code === 0;
 }

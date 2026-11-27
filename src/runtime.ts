@@ -1,9 +1,9 @@
 /**
  * Runtime edge — the one module in `src/` that touches the host runtime.
  *
- * `wspace` runs two ways: on Deno (as a compiled binary or via `deno run`) and
- * on Node (via the JSR npm-compatibility package). Two host interfaces do not
- * exist on Node, so both are owned here:
+ * `wspace` runs on Bun (from source or as a `bun build --compile` binary), on
+ * Deno (the published JSR package) and on Node (via the JSR npm-compatibility
+ * package). Two host interfaces do not exist on Node, so both are owned here:
  *
  *  - Deno's `Deno.*` globals, replaced with `node:` builtins; Deno implements
  *    the `node:` specifiers natively, so one implementation serves both

@@ -9,5 +9,8 @@
 .DS_Store
 Thumbs.db
 
-# Dependencies (Bun and Deno share node_modules)
+# Dependencies
 node_modules/
+
+# jsr publish regenerates a Deno lockfile and refuses a dirty tree
+deno.lock

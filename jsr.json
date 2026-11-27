@@ -1,0 +1,21 @@
+{
+  "name": "@wazoo/workspace",
+  "version": "0.8.1",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "bin": {
+    "wspace": "./src/cli.ts"
+  },
+  "imports": {
+    "@/": "./src/",
+    "@std/cli": "jsr:@std/cli@^1.0.32",
+    "@std/jsonc": "jsr:@std/jsonc@^1.0.3",
+    "@std/path": "jsr:@std/path@^1.1.6"
+  },
+  "publish": {
+    "include": ["src/", "schema/", "skills/", "LICENSE", "README.md"]
+  }
+}

@@ -32,9 +32,10 @@ test("auditDependencyAge: flags a first-party import missing from exclude", () =
     publisher,
     consumer({ imports: { r: "jsr:@wazoo/reasoner@^1.0.0" } }),
   ]);
-  assert.deepEqual(findings.map((f) => [f.repo, f.kind]), [
-    ["app", "missing-exclude"],
-  ]);
+  assert.deepEqual(
+    findings.map((f) => [f.repo, f.kind]),
+    [["app", "missing-exclude"]],
+  );
   assert.deepEqual(findings[0].message.includes("jsr:@wazoo/reasoner"), true);
 });
 
@@ -52,7 +53,10 @@ test("auditDependencyAge: flags a zero age, bare or in object form", () => {
       publisher,
       consumer({ minimumDependencyAge: age }),
     ]);
-    assert.deepEqual(findings.map((f) => f.kind), ["zero-age"]);
+    assert.deepEqual(
+      findings.map((f) => f.kind),
+      ["zero-age"],
+    );
   }
 });
 
@@ -77,14 +81,8 @@ test("collectDenoConfigs: reads deno.json and deno.jsonc, skips node_modules", a
     await mkdir(join(root, "sub"));
     await mkdir(join(root, "node_modules", "x"), { recursive: true });
     await writeFile(join(root, "deno.json"), '{"name":"@a/b"}');
-    await writeFile(
-      join(root, "sub", "deno.jsonc"),
-      '// c\n{"imports":{}}',
-    );
-    await writeFile(
-      join(root, "node_modules", "x", "deno.json"),
-      "{}",
-    );
+    await writeFile(join(root, "sub", "deno.jsonc"), '// c\n{"imports":{}}');
+    await writeFile(join(root, "node_modules", "x", "deno.json"), "{}");
     const configs = await collectDenoConfigs(new Map([["r", root]]));
     assert.deepEqual(configs.map((c) => c.file).sort(), [
       "deno.json",

@@ -37,9 +37,8 @@ export function resolveRepository(
   workspace: WorkspaceContext,
   repository: string | Repository,
 ): RepositoryEntry {
-  const repo = typeof repository === "string"
-    ? parseRepository(repository)
-    : repository;
+  const repo =
+    typeof repository === "string" ? parseRepository(repository) : repository;
 
   const name = validateRepositoryName(repo.name);
 

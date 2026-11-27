@@ -4,8 +4,10 @@ export type InstallRow = { name: string; state: string; detail?: string };
 
 export function isBadInstallRow(row: InstallRow): boolean {
   return (
-    row.state === "CLONE_FAILED" || row.state === "PATH_BLOCKED" ||
-    row.state === "INVALID" || row.state === "UNKNOWN_REPO"
+    row.state === "CLONE_FAILED" ||
+    row.state === "PATH_BLOCKED" ||
+    row.state === "INVALID" ||
+    row.state === "UNKNOWN_REPO"
   );
 }
 
@@ -28,8 +30,7 @@ export async function workspaceManifestMissing(
     return {
       name: repository.name,
       state: "INVALID",
-      detail:
-        `Workspace repository does not contain workspace.json at ${repoPath}`,
+      detail: `Workspace repository does not contain workspace.json at ${repoPath}`,
     };
   }
   return undefined;

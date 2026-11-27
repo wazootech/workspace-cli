@@ -27,7 +27,8 @@ export function parseManifestText(
   manifestPath: string,
   raw: string,
 ): RawManifest {
-  const extension = manifestPath.slice(manifestPath.lastIndexOf("."))
+  const extension = manifestPath
+    .slice(manifestPath.lastIndexOf("."))
     .toLowerCase();
   if (extension !== ".json") {
     throw new Error(
@@ -42,7 +43,8 @@ export function parseManifestText(
     throw new Error(`Failed to parse manifest ${manifestPath}: ${message}`);
   }
   if (
-    typeof parsed !== "object" || parsed === null ||
+    typeof parsed !== "object" ||
+    parsed === null ||
     !Array.isArray((parsed as Record<string, unknown>).repositories)
   ) {
     throw new Error(
@@ -54,9 +56,7 @@ export function parseManifestText(
     parsedObject.workspaces !== undefined &&
     !Array.isArray(parsedObject.workspaces)
   ) {
-    throw new Error(
-      `Manifest ${manifestPath}: "workspaces" must be an array`,
-    );
+    throw new Error(`Manifest ${manifestPath}: "workspaces" must be an array`);
   }
   return parsed as RawManifest;
 }
@@ -86,7 +86,9 @@ export function normalizeManifest(
   }
   const host = doc.host ?? "github.com";
   if (
-    typeof host !== "string" || host === "" || host.includes("://") ||
+    typeof host !== "string" ||
+    host === "" ||
+    host.includes("://") ||
     host.includes("/")
   ) {
     throw new Error(
@@ -138,9 +140,10 @@ export function normalizeManifest(
     });
 
   const repositories = normalizeEntries(doc.repositories, "repositories");
-  const workspaces = doc.workspaces === undefined
-    ? undefined
-    : normalizeEntries(doc.workspaces, "workspaces");
+  const workspaces =
+    doc.workspaces === undefined
+      ? undefined
+      : normalizeEntries(doc.workspaces, "workspaces");
   return {
     schemaVersion: doc.schemaVersion,
     owner: doc.owner,
@@ -162,9 +165,9 @@ export function validateSafeName(name: string, _contextName = "Name"): void {
 }
 
 function requiredEntryMessage(repository: unknown): string {
-  return `Repository entries are either bare strings or { "name", "url" }: ${
-    JSON.stringify(repository)
-  }`;
+  return `Repository entries are either bare strings or { "name", "url" }: ${JSON.stringify(
+    repository,
+  )}`;
 }
 
 function registerName(
@@ -189,12 +192,10 @@ export function validateManifest(manifest: WorkspaceManifest): void {
     );
   }
   const seen = new Set<string>();
-  for (
-    const [collection, entries] of [
-      ["repositories", manifest.repositories],
-      ["workspaces", manifest.workspaces ?? []],
-    ] as const
-  ) {
+  for (const [collection, entries] of [
+    ["repositories", manifest.repositories],
+    ["workspaces", manifest.workspaces ?? []],
+  ] as const) {
     for (const repository of entries) {
       if (!repository.name || !repository.url) {
         throw new Error(requiredEntryMessage(repository));
@@ -226,10 +227,7 @@ export function validateManifestText(
 export async function loadManifest(
   manifestPath: string,
 ): Promise<WorkspaceManifest> {
-  const raw = parseManifestText(
-    manifestPath,
-    await readTextFile(manifestPath),
-  );
+  const raw = parseManifestText(manifestPath, await readTextFile(manifestPath));
   const manifest = normalizeManifest(raw, manifestPath);
   validateManifest(manifest);
   return manifest;

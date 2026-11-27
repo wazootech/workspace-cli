@@ -39,12 +39,12 @@ export interface DependencyAgeFinding {
 const CONFIG_NAME = /^deno\.jsonc?$/;
 const SKIP = [
   /node_modules/,
-  /[\/]\.git([\/]|$)/,
-  /[\/]_fresh([\/]|$)/,
-  /[\/]dist([\/]|$)/,
-  /[\/]vendor([\/]|$)/,
-  /[\/]generated([\/]|$)/,
-  /[\/]\.wrangler([\/]|$)/,
+  /[/]\.git([/]|$)/,
+  /[/]_fresh([/]|$)/,
+  /[/]dist([/]|$)/,
+  /[/]vendor([/]|$)/,
+  /[/]generated([/]|$)/,
+  /[/]\.wrangler([/]|$)/,
 ];
 
 /** Find and parse every Deno config under `repoPaths` (`name` → checkout dir). */
@@ -137,7 +137,9 @@ export function auditDependencyAge(
       if (!name || config.name === name) continue;
       const scope = scopeOf(name);
       if (
-        scope && firstPartyScopes.has(scope) && !excluded.has(`jsr:${name}`)
+        scope &&
+        firstPartyScopes.has(scope) &&
+        !excluded.has(`jsr:${name}`)
       ) {
         missing.add(`jsr:${name}`);
       }
@@ -149,8 +151,7 @@ export function auditDependencyAge(
         repo,
         file,
         kind: "missing-exclude",
-        message:
-          `imports first-party ${name} but minimumDependencyAge.exclude does not list it`,
+        message: `imports first-party ${name} but minimumDependencyAge.exclude does not list it`,
       });
     }
   }
