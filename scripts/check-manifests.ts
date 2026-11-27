@@ -7,9 +7,9 @@
  * dependency (not devDependency) must be a jsr.json import.
  *
  * Usage: `bun scripts/check-manifests.ts [repoDir]` (defaults to the current
- * directory). Temporary home: copy it into a repo's `scripts/` until it moves
- * into workspace-cli (see wazootech/workspace#50). Handles devDependencies and
- * an npm alias whose key differs from the package name.
+ * directory). This is the canonical copy for the wazootech repos: copy it into a
+ * repo's `scripts/` unchanged. Handles devDependencies, an npm alias whose key
+ * differs from the package name, and subpath imports that ride on a base import.
  */
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -51,6 +51,16 @@ const devDeps = pkg.devDependencies ?? {};
 const imports = jsr.imports ?? {};
 for (const [alias, spec] of Object.entries(imports)) {
   if (alias === "@/") continue;
+  // A subpath entry (`@pkg/sub` -> `jsr:@pkg@range/sub`) rides on its base
+  // alias: package.json cannot spell it, the npm alias exposes the subpath.
+  const sub = /^jsr:(@[^/]+\/[^@]+@[^/]+)\/.+$/.exec(spec);
+  if (sub) {
+    const base = Object.entries(imports).find(([, s]) => s === `jsr:${sub[1]}`);
+    if (!base || !alias.startsWith(`${base[0]}/`)) {
+      fail(`"${alias}": subpath import has no matching base import`);
+    }
+    continue;
+  }
   const declared = deps[alias] ?? devDeps[alias];
   if (declared === undefined) {
     fail(`jsr.json imports "${alias}" but package.json does not depend on it`);

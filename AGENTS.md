@@ -17,7 +17,8 @@ does not manage their location or lifecycle.
 
 - Bun toolchain, TypeScript, strict mode ("Node-compatible code, Bun tooling").
   `jsr.json` describes the published JSR package, `package.json` is the Bun
-  manifest, and `scripts/check-manifests.ts` keeps the two in sync (`@std`
+  manifest, and `scripts/check-manifests.ts` keeps the two in sync (it is the
+  canonical copy other wazootech repos take unchanged; `@std`
   packages are the default dependency, aliased as `npm:@jsr/...` in
   `package.json`). The sole module that touches the host runtime is the runtime
   edge, `src/runtime.ts`, which uses `node:` builtins so the engine runs on
