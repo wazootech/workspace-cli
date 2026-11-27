@@ -1,5 +1,8 @@
-import { assert, assertEquals } from "@std/assert";
-import { exists } from "@std/fs";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { makeTempDir, readText } from "./helpers.ts";
+import { pathExists } from "@/runtime.ts";
 import { dirname, join } from "@std/path";
 import {
   branchAb,
@@ -31,7 +34,7 @@ async function makeRepoWithMain(dir: string, name: string): Promise<string> {
     (await g.run(["checkout", "-b", "main"], seed)).code === 0,
     "checkout main",
   );
-  await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+  await writeFile(join(seed, "a.txt"), "one\n");
   await g.run(["add", "."], seed);
   assert(
     (await g.run(["commit", "-m", "seed"], seed)).code === 0,
@@ -56,7 +59,7 @@ async function seedCommitOnOrigin(
 ): Promise<void> {
   const seed = join(dir, `${name}-seed`);
   const origin = join(dir, `${name}.git`);
-  await Deno.writeTextFile(join(seed, "a.txt"), content);
+  await writeFile(join(seed, "a.txt"), content);
   await g.run(["add", "."], seed);
   assert(
     (await g.run(["commit", "-m", "advance"], seed)).code === 0,
@@ -93,23 +96,23 @@ function captureStdout() {
   };
 }
 
-Deno.test("defaultBranch resolves from origin/HEAD", async () => {
-  const dir = await Deno.makeTempDir();
+test("defaultBranch resolves from origin/HEAD", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
-    assertEquals(await defaultBranch(g, work), "main");
+    assert.deepEqual(await defaultBranch(g, work), "main");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("branchAb reports ahead/behind after advance", async () => {
-  const dir = await Deno.makeTempDir();
+test("branchAb reports ahead/behind after advance", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await seedCommitOnOrigin(dir, "a", "two\n");
-    assertEquals((await g.run(["fetch", "--prune"], work)).code, 0);
-    assertEquals(await branchAb(g, work, "origin/main"), {
+    assert.deepEqual((await g.run(["fetch", "--prune"], work)).code, 0);
+    assert.deepEqual(await branchAb(g, work, "origin/main"), {
       ahead: 0,
       behind: 1,
     });
@@ -118,8 +121,8 @@ Deno.test("branchAb reports ahead/behind after advance", async () => {
   }
 });
 
-Deno.test("update fast-forwards a clean default branch", async () => {
-  const dir = await Deno.makeTempDir();
+test("update fast-forwards a clean default branch", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await seedCommitOnOrigin(dir, "a", "two\n");
@@ -128,24 +131,28 @@ Deno.test("update fast-forwards a clean default branch", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(actions, [{ kind: "FAST_FORWARD", name: "a", commits: 1 }]);
-    assertEquals(await isDirty(g, work), false);
+    assert.deepEqual(actions, [{
+      kind: "FAST_FORWARD",
+      name: "a",
+      commits: 1,
+    }]);
+    assert.deepEqual(await isDirty(g, work), false);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("update skips dirty repositories", async () => {
-  const dir = await Deno.makeTempDir();
+test("update skips dirty repositories", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
-    await Deno.writeTextFile(join(work, "a.txt"), "local change\n");
+    await writeFile(join(work, "a.txt"), "local change\n");
     const actions = await runUpdate(
       g,
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(actions, [
+    assert.deepEqual(actions, [
       { kind: "SKIP_DIRTY", name: "a", detail: "uncommitted changes" },
     ]);
   } finally {
@@ -153,8 +160,8 @@ Deno.test("update skips dirty repositories", async () => {
   }
 });
 
-Deno.test("update skips feature-branch checkouts", async () => {
-  const dir = await Deno.makeTempDir();
+test("update skips feature-branch checkouts", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await g.run(["checkout", "-b", "feature-x"], work);
@@ -163,14 +170,14 @@ Deno.test("update skips feature-branch checkouts", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(actions[0].kind, "SKIP_FEATURE");
+    assert.deepEqual(actions[0].kind, "SKIP_FEATURE");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("update reports CURRENT when already in sync", async () => {
-  const dir = await Deno.makeTempDir();
+test("update reports CURRENT when already in sync", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     const actions = await runUpdate(
@@ -178,7 +185,7 @@ Deno.test("update reports CURRENT when already in sync", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(actions, [{
+    assert.deepEqual(actions, [{
       kind: "CURRENT",
       name: "a",
       detail: "origin/main",
@@ -188,8 +195,8 @@ Deno.test("update reports CURRENT when already in sync", async () => {
   }
 });
 
-Deno.test("update fast-forwards a clean workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("update fast-forwards a clean workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "root");
     await seedCommitOnOrigin(dir, "root", "two\n");
@@ -201,7 +208,7 @@ Deno.test("update fast-forwards a clean workspace root", async () => {
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assertEquals(actions, [
+    assert.deepEqual(actions, [
       { kind: "FAST_FORWARD", name: "(workspace root)", commits: 1 },
     ]);
   } finally {
@@ -209,13 +216,13 @@ Deno.test("update fast-forwards a clean workspace root", async () => {
   }
 });
 
-Deno.test("update skips a dirty workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("update skips a dirty workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
     // A tracked modification is user work; the root must be skipped.
-    await Deno.writeTextFile(join(rootDir, "a.txt"), "local change\n");
+    await writeFile(join(rootDir, "a.txt"), "local change\n");
     const actions = await runUpdate(
       g,
       { repositories: [] },
@@ -224,7 +231,7 @@ Deno.test("update skips a dirty workspace root", async () => {
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assertEquals(actions, [
+    assert.deepEqual(actions, [
       {
         kind: "SKIP_DIRTY",
         name: "(workspace root)",
@@ -236,8 +243,8 @@ Deno.test("update skips a dirty workspace root", async () => {
   }
 });
 
-Deno.test("update skips a feature-branch workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("update skips a feature-branch workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
@@ -250,15 +257,15 @@ Deno.test("update skips a feature-branch workspace root", async () => {
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assertEquals(actions[0].kind, "SKIP_FEATURE");
-    assertEquals(actions[0].name, "(workspace root)");
+    assert.deepEqual(actions[0].kind, "SKIP_FEATURE");
+    assert.deepEqual(actions[0].name, "(workspace root)");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("update reports CURRENT for an in-sync workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("update reports CURRENT for an in-sync workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "root");
     const actions = await runUpdate(
@@ -269,7 +276,7 @@ Deno.test("update reports CURRENT for an in-sync workspace root", async () => {
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assertEquals(actions, [{
+    assert.deepEqual(actions, [{
       kind: "CURRENT",
       name: "(workspace root)",
       detail: "origin/main",
@@ -279,8 +286,8 @@ Deno.test("update reports CURRENT for an in-sync workspace root", async () => {
   }
 });
 
-Deno.test("update omits the workspace root when it is not a git repo", async () => {
-  const dir = await Deno.makeTempDir();
+test("update omits the workspace root when it is not a git repo", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     await seedCommitOnOrigin(dir, "a", "two\n");
@@ -293,14 +300,18 @@ Deno.test("update omits the workspace root when it is not a git repo", async () 
       !actions.some((a) => a.name === "(workspace root)"),
       "plain-directory root should not produce an update action",
     );
-    assertEquals(actions, [{ kind: "FAST_FORWARD", name: "a", commits: 1 }]);
+    assert.deepEqual(actions, [{
+      kind: "FAST_FORWARD",
+      name: "a",
+      commits: 1,
+    }]);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("collectStatus reports the workspace root when it is a git repo", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus reports the workspace root when it is a git repo", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "root");
     const rows = await collectStatus(
@@ -311,21 +322,21 @@ Deno.test("collectStatus reports the workspace root when it is a git repo", asyn
         repositoriesDirectory: join(dir, "repos"),
       },
     );
-    assertEquals(rows[0].name, "(workspace root)");
-    assertEquals(rows[0].state, "CLEAN");
+    assert.deepEqual(rows[0].name, "(workspace root)");
+    assert.deepEqual(rows[0].state, "CLEAN");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("check exits 1 when the workspace root is dirty", async () => {
-  const dir = await Deno.makeTempDir();
+test("check exits 1 when the workspace root is dirty", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
-    await Deno.mkdir(join(rootDir, "repos"), { recursive: true });
+    await mkdir(join(rootDir, "repos"), { recursive: true });
     const manifestPath = join(rootDir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: rootDir,
@@ -338,14 +349,14 @@ Deno.test("check exits 1 when the workspace root is dirty", async () => {
     await g.run(["add", "."], rootDir);
     await g.run(["commit", "-m", "workspace manifest"], rootDir);
     await g.run(["push", "origin", "main"], rootDir);
-    assertEquals(
+    assert.deepEqual(
       await run(["check", "--manifest", manifestPath]),
       0,
       "clean root should pass check",
     );
     // A tracked modification is user work; the root must fail check.
-    await Deno.writeTextFile(join(rootDir, "a.txt"), "oops\n");
-    assertEquals(
+    await writeFile(join(rootDir, "a.txt"), "oops\n");
+    assert.deepEqual(
       await run(["check", "--manifest", manifestPath]),
       1,
       "dirty workspace root should fail check",
@@ -355,15 +366,15 @@ Deno.test("check exits 1 when the workspace root is dirty", async () => {
   }
 });
 
-Deno.test("update ignores untracked workspace content in the workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("update ignores untracked workspace content in the workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
     // Untracked repos/ is the expected workspace content of the root
     // checkout (install populates it on a fresh clone); it must not make
     // the root permanently DIRTY.
-    await Deno.mkdir(join(rootDir, "repos", "a"), { recursive: true });
+    await mkdir(join(rootDir, "repos", "a"), { recursive: true });
     await seedCommitOnOrigin(dir, "root", "two\n");
     const actions = await runUpdate(
       g,
@@ -373,7 +384,7 @@ Deno.test("update ignores untracked workspace content in the workspace root", as
         repositoriesDirectory: join(rootDir, "repos"),
       },
     );
-    assertEquals(actions, [
+    assert.deepEqual(actions, [
       { kind: "FAST_FORWARD", name: "(workspace root)", commits: 1 },
     ]);
   } finally {
@@ -381,12 +392,12 @@ Deno.test("update ignores untracked workspace content in the workspace root", as
   }
 });
 
-Deno.test("collectStatus ignores untracked workspace content in the root", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus ignores untracked workspace content in the root", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
-    await Deno.mkdir(join(rootDir, "repos", "a"), { recursive: true });
+    await mkdir(join(rootDir, "repos", "a"), { recursive: true });
     const rows = await collectStatus(
       g,
       { repositories: [] },
@@ -395,15 +406,15 @@ Deno.test("collectStatus ignores untracked workspace content in the root", async
         repositoriesDirectory: join(rootDir, "repos"),
       },
     );
-    assertEquals(rows[0].name, "(workspace root)");
-    assertEquals(rows[0].state, "CLEAN");
+    assert.deepEqual(rows[0].name, "(workspace root)");
+    assert.deepEqual(rows[0].state, "CLEAN");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("update omits the workspace root when scoped to a sub-workspace", async () => {
-  const dir = await Deno.makeTempDir();
+test("update omits the workspace root when scoped to a sub-workspace", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
@@ -421,18 +432,18 @@ Deno.test("update omits the workspace root when scoped to a sub-workspace", asyn
       !actions.some((a) => a.name === "(workspace root)"),
       "scoped update should omit the workspace root",
     );
-    assertEquals(actions, [{ kind: "MISSING", name: "a" }]);
+    assert.deepEqual(actions, [{ kind: "MISSING", name: "a" }]);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("collectStatus omits the workspace root when scoped", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus omits the workspace root when scoped", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
-    await Deno.writeTextFile(join(rootDir, "a.txt"), "local change\n");
+    await writeFile(join(rootDir, "a.txt"), "local change\n");
     const rows = await collectStatus(g, { repositories: [] }, {
       root: rootDir,
       repositoriesDirectory: join(dir, "repos"),
@@ -446,15 +457,15 @@ Deno.test("collectStatus omits the workspace root when scoped", async () => {
   }
 });
 
-Deno.test("check --workspace ignores a dirty workspace root", async () => {
-  const dir = await Deno.makeTempDir();
+test("check --workspace ignores a dirty workspace root", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     await makeRepoWithMain(dir, "root");
     // Clone the repo attributed to sub-workspace "sub" into repos/a.
     await makeRepoWithMain(dir, "a");
     const reposA = join(rootDir, "repos", "a");
-    await Deno.mkdir(dirname(reposA), { recursive: true });
+    await mkdir(dirname(reposA), { recursive: true });
     assert(
       (await g.run(["clone", join(dir, "a.git"), reposA])).code === 0,
       "clone a into repos",
@@ -462,7 +473,7 @@ Deno.test("check --workspace ignores a dirty workspace root", async () => {
     await configure(reposA);
 
     const manifestPath = join(rootDir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: rootDir,
@@ -477,14 +488,14 @@ Deno.test("check --workspace ignores a dirty workspace root", async () => {
     await g.run(["push", "origin", "main"], rootDir);
 
     // A dirty root is user work and fails an unscoped check...
-    await Deno.writeTextFile(join(rootDir, "a.txt"), "oops\n");
-    assertEquals(
+    await writeFile(join(rootDir, "a.txt"), "oops\n");
+    assert.deepEqual(
       await run(["check", "--manifest", manifestPath]),
       1,
       "dirty root should fail an unscoped check",
     );
     // ...but a scoped check evaluates only the requested sub-workspace.
-    assertEquals(
+    assert.deepEqual(
       await run(["check", "--manifest", manifestPath, "--workspace", "sub"]),
       0,
       "scoped check should ignore the workspace root",
@@ -494,13 +505,13 @@ Deno.test("check --workspace ignores a dirty workspace root", async () => {
   }
 });
 
-Deno.test("wspace install clones missing repositories", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace install clones missing repositories", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     await makeRepoWithMain(dir, "b");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -512,19 +523,19 @@ Deno.test("wspace install clones missing repositories", async () => {
     );
     // Fresh workspace: neither default-location checkout exists yet.
     const code = await run(["install", "--manifest", manifestPath]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(dir, "repos", "b", ".git")),
+    assert.deepEqual(code, 0);
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "b", ".git")),
       true,
       "missing repo should be cloned",
     );
-    assertEquals(
-      await exists(join(dir, "repos", "b", "a.txt")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "b", "a.txt")),
       true,
       "cloned repo should contain seeded file",
     );
-    assertEquals(
-      await exists(join(dir, "repos", "a", ".git")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "a", ".git")),
       true,
       "existing-origin repo a should also be cloned",
     );
@@ -533,14 +544,14 @@ Deno.test("wspace install clones missing repositories", async () => {
   }
 });
 
-Deno.test("wspace install clones only specified subset of repositories", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace install clones only specified subset of repositories", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     await makeRepoWithMain(dir, "b");
     await makeRepoWithMain(dir, "c");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -552,19 +563,19 @@ Deno.test("wspace install clones only specified subset of repositories", async (
       }),
     );
     const code = await run(["install", "b", "--manifest", manifestPath]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(dir, "repos", "b", ".git")),
+    assert.deepEqual(code, 0);
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "b", ".git")),
       true,
       "specified repo b should be cloned",
     );
-    assertEquals(
-      await exists(join(dir, "repos", "a", ".git")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "a", ".git")),
       false,
       "unspecified repo a should not be cloned",
     );
-    assertEquals(
-      await exists(join(dir, "repos", "c", ".git")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "c", ".git")),
       false,
       "unspecified repo c should not be cloned",
     );
@@ -573,12 +584,12 @@ Deno.test("wspace install clones only specified subset of repositories", async (
   }
 });
 
-Deno.test("wspace check reports CLEAN via CLI", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace check reports CLEAN via CLI", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -587,32 +598,32 @@ Deno.test("wspace check reports CLEAN via CLI", async () => {
       }),
     );
     const code = await run(["check", "--json", "--manifest", manifestPath]);
-    assertEquals(code, 0);
+    assert.deepEqual(code, 0);
     assert(work, "sanity: checkout exists");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("repoStatus reports MISSING when path does not exist", async () => {
-  const dir = await Deno.makeTempDir();
+test("repoStatus reports MISSING when path does not exist", async () => {
+  const dir = await makeTempDir();
   try {
     const rows = await collectStatus(
       g,
       { repositories: [{ name: "nope", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(rows[0].state, "MISSING");
+    assert.deepEqual(rows[0].state, "MISSING");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("repoStatus reports INVALID when path has no .git", async () => {
-  const dir = await Deno.makeTempDir();
+test("repoStatus reports INVALID when path has no .git", async () => {
+  const dir = await makeTempDir();
   try {
     const empty = join(dir, "empty");
-    await Deno.mkdir(empty, { recursive: true });
+    await mkdir(empty, { recursive: true });
     const rows = await collectStatus(
       g,
       {
@@ -624,18 +635,18 @@ Deno.test("repoStatus reports INVALID when path has no .git", async () => {
       },
       pathsFor(dir),
     );
-    assertEquals(rows[0].state, "INVALID");
-    assertEquals(rows[0].detail, "Path exists but is not a Git repository");
+    assert.deepEqual(rows[0].state, "INVALID");
+    assert.deepEqual(rows[0].detail, "Path exists but is not a Git repository");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("update reports INVALID with a clear detail when a repo path is not a git repo", async () => {
-  const dir = await Deno.makeTempDir();
+test("update reports INVALID with a clear detail when a repo path is not a git repo", async () => {
+  const dir = await makeTempDir();
   try {
     const empty = join(dir, "empty");
-    await Deno.mkdir(empty, { recursive: true });
+    await mkdir(empty, { recursive: true });
     const actions = await runUpdate(
       g,
       {
@@ -647,7 +658,7 @@ Deno.test("update reports INVALID with a clear detail when a repo path is not a 
       },
       pathsFor(dir),
     );
-    assertEquals(actions, [{
+    assert.deepEqual(actions, [{
       kind: "INVALID",
       name: "empty",
       detail: "Path exists but is not a Git repository",
@@ -657,11 +668,11 @@ Deno.test("update reports INVALID with a clear detail when a repo path is not a 
   }
 });
 
-Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus flags unmanaged checkouts under repos dir", async () => {
+  const dir = await makeTempDir();
   try {
     const reposDir = join(dir, "repos");
-    await Deno.mkdir(reposDir, { recursive: true });
+    await mkdir(reposDir, { recursive: true });
     // Seed a real commit history: an empty bare origin would leave the clone
     // on an unborn branch and report FEATURE_CLEAN instead of CLEAN.
     await makeRepoWithMain(dir, "a");
@@ -675,28 +686,28 @@ Deno.test("collectStatus flags unmanaged checkouts under repos dir", async () =>
     );
     const unmanagedRow = rows.find((r) => r.name === "(unmanaged) stray");
     assert(unmanagedRow, "unmanaged checkout should be reported");
-    assertEquals(unmanagedRow.state, "CLEAN");
+    assert.deepEqual(unmanagedRow.state, "CLEAN");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("defaultBranch falls back to main when origin/HEAD is missing", async () => {
-  const dir = await Deno.makeTempDir();
+test("defaultBranch falls back to main when origin/HEAD is missing", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await g.run(["remote", "set-head", "origin", "--delete"], work);
-    assertEquals(await defaultBranch(g, work), "main");
+    assert.deepEqual(await defaultBranch(g, work), "main");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus reports hasErrors for MISSING and INVALID", async () => {
+  const dir = await makeTempDir();
   try {
     const empty = join(dir, "empty");
-    await Deno.mkdir(empty, { recursive: true });
+    await mkdir(empty, { recursive: true });
     const rows = await collectStatus(
       g,
       {
@@ -707,17 +718,17 @@ Deno.test("collectStatus reports hasErrors for MISSING and INVALID", async () =>
       },
       pathsFor(dir),
     );
-    assertEquals(rows.map((r) => r.state).sort(), ["INVALID", "MISSING"]);
+    assert.deepEqual(rows.map((r) => r.state).sort(), ["INVALID", "MISSING"]);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("collectStatus does not double-list managed repositories under reposDir", async () => {
-  const dir = await Deno.makeTempDir();
+test("collectStatus does not double-list managed repositories under reposDir", async () => {
+  const dir = await makeTempDir();
   try {
     const reposDir = join(dir, "repos");
-    await Deno.mkdir(reposDir, { recursive: true });
+    await mkdir(reposDir, { recursive: true });
     const work = join(reposDir, "a");
     const origin = join(dir, "a.git");
     assert((await g.run(["init", "--bare", origin])).code === 0);
@@ -729,7 +740,7 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
       { ...pathsFor(dir), repositoriesDirectory: reposDir },
     );
     const names = rows.map((r) => r.name);
-    assertEquals(
+    assert.deepEqual(
       names,
       ["a"],
       "Managed repository should be reported exactly once",
@@ -739,13 +750,13 @@ Deno.test("collectStatus does not double-list managed repositories under reposDi
   }
 });
 
-Deno.test("wspace install fails when destination exists but is not a Git repo", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace install fails when destination exists but is not a Git repo", async () => {
+  const dir = await makeTempDir();
   try {
     const nonGitPath = join(dir, "repos", "blocked");
-    await Deno.mkdir(nonGitPath, { recursive: true });
+    await mkdir(nonGitPath, { recursive: true });
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -753,7 +764,7 @@ Deno.test("wspace install fails when destination exists but is not a Git repo", 
       }),
     );
     const code = await run(["install", "--manifest", manifestPath]);
-    assertEquals(
+    assert.deepEqual(
       code,
       1,
       "wspace install should exit non-zero when path is blocked",
@@ -763,8 +774,8 @@ Deno.test("wspace install fails when destination exists but is not a Git repo", 
   }
 });
 
-Deno.test("wspace init scaffolds a manifest and standard directories", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace init scaffolds a manifest and standard directories", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
     const code = await run([
@@ -778,31 +789,31 @@ Deno.test("wspace init scaffolds a manifest and standard directories", async () 
       "--manifest",
       manifestPath,
     ]);
-    assertEquals(code, 0);
-    const doc = JSON.parse(await Deno.readTextFile(manifestPath)) as {
+    assert.deepEqual(code, 0);
+    const doc = JSON.parse(await readText(manifestPath)) as {
       schemaVersion: number;
       host?: string;
       owner?: string;
       repositories: string[];
     };
-    assertEquals(doc.schemaVersion, 4);
-    assertEquals(doc.host, "github.com");
-    assertEquals(doc.owner, "acme");
-    assertEquals(doc.repositories, ["api", "other/tool"]);
-    assert(await exists(join(dir, "repos")), "repos/ should be created");
+    assert.deepEqual(doc.schemaVersion, 4);
+    assert.deepEqual(doc.host, "github.com");
+    assert.deepEqual(doc.owner, "acme");
+    assert.deepEqual(doc.repositories, ["api", "other/tool"]);
+    assert(await pathExists(join(dir, "repos")), "repos/ should be created");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace init refuses when a manifest already exists", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace init refuses when a manifest already exists", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
     const original = JSON.stringify({
       repositories: [{ name: "a", url: "u" }],
     });
-    await Deno.writeTextFile(manifestPath, original);
+    await writeFile(manifestPath, original);
     const code = await run([
       "init",
       "--owner",
@@ -811,9 +822,9 @@ Deno.test("wspace init refuses when a manifest already exists", async () => {
       "--manifest",
       manifestPath,
     ]);
-    assertEquals(code, 2);
-    assertEquals(
-      await Deno.readTextFile(manifestPath),
+    assert.deepEqual(code, 2);
+    assert.deepEqual(
+      await readText(manifestPath),
       original,
       "existing manifest must remain untouched",
     );
@@ -822,8 +833,8 @@ Deno.test("wspace init refuses when a manifest already exists", async () => {
   }
 });
 
-Deno.test("wspace init fails closed on invalid seeds without writing anything", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace init fails closed on invalid seeds without writing anything", async () => {
+  const dir = await makeTempDir();
   try {
     const missingOwner = await run([
       "init",
@@ -831,9 +842,9 @@ Deno.test("wspace init fails closed on invalid seeds without writing anything", 
       join(dir, "workspace.json"),
       "orphan",
     ]);
-    assertEquals(missingOwner, 2, "shorthand without owner must fail");
-    assertEquals(
-      await exists(join(dir, "workspace.json")),
+    assert.deepEqual(missingOwner, 2, "shorthand without owner must fail");
+    assert.deepEqual(
+      await pathExists(join(dir, "workspace.json")),
       false,
       "failed scaffold must not write a manifest",
     );
@@ -847,9 +858,9 @@ Deno.test("wspace init fails closed on invalid seeds without writing anything", 
       "--manifest",
       join(dir, "repos.json"),
     ]);
-    assertEquals(dup, 2, "duplicate seeded names must fail");
-    assertEquals(
-      await exists(join(dir, "repos.json")),
+    assert.deepEqual(dup, 2, "duplicate seeded names must fail");
+    assert.deepEqual(
+      await pathExists(join(dir, "repos.json")),
       false,
       "failed scaffold must not write a manifest",
     );
@@ -858,8 +869,8 @@ Deno.test("wspace init fails closed on invalid seeds without writing anything", 
   }
 });
 
-Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () => {
-  const dir = await Deno.makeTempDir();
+test("init-scaffolded manifest feeds wspace install end-to-end", async () => {
+  const dir = await makeTempDir();
   try {
     // Local bare origin standing in for github.com/acme/api.
     const origin = join(dir, "api.git");
@@ -868,7 +879,7 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
     assert((await g.run(["init", seed])).code === 0);
     await configure(seed);
     assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
-    await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+    await writeFile(join(seed, "a.txt"), "one\n");
     await g.run(["add", "."], seed);
     assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
     assert((await g.run(["push", origin, "main"], seed)).code === 0);
@@ -882,7 +893,7 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
       dir,
       [{ host: "github.com", owner: "acme" }],
       async () => {
-        assertEquals(
+        assert.deepEqual(
           await run([
             "init",
             "--owner",
@@ -894,7 +905,7 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
           0,
           "scaffold should succeed in an empty directory",
         );
-        assertEquals(
+        assert.deepEqual(
           await run(["install", "--manifest", manifestPath]),
           0,
           "install should clone from the scaffolded shorthand entry",
@@ -902,7 +913,7 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
       },
     );
     assert(
-      await exists(join(dir, "repos", "api", ".git")),
+      await pathExists(join(dir, "repos", "api", ".git")),
       "scaffolded shorthand should install from the rewritten remote",
     );
   } finally {
@@ -910,11 +921,11 @@ Deno.test("init-scaffolded manifest feeds wspace install end-to-end", async () =
   }
 });
 
-Deno.test("wspace add appends shorthand entries without touching remotes", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace add appends shorthand entries without touching remotes", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         schemaVersion: 4,
@@ -923,36 +934,36 @@ Deno.test("wspace add appends shorthand entries without touching remotes", async
         repositories: [{ name: "existing", url: "https://x/existing.git" }],
       }),
     );
-    assertEquals(
+    assert.deepEqual(
       await run(["add", "acme/api", "--manifest", manifestPath]),
       0,
       "shorthand with inline owner should skip remote checks",
     );
-    assertEquals(
+    assert.deepEqual(
       await run(["add", "tool", "--manifest", manifestPath]),
       0,
       "bare shorthand should expand against host without remote checks",
     );
     const { repositories } = await loadManifest(manifestPath);
-    assertEquals(
+    assert.deepEqual(
       repositories.map((r) => r.name),
       ["existing", "api", "tool"],
     );
-    assertEquals(repositories[2].url, "https://gitlab.com/acme/tool");
+    assert.deepEqual(repositories[2].url, "https://gitlab.com/acme/tool");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace add --url derives the name from the URL basename", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace add --url derives the name from the URL basename", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({ schemaVersion: 4, repositories: [] }),
     );
-    assertEquals(
+    assert.deepEqual(
       await run([
         "add",
         "--url",
@@ -963,9 +974,9 @@ Deno.test("wspace add --url derives the name from the URL basename", async () =>
       0,
     );
     let { repositories } = await loadManifest(manifestPath);
-    assertEquals(repositories[0].name, "memsdk");
+    assert.deepEqual(repositories[0].name, "memsdk");
 
-    assertEquals(
+    assert.deepEqual(
       await run([
         "add",
         "aliased",
@@ -978,17 +989,17 @@ Deno.test("wspace add --url derives the name from the URL basename", async () =>
       "positional name should override the derived basename",
     );
     ({ repositories } = await loadManifest(manifestPath));
-    assertEquals(repositories[1].name, "aliased");
+    assert.deepEqual(repositories[1].name, "aliased");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace add rejects duplicates and missing manifests fail closed", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace add rejects duplicates and missing manifests fail closed", async () => {
+  const dir = await makeTempDir();
   try {
     const missing = join(dir, "workspace.json");
-    assertEquals(
+    assert.deepEqual(
       await run(["add", "api", "--manifest", missing]),
       2,
       "adding against a missing manifest should exit 2",
@@ -1000,14 +1011,14 @@ Deno.test("wspace add rejects duplicates and missing manifests fail closed", asy
       host: "gitlab.com",
       repositories: ["api"],
     });
-    await Deno.writeTextFile(manifestPath, original);
-    assertEquals(
+    await writeFile(manifestPath, original);
+    assert.deepEqual(
       await run(["add", "other/api", "--manifest", manifestPath]),
       2,
       "duplicate local name should exit 2",
     );
-    assertEquals(
-      await Deno.readTextFile(manifestPath),
+    assert.deepEqual(
+      await readText(manifestPath),
       original,
       "failed add must not touch the manifest",
     );
@@ -1016,12 +1027,12 @@ Deno.test("wspace add rejects duplicates and missing manifests fail closed", asy
   }
 });
 
-Deno.test("wspace remove deletes the entry but keeps the checkout on disk", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace remove deletes the entry but keeps the checkout on disk", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -1029,14 +1040,14 @@ Deno.test("wspace remove deletes the entry but keeps the checkout on disk", asyn
         repositories: [{ name: "a", url: join(dir, "a.git") }],
       }),
     );
-    assertEquals(
+    assert.deepEqual(
       await run(["remove", "a", "--manifest", manifestPath]),
       0,
     );
     const { repositories } = await loadManifest(manifestPath);
-    assertEquals(repositories.length, 0);
-    assertEquals(
-      await exists(join(dir, "a")),
+    assert.deepEqual(repositories.length, 0);
+    assert.deepEqual(
+      await pathExists(join(dir, "a")),
       true,
       "local checkout must remain on disk after remove",
     );
@@ -1045,8 +1056,8 @@ Deno.test("wspace remove deletes the entry but keeps the checkout on disk", asyn
   }
 });
 
-Deno.test("wspace remove fails on unknown names and dry-run writes nothing", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace remove fails on unknown names and dry-run writes nothing", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "workspace.json");
     const original = JSON.stringify({
@@ -1055,25 +1066,25 @@ Deno.test("wspace remove fails on unknown names and dry-run writes nothing", asy
       owner: "acme",
       repositories: ["api"],
     });
-    await Deno.writeTextFile(manifestPath, original);
+    await writeFile(manifestPath, original);
 
-    assertEquals(
+    assert.deepEqual(
       await run(["remove", "nope", "--manifest", manifestPath]),
       2,
       "unknown repository should exit 2",
     );
-    assertEquals(
-      await Deno.readTextFile(manifestPath),
+    assert.deepEqual(
+      await readText(manifestPath),
       original,
     );
 
-    assertEquals(
+    assert.deepEqual(
       await run(["remove", "api", "--dry-run", "--manifest", manifestPath]),
       0,
       "dry-run should succeed",
     );
-    assertEquals(
-      await Deno.readTextFile(manifestPath),
+    assert.deepEqual(
+      await readText(manifestPath),
       original,
       "dry-run must not write the manifest",
     );
@@ -1082,12 +1093,12 @@ Deno.test("wspace remove fails on unknown names and dry-run writes nothing", asy
   }
 });
 
-Deno.test("wspace path finds repo in repos/", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace path finds repo in repos/", async () => {
+  const dir = await makeTempDir();
   try {
     const reposDir = join(dir, "repos");
-    await Deno.mkdir(join(reposDir, "my-api"), { recursive: true });
-    await Deno.writeTextFile(
+    await mkdir(join(reposDir, "my-api"), { recursive: true });
+    await writeFile(
       join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
@@ -1104,18 +1115,18 @@ Deno.test("wspace path finds repo in repos/", async () => {
       join(dir, "workspace.json"),
     ]);
     stdout.stop();
-    assertEquals(code, 0);
-    assertEquals(stdout.output().trim(), join(reposDir, "my-api"));
+    assert.deepEqual(code, 0);
+    assert.deepEqual(stdout.output().trim(), join(reposDir, "my-api"));
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace path returns exit 1 for no match", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace path returns exit 1 for no match", async () => {
+  const dir = await makeTempDir();
   try {
-    await Deno.mkdir(join(dir, "repos", "a"), { recursive: true });
-    await Deno.writeTextFile(
+    await mkdir(join(dir, "repos", "a"), { recursive: true });
+    await writeFile(
       join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
@@ -1130,18 +1141,18 @@ Deno.test("wspace path returns exit 1 for no match", async () => {
       "--manifest",
       join(dir, "workspace.json"),
     ]);
-    assertEquals(code, 1);
+    assert.deepEqual(code, 1);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace path returns exit 1 for ambiguous query", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace path returns exit 1 for ambiguous query", async () => {
+  const dir = await makeTempDir();
   try {
-    await Deno.mkdir(join(dir, "repos", "api"), { recursive: true });
-    await Deno.mkdir(join(dir, "repos", "api-client"), { recursive: true });
-    await Deno.writeTextFile(
+    await mkdir(join(dir, "repos", "api"), { recursive: true });
+    await mkdir(join(dir, "repos", "api-client"), { recursive: true });
+    await writeFile(
       join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
@@ -1156,18 +1167,18 @@ Deno.test("wspace path returns exit 1 for ambiguous query", async () => {
       "--manifest",
       join(dir, "workspace.json"),
     ]);
-    assertEquals(code, 1);
+    assert.deepEqual(code, 1);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("wspace path --json returns all matches", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace path --json returns all matches", async () => {
+  const dir = await makeTempDir();
   try {
-    await Deno.mkdir(join(dir, "repos", "api"), { recursive: true });
-    await Deno.mkdir(join(dir, "repos", "api-client"), { recursive: true });
-    await Deno.writeTextFile(
+    await mkdir(join(dir, "repos", "api"), { recursive: true });
+    await mkdir(join(dir, "repos", "api-client"), { recursive: true });
+    await writeFile(
       join(dir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
@@ -1185,9 +1196,9 @@ Deno.test("wspace path --json returns all matches", async () => {
       join(dir, "workspace.json"),
     ]);
     stdout.stop();
-    assertEquals(code, 0);
+    assert.deepEqual(code, 0);
     const results = JSON.parse(stdout.output());
-    assertEquals(results.length, 2);
+    assert.deepEqual(results.length, 2);
   } finally {
     await removeTempDir(dir);
   }
@@ -1200,7 +1211,7 @@ Deno.test("wspace path --json returns all matches", async () => {
 async function removeTempDir(dir: string): Promise<void> {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      await Deno.remove(dir, { recursive: true });
+      await rm(dir, { recursive: true });
       return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
@@ -1224,25 +1235,25 @@ async function withOwnerRewrite(
   const sections = rules.map((r) =>
     `[url "${base}/"]\n\tinsteadOf = https://${r.host}/${r.owner}/\n`
   ).join("");
-  await Deno.writeTextFile(cfgPath, sections);
-  const prior = Deno.env.get("GIT_CONFIG_GLOBAL");
-  Deno.env.set("GIT_CONFIG_GLOBAL", cfgPath);
+  await writeFile(cfgPath, sections);
+  const prior = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = cfgPath;
   try {
     await fn();
   } finally {
     if (prior === undefined) {
-      Deno.env.delete("GIT_CONFIG_GLOBAL");
+      delete process.env.GIT_CONFIG_GLOBAL;
     } else {
-      Deno.env.set("GIT_CONFIG_GLOBAL", prior);
+      process.env.GIT_CONFIG_GLOBAL = prior;
     }
   }
 }
 
-Deno.test("loadManifest rejects a legacy vaultDirectory through the CLI path", async () => {
-  const dir = await Deno.makeTempDir();
+test("loadManifest rejects a legacy vaultDirectory through the CLI path", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = join(dir, "repos.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         repositories: [],
@@ -1264,13 +1275,13 @@ Deno.test("loadManifest rejects a legacy vaultDirectory through the CLI path", a
   }
 });
 
-Deno.test("wspace i alias clones missing repositories", async () => {
-  const dir = await Deno.makeTempDir();
+test("wspace i alias clones missing repositories", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     await makeRepoWithMain(dir, "b");
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         workspaceRoot: dir,
@@ -1281,14 +1292,14 @@ Deno.test("wspace i alias clones missing repositories", async () => {
       }),
     );
     const code = await run(["i", "--manifest", manifestPath]);
-    assertEquals(code, 0);
-    assertEquals(
-      await exists(join(dir, "repos", "a", ".git")),
+    assert.deepEqual(code, 0);
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "a", ".git")),
       true,
       "repo a should be cloned via alias",
     );
-    assertEquals(
-      await exists(join(dir, "repos", "b", ".git")),
+    assert.deepEqual(
+      await pathExists(join(dir, "repos", "b", ".git")),
       true,
       "repo b should be cloned via alias",
     );
