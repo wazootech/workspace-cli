@@ -7,10 +7,12 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import process from "node:process";
+import { type ProcessResult, runProcess } from "@/runtime.ts";
 
 /** Create a fresh temp directory (what `Deno.makeTempDir()` did). */
-export function makeTempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "ws-"));
+export function makeTempDir(prefix = "ws-"): Promise<string> {
+  return mkdtemp(join(tmpdir(), prefix));
 }
 
 /** Read a file as UTF-8 text. */
@@ -55,4 +57,17 @@ export async function assertRejects(
     fn,
     (error: unknown) => matches(error, errorClass, messageIncludes),
   );
+}
+
+const CLI_PATH = join(import.meta.dirname ?? ".", "..", "src", "cli.ts");
+
+/**
+ * Run `src/cli.ts` in a child process under the runtime running the tests:
+ * `deno run --allow-all` on Deno, `bun` on Bun.
+ */
+export function runCli(args: string[]): Promise<ProcessResult> {
+  const runtimeArgs = "deno" in process.versions
+    ? ["run", "--allow-all", CLI_PATH, ...args]
+    : [CLI_PATH, ...args];
+  return runProcess(process.execPath, runtimeArgs);
 }

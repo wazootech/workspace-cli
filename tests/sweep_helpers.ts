@@ -1,4 +1,5 @@
-import { assert } from "@std/assert";
+import assert from "node:assert/strict";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "@std/path";
 import { SystemGit } from "@/git.ts";
 
@@ -24,7 +25,7 @@ export async function makeRepoWithMain(
   assert((await g.run(["init", seed])).code === 0, "init seed");
   await configure(seed);
   assert((await g.run(["checkout", "-b", "main"], seed)).code === 0);
-  await Deno.writeTextFile(join(seed, "a.txt"), "one\n");
+  await writeFile(join(seed, "a.txt"), "one\n");
   await g.run(["add", "."], seed);
   assert((await g.run(["commit", "-m", "seed"], seed)).code === 0);
   assert((await g.run(["push", origin, "main"], seed)).code === 0);
@@ -65,7 +66,7 @@ export async function rebaseMerge(
   content: string,
 ): Promise<void> {
   const seed = join(dir, `${name}-seed`);
-  await Deno.writeTextFile(join(seed, "a.txt"), content);
+  await writeFile(join(seed, "a.txt"), content);
   await g.run(["add", "."], seed);
   assert((await g.run(["commit", "-m", "rebase merge"], seed)).code === 0);
   assert(
@@ -88,7 +89,7 @@ export function slash(path: string): string {
 export async function removeTempDir(dir: string): Promise<void> {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      await Deno.remove(dir, { recursive: true });
+      await rm(dir, { recursive: true });
       return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));

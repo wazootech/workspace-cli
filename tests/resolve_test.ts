@@ -1,9 +1,11 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { assertThrows } from "./helpers.ts";
 import { parseRepository, resolveRepository } from "@/resolve.ts";
 
 // parseRepository
 
-Deno.test("parseRepository", async (t) => {
+test("parseRepository", async (t) => {
   const successCases: {
     input: string;
     expected: { owner?: string; name: string };
@@ -19,8 +21,8 @@ Deno.test("parseRepository", async (t) => {
   ];
 
   for (const { input, expected } of successCases) {
-    await t.step(`parses "${input}"`, () => {
-      assertEquals(parseRepository(input), expected);
+    await t.test(`parses "${input}"`, () => {
+      assert.deepEqual(parseRepository(input), expected);
     });
   }
 
@@ -32,7 +34,7 @@ Deno.test("parseRepository", async (t) => {
   ];
 
   for (const { input, pattern } of errorCases) {
-    await t.step(`rejects "${input}"`, () => {
+    await t.test(`rejects "${input}"`, () => {
       assertThrows(() => parseRepository(input), Error, pattern);
     });
   }
@@ -40,23 +42,23 @@ Deno.test("parseRepository", async (t) => {
 
 // resolveRepository
 
-Deno.test("resolveRepository", async (t) => {
-  await t.step("expands bare string with workspace owner", () => {
-    assertEquals(
+test("resolveRepository", async (t) => {
+  await t.test("expands bare string with workspace owner", () => {
+    assert.deepEqual(
       resolveRepository({ owner: "acme" }, "api"),
       { name: "api", url: "https://github.com/acme/api" },
     );
   });
 
-  await t.step("expands owner/name inline shorthand", () => {
-    assertEquals(
+  await t.test("expands owner/name inline shorthand", () => {
+    assert.deepEqual(
       resolveRepository({ owner: "acme" }, "other/repo"),
       { name: "repo", url: "https://github.com/other/repo" },
     );
   });
 
-  await t.step("inline owner overrides workspace owner", () => {
-    assertEquals(
+  await t.test("inline owner overrides workspace owner", () => {
+    assert.deepEqual(
       resolveRepository({ owner: "acme" }, {
         name: "repo",
         owner: "other",
@@ -65,8 +67,8 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("passthrough explicit url", () => {
-    assertEquals(
+  await t.test("passthrough explicit url", () => {
+    assert.deepEqual(
       resolveRepository(
         { owner: "acme" },
         { name: "custom", url: "https://gitlab.com/x/y.git" },
@@ -75,8 +77,8 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("uses custom host from repository", () => {
-    assertEquals(
+  await t.test("uses custom host from repository", () => {
+    assert.deepEqual(
       resolveRepository({ owner: "acme" }, {
         name: "api",
         host: "gitlab.com",
@@ -85,8 +87,8 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("normalizes bare hostname to https", () => {
-    assertEquals(
+  await t.test("normalizes bare hostname to https", () => {
+    assert.deepEqual(
       resolveRepository(
         { host: "github.com", owner: "acme" },
         "api",
@@ -95,17 +97,17 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("accepts dotted repo name (.github)", () => {
-    assertEquals(
+  await t.test("accepts dotted repo name (.github)", () => {
+    assert.deepEqual(
       resolveRepository({ owner: "acme" }, ".github"),
       { name: ".github", url: "https://github.com/acme/.github" },
     );
   });
 
-  await t.step(
+  await t.test(
     "accepts multi-segment dotted repo name (docs.wazoo.dev)",
     () => {
-      assertEquals(
+      assert.deepEqual(
         resolveRepository({ owner: "acme" }, "docs.wazoo.dev"),
         {
           name: "docs.wazoo.dev",
@@ -115,7 +117,7 @@ Deno.test("resolveRepository", async (t) => {
     },
   );
 
-  await t.step("rejects double-dot path traversal in name", () => {
+  await t.test("rejects double-dot path traversal in name", () => {
     assertThrows(
       () => resolveRepository({ owner: "acme" }, "foo..bar"),
       Error,
@@ -123,7 +125,7 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("rejects leading .. in name", () => {
+  await t.test("rejects leading .. in name", () => {
     assertThrows(
       () => resolveRepository({ owner: "acme" }, "..secret"),
       Error,
@@ -131,7 +133,7 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("rejects trailing .. in name", () => {
+  await t.test("rejects trailing .. in name", () => {
     assertThrows(
       () => resolveRepository({ owner: "acme" }, "secret.."),
       Error,
@@ -139,7 +141,7 @@ Deno.test("resolveRepository", async (t) => {
     );
   });
 
-  await t.step("rejects dotted owner", () => {
+  await t.test("rejects dotted owner", () => {
     assertThrows(
       () => resolveRepository({}, { name: "repo", owner: "bad.org" }),
       Error,
@@ -165,7 +167,7 @@ Deno.test("resolveRepository", async (t) => {
   ];
 
   for (const { workspace, repo, pattern } of errorCases) {
-    await t.step(`throws on ${pattern}`, () => {
+    await t.test(`throws on ${pattern}`, () => {
       assertThrows(
         () => resolveRepository(workspace, repo),
         Error,
@@ -175,7 +177,7 @@ Deno.test("resolveRepository", async (t) => {
   }
 });
 
-Deno.test("resolveRepository accepts dotted, underscored, and hyphenated repo names", async (t) => {
+test("resolveRepository accepts dotted, underscored, and hyphenated repo names", async (t) => {
   const names = [
     ".github",
     "docs.wazoo.dev",
@@ -185,21 +187,21 @@ Deno.test("resolveRepository accepts dotted, underscored, and hyphenated repo na
     "foo.bar",
   ];
   for (const name of names) {
-    await t.step(`accepts "${name}"`, () => {
+    await t.test(`accepts "${name}"`, () => {
       const entry = resolveRepository({ owner: "acme" }, name);
-      assertEquals(entry.name, name);
-      assertEquals(entry.url, `https://github.com/acme/${name}`);
+      assert.deepEqual(entry.name, name);
+      assert.deepEqual(entry.url, `https://github.com/acme/${name}`);
     });
   }
 });
 
-Deno.test("resolveRepository accepts dotted repo name in owner/name shorthand", () => {
+test("resolveRepository accepts dotted repo name in owner/name shorthand", () => {
   const entry = resolveRepository({}, "acme/docs.wazoo.dev");
-  assertEquals(entry.name, "docs.wazoo.dev");
-  assertEquals(entry.url, "https://github.com/acme/docs.wazoo.dev");
+  assert.deepEqual(entry.name, "docs.wazoo.dev");
+  assert.deepEqual(entry.url, "https://github.com/acme/docs.wazoo.dev");
 });
 
-Deno.test("resolveRepository rejects dotted owner segments", () => {
+test("resolveRepository rejects dotted owner segments", () => {
   assertThrows(
     () => resolveRepository({}, "acme.inc/api"),
     Error,
@@ -207,7 +209,7 @@ Deno.test("resolveRepository rejects dotted owner segments", () => {
   );
 });
 
-Deno.test("resolveRepository rejects reserved and malformed repo names", async (t) => {
+test("resolveRepository rejects reserved and malformed repo names", async (t) => {
   const errorCases: { repo: string; pattern: string }[] = [
     { repo: ".", pattern: "reserved" },
     { repo: "..", pattern: "reserved" },
@@ -216,7 +218,7 @@ Deno.test("resolveRepository rejects reserved and malformed repo names", async (
     { repo: "caf\u00e9", pattern: "invalid characters" },
   ];
   for (const { repo, pattern } of errorCases) {
-    await t.step(`rejects "${repo}"`, () => {
+    await t.test(`rejects "${repo}"`, () => {
       assertThrows(
         () => resolveRepository({ owner: "acme" }, repo),
         Error,
@@ -226,7 +228,7 @@ Deno.test("resolveRepository rejects reserved and malformed repo names", async (
   }
 });
 
-Deno.test("resolveRepository rejects path traversal via owner segment", () => {
+test("resolveRepository rejects path traversal via owner segment", () => {
   assertThrows(
     () => resolveRepository({ owner: "acme" }, "../traversal"),
     Error,
@@ -234,7 +236,7 @@ Deno.test("resolveRepository rejects path traversal via owner segment", () => {
   );
 });
 
-Deno.test("resolveRepository rejects invalid owner segments", async (t) => {
+test("resolveRepository rejects invalid owner segments", async (t) => {
   const errorCases: { owner: string; pattern: string }[] = [
     { owner: "-owner", pattern: "Invalid repository owner" },
     { owner: "owner-", pattern: "Invalid repository owner" },
@@ -243,7 +245,7 @@ Deno.test("resolveRepository rejects invalid owner segments", async (t) => {
     { owner: "owner.dot", pattern: "Invalid repository owner" },
   ];
   for (const { owner, pattern } of errorCases) {
-    await t.step(`rejects owner "${owner}"`, () => {
+    await t.test(`rejects owner "${owner}"`, () => {
       assertThrows(
         () => resolveRepository({ owner }, "api"),
         Error,
@@ -253,7 +255,7 @@ Deno.test("resolveRepository rejects invalid owner segments", async (t) => {
   }
 });
 
-Deno.test("resolveRepository enforces name and owner length caps", () => {
+test("resolveRepository enforces name and owner length caps", () => {
   assertThrows(
     () => resolveRepository({ owner: "acme" }, "x".repeat(101)),
     Error,

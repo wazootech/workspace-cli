@@ -1,4 +1,7 @@
-import { assertEquals } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { rm, stat, writeFile } from "node:fs/promises";
+import { makeTempDir, readText } from "./helpers.ts";
 import { join } from "@std/path";
 import type { GitResult, GitRunner } from "@/git.ts";
 import type { WorkspaceManifest } from "@/types.ts";
@@ -22,7 +25,7 @@ import * as installCmd from "@/commands/install.ts";
 // Shared helpers (src/shared.ts)
 // ---------------------------------------------------------------------------
 
-Deno.test("printRows: prints JSON when json=true", () => {
+test("printRows: prints JSON when json=true", () => {
   const rows = [{ name: "a", state: "CLEAN" }];
   const spy = console.log;
   let captured: unknown;
@@ -31,13 +34,13 @@ Deno.test("printRows: prints JSON when json=true", () => {
   };
   try {
     printRows(rows, true);
-    assertEquals(captured, JSON.stringify(rows, null, 2));
+    assert.deepEqual(captured, JSON.stringify(rows, null, 2));
   } finally {
     console.log = spy;
   }
 });
 
-Deno.test("scopeManifest: returns all repos when no workspace filter", () => {
+test("scopeManifest: returns all repos when no workspace filter", () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "u", workspace: "child" },
@@ -45,10 +48,10 @@ Deno.test("scopeManifest: returns all repos when no workspace filter", () => {
     ],
   };
   const scoped = scopeManifest({}, manifest);
-  assertEquals(scoped.repositories.length, 2);
+  assert.deepEqual(scoped.repositories.length, 2);
 });
 
-Deno.test("scopeManifest: filters repos by workspace name", () => {
+test("scopeManifest: filters repos by workspace name", () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "u", workspace: "child" },
@@ -57,12 +60,12 @@ Deno.test("scopeManifest: filters repos by workspace name", () => {
     ],
   };
   const scoped = scopeManifest({ workspace: "child" }, manifest);
-  assertEquals(scoped.repositories.length, 2);
-  assertEquals(scoped.repositories[0].name, "a");
-  assertEquals(scoped.repositories[1].name, "c");
+  assert.deepEqual(scoped.repositories.length, 2);
+  assert.deepEqual(scoped.repositories[0].name, "a");
+  assert.deepEqual(scoped.repositories[1].name, "c");
 });
 
-Deno.test("flattenResolved: combines resolved repos with root manifest", () => {
+test("flattenResolved: combines resolved repos with root manifest", () => {
   const root: WorkspaceManifest = { owner: "test", repositories: [] };
   const resolved = {
     root,
@@ -72,21 +75,21 @@ Deno.test("flattenResolved: combines resolved repos with root manifest", () => {
     ],
   };
   const flat = flattenResolved(resolved, root);
-  assertEquals(flat.repositories.length, 2);
-  assertEquals(flat.owner, "test");
+  assert.deepEqual(flat.repositories.length, 2);
+  assert.deepEqual(flat.owner, "test");
 });
 
-Deno.test("manifestExtension: extracts file extension", () => {
-  assertEquals(manifestExtension("/path/workspace.json"), ".json");
-  assertEquals(manifestExtension("/path/manifest.JSON"), ".json");
+test("manifestExtension: extracts file extension", () => {
+  assert.deepEqual(manifestExtension("/path/workspace.json"), ".json");
+  assert.deepEqual(manifestExtension("/path/manifest.JSON"), ".json");
 });
 
 // ---------------------------------------------------------------------------
 // commands/init.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("init: scaffolds manifest and directories", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("init: scaffolds manifest and directories", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
     const code = await initCmd.run({
@@ -97,29 +100,29 @@ Deno.test("init: scaffolds manifest and directories", async () => {
       json: false,
       dryRun: false,
     });
-    assertEquals(code, 0);
+    assert.deepEqual(code, 0);
 
-    const stat = await Deno.stat(manifestPath);
-    assertEquals(stat.isFile, true);
+    const manifestStat = await stat(manifestPath);
+    assert(manifestStat.isFile());
 
     const dirs = ["repos"];
     for (const d of dirs) {
-      const s = await Deno.stat(join(tempDir, d));
-      assertEquals(s.isDirectory, true);
+      const s = await stat(join(tempDir, d));
+      assert(s.isDirectory());
     }
 
-    const content = JSON.parse(await Deno.readTextFile(manifestPath));
-    assertEquals(content.schemaVersion, 4);
+    const content = JSON.parse(await readText(manifestPath));
+    assert.deepEqual(content.schemaVersion, 4);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("init: refuses to overwrite existing manifest", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("init: refuses to overwrite existing manifest", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(manifestPath, "{}");
+    await writeFile(manifestPath, "{}");
     const code = await initCmd.run({
       command: "init",
       manifestPath,
@@ -128,14 +131,14 @@ Deno.test("init: refuses to overwrite existing manifest", async () => {
       json: false,
       dryRun: false,
     });
-    assertEquals(code, 2);
+    assert.deepEqual(code, 2);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("init: fails on invalid seed entries", async () => {
-  const tempDir = await Deno.makeTempDir();
+test("init: fails on invalid seed entries", async () => {
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
     // Seed with a bare string but no owner — should fail
@@ -147,9 +150,9 @@ Deno.test("init: fails on invalid seed entries", async () => {
       json: false,
       dryRun: false,
     });
-    assertEquals(code, 2);
+    assert.deepEqual(code, 2);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
@@ -157,15 +160,15 @@ Deno.test("init: fails on invalid seed entries", async () => {
 // commands/validate.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("validate: accepts a valid manifest", () => {
+test("validate: accepts a valid manifest", () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "https://example.com/a.git" }],
   };
   const code = validateCmd.run(manifest);
-  assertEquals(code, 0);
+  assert.deepEqual(code, 0);
 });
 
-Deno.test("validate: rejects duplicate repository names", () => {
+test("validate: rejects duplicate repository names", () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "https://example.com/a.git" },
@@ -178,14 +181,14 @@ Deno.test("validate: rejects duplicate repository names", () => {
   } catch {
     threw = true;
   }
-  assertEquals(threw, true);
+  assert.deepEqual(threw, true);
 });
 
 // ---------------------------------------------------------------------------
 // commands/workspaces.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("workspaces: lists root workspace", () => {
+test("workspaces: lists root workspace", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [
@@ -203,10 +206,10 @@ Deno.test("workspaces: lists root workspace", () => {
     },
     resolved,
   );
-  assertEquals(code, 0);
+  assert.deepEqual(code, 0);
 });
 
-Deno.test("workspaces: returns JSON output", () => {
+test("workspaces: returns JSON output", () => {
   const resolved = {
     root: { repositories: [] } as WorkspaceManifest,
     repositories: [{ name: "a", url: "u" }],
@@ -228,8 +231,8 @@ Deno.test("workspaces: returns JSON output", () => {
       resolved,
     );
     const parsed = JSON.parse(captured as string);
-    assertEquals(parsed.length, 1);
-    assertEquals(parsed[0].name, "(root)");
+    assert.deepEqual(parsed.length, 1);
+    assert.deepEqual(parsed[0].name, "(root)");
   } finally {
     console.log = spy;
   }
@@ -239,7 +242,7 @@ Deno.test("workspaces: returns JSON output", () => {
 // commands/env.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("check: missing repo returns exit code 1", async () => {
+test("check: missing repo returns exit code 1", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "u" }],
   };
@@ -265,14 +268,14 @@ Deno.test("check: missing repo returns exit code 1", async () => {
     g,
   );
   // Repo is MISSING on disk, so check returns 1 (error state)
-  assertEquals(code, 1);
+  assert.deepEqual(code, 1);
 });
 
 // ---------------------------------------------------------------------------
 // commands/update.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("update: returns 0 for up-to-date repos", async () => {
+test("update: returns 0 for up-to-date repos", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "u" }],
   };
@@ -297,14 +300,14 @@ Deno.test("update: returns 0 for up-to-date repos", async () => {
     paths,
     g,
   );
-  assertEquals(code, 0);
+  assert.deepEqual(code, 0);
 });
 
 // ---------------------------------------------------------------------------
 // commands/worktree.ts
 // ---------------------------------------------------------------------------
 
-Deno.test("install: clones all missing repos", async () => {
+test("install: clones all missing repos", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "https://example.com/a.git" },
@@ -322,10 +325,10 @@ Deno.test("install: clones all missing repos", async () => {
     },
   };
 
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await makeTempDir();
   try {
     const manifestPathLocal = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(manifestPathLocal, JSON.stringify(manifest));
+    await writeFile(manifestPathLocal, JSON.stringify(manifest));
 
     const localManifest: WorkspaceManifest = {
       repositories: [
@@ -346,14 +349,14 @@ Deno.test("install: clones all missing repos", async () => {
       manifestPaths(localManifest, manifestPathLocal),
       g,
     );
-    assertEquals(code, 0);
-    assertEquals(cloneUrls.length, 2);
+    assert.deepEqual(code, 0);
+    assert.deepEqual(cloneUrls.length, 2);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("install: only clones specified subset", async () => {
+test("install: only clones specified subset", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [
       { name: "a", url: "https://example.com/a.git" },
@@ -372,10 +375,10 @@ Deno.test("install: only clones specified subset", async () => {
     },
   };
 
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(manifestPath, JSON.stringify(manifest));
+    await writeFile(manifestPath, JSON.stringify(manifest));
 
     const code = await installCmd.run(
       {
@@ -390,15 +393,15 @@ Deno.test("install: only clones specified subset", async () => {
       manifestPaths(manifest, manifestPath),
       g,
     );
-    assertEquals(code, 0);
-    assertEquals(cloneUrls.length, 1);
-    assertEquals(cloneUrls[0], "https://example.com/a.git");
+    assert.deepEqual(code, 0);
+    assert.deepEqual(cloneUrls.length, 1);
+    assert.deepEqual(cloneUrls[0], "https://example.com/a.git");
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
 
-Deno.test("install: unknown repo returns 1", async () => {
+test("install: unknown repo returns 1", async () => {
   const manifest: WorkspaceManifest = {
     repositories: [{ name: "a", url: "https://example.com/a.git" }],
   };
@@ -409,10 +412,10 @@ Deno.test("install: unknown repo returns 1", async () => {
     },
   };
 
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await makeTempDir();
   try {
     const manifestPath = join(tempDir, "workspace.json");
-    await Deno.writeTextFile(manifestPath, JSON.stringify(manifest));
+    await writeFile(manifestPath, JSON.stringify(manifest));
 
     const code = await installCmd.run(
       {
@@ -427,8 +430,8 @@ Deno.test("install: unknown repo returns 1", async () => {
       manifestPaths(manifest, manifestPath),
       g,
     );
-    assertEquals(code, 1);
+    assert.deepEqual(code, 1);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await rm(tempDir, { recursive: true });
   }
 });
