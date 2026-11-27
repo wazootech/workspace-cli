@@ -78,5 +78,6 @@ this repo's specifics:
   other checkouts; that is CLI behavior, not this repo's toolchain.
 - `secret-scan.yml` (gitleaks) runs on every PR and push to main; never suppress
   a finding.
-- `code-health.yml` is warn-only (file length, TODO/FIXME without an issue
-  link). `.github/CODEOWNERS` assigns review.
+- `code-health.yml` fails on a file over 120 lines of code (300 for tests);
+  files that were already over it are listed there with a ceiling that only
+  shrinks. A `TODO`/`FIXME` without an issue link only warns. `.github/CODEOWNERS` assigns review.
