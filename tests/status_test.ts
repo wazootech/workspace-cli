@@ -1,4 +1,5 @@
-import { assertEquals } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { classifyState, collectStatus } from "@/status.ts";
 import type { ClassifyInput } from "@/status.ts";
 import { hasErrors } from "@/status.ts";
@@ -17,19 +18,19 @@ function input(overrides: Partial<ClassifyInput>): ClassifyInput {
   };
 }
 
-Deno.test("classifyState: clean when in sync on default branch", () => {
-  assertEquals(classifyState(input({})).state, "CLEAN");
+test("classifyState: clean when in sync on default branch", () => {
+  assert.deepEqual(classifyState(input({})).state, "CLEAN");
 });
 
-Deno.test("classifyState: dirty wins over everything", () => {
+test("classifyState: dirty wins over everything", () => {
   const result = classifyState(
     input({ dirty: true, aheadBehind: { ahead: 1, behind: 2 } }),
   );
-  assertEquals(result.state, "DIRTY");
+  assert.deepEqual(result.state, "DIRTY");
 });
 
-Deno.test("classifyState: feature branch is clean regardless of divergence", () => {
-  assertEquals(
+test("classifyState: feature branch is clean regardless of divergence", () => {
+  assert.deepEqual(
     classifyState(
       input({ featureBranch: true, aheadBehind: { ahead: 1, behind: 2 } }),
     ).state,
@@ -37,47 +38,47 @@ Deno.test("classifyState: feature branch is clean regardless of divergence", () 
   );
 });
 
-Deno.test("classifyState: diverged reports ahead/behind detail", () => {
+test("classifyState: diverged reports ahead/behind detail", () => {
   const result = classifyState(input({ aheadBehind: { ahead: 1, behind: 2 } }));
-  assertEquals(result.state, "DIVERGED");
-  assertEquals(result.detail, "1 ahead, 2 behind");
+  assert.deepEqual(result.state, "DIVERGED");
+  assert.deepEqual(result.detail, "1 ahead, 2 behind");
 });
 
-Deno.test("classifyState: no origin/HEAD", () => {
+test("classifyState: no origin/HEAD", () => {
   const result = classifyState(input({ hasDefaultBranch: false }));
-  assertEquals(result.state, "UNKNOWN");
-  assertEquals(result.detail, "no origin/HEAD");
+  assert.deepEqual(result.state, "UNKNOWN");
+  assert.deepEqual(result.detail, "no origin/HEAD");
 });
 
-Deno.test("classifyState: missing upstream", () => {
+test("classifyState: missing upstream", () => {
   const result = classifyState(input({ upstream: undefined }));
-  assertEquals(result.state, "UNKNOWN");
-  assertEquals(result.detail, "no upstream configured");
+  assert.deepEqual(result.state, "UNKNOWN");
+  assert.deepEqual(result.detail, "no upstream configured");
 });
 
-Deno.test("classifyState: missing tracking ref", () => {
+test("classifyState: missing tracking ref", () => {
   const result = classifyState(input({ upstreamRefExists: false }));
-  assertEquals(result.state, "UNKNOWN");
-  assertEquals(result.detail, "missing tracking ref");
+  assert.deepEqual(result.state, "UNKNOWN");
+  assert.deepEqual(result.detail, "missing tracking ref");
 });
 
-Deno.test("hasErrors is false for clean work", () => {
+test("hasErrors is false for clean work", () => {
   const rows: RepoStatus[] = [
     { name: "a", path: "/a", state: "CLEAN" },
     { name: "b", path: "/b", state: "FEATURE_CLEAN" },
   ];
-  assertEquals(hasErrors(rows), false);
+  assert.deepEqual(hasErrors(rows), false);
 });
 
-Deno.test("hasErrors is true for any non-clean state", () => {
+test("hasErrors is true for any non-clean state", () => {
   const rows: RepoStatus[] = [
     { name: "a", path: "/a", state: "CLEAN" },
     { name: "b", path: "/b", state: "DIVERGED" },
   ];
-  assertEquals(hasErrors(rows), true);
+  assert.deepEqual(hasErrors(rows), true);
 });
 
-Deno.test("collectStatus reports error-marked workspace entries as INVALID rows", async () => {
+test("collectStatus reports error-marked workspace entries as INVALID rows", async () => {
   const rows = await collectStatus(
     {} as GitRunner,
     {
@@ -91,12 +92,12 @@ Deno.test("collectStatus reports error-marked workspace entries as INVALID rows"
     { root: "/ws", repositoriesDirectory: "/ws/repos" },
     { includeRoot: false },
   );
-  assertEquals(rows.length, 1);
-  assertEquals(rows[0].name, "platform");
-  assertEquals(rows[0].state, "INVALID");
-  assertEquals(
+  assert.deepEqual(rows.length, 1);
+  assert.deepEqual(rows[0].name, "platform");
+  assert.deepEqual(rows[0].state, "INVALID");
+  assert.deepEqual(
     rows[0].detail,
     'Workspace repository "platform" at /ws/repos/platform does not contain a workspace.json manifest',
   );
-  assertEquals(hasErrors(rows), true);
+  assert.deepEqual(hasErrors(rows), true);
 });

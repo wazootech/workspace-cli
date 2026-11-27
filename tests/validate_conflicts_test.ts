@@ -1,4 +1,7 @@
-import { assertEquals } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { makeTempDir } from "./helpers.ts";
 import { join } from "@std/path";
 import { run } from "@/cli.ts";
 
@@ -13,8 +16,8 @@ async function makeTree(
   childRepositoriesDirectory: string,
 ): Promise<string> {
   const childDir = join(dir, "repos", "platform");
-  await Deno.mkdir(join(childDir, ".git"), { recursive: true });
-  await Deno.writeTextFile(
+  await mkdir(join(childDir, ".git"), { recursive: true });
+  await writeFile(
     join(childDir, "workspace.json"),
     JSON.stringify({
       repositories: [{ name: "shared", url: "https://example.com/shared.git" }],
@@ -22,7 +25,7 @@ async function makeTree(
     }),
   );
   const manifestPath = join(dir, "workspace.json");
-  await Deno.writeTextFile(
+  await writeFile(
     manifestPath,
     JSON.stringify({
       repositories: [{ name: "shared", url: "https://example.com/shared.git" }],
@@ -48,30 +51,30 @@ async function validate(manifestPath: string): Promise<number> {
   }
 }
 
-Deno.test("validate rejects a cross-manifest checkout collision like check does", async () => {
-  const dir = await Deno.makeTempDir();
+test("validate rejects a cross-manifest checkout collision like check does", async () => {
+  const dir = await makeTempDir();
   try {
     // Child repos resolve to <dir>/repos/shared, the root repo's checkout.
     const manifestPath = await makeTree(dir, "..");
-    assertEquals(await validate(manifestPath), 2);
+    assert.deepEqual(await validate(manifestPath), 2);
     const check = console.error;
     console.error = () => {};
     try {
-      assertEquals(await run(["check", "--manifest", manifestPath]), 2);
+      assert.deepEqual(await run(["check", "--manifest", manifestPath]), 2);
     } finally {
       console.error = check;
     }
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await rm(dir, { recursive: true });
   }
 });
 
-Deno.test("validate accepts same-named repos at distinct checkout paths", async () => {
-  const dir = await Deno.makeTempDir();
+test("validate accepts same-named repos at distinct checkout paths", async () => {
+  const dir = await makeTempDir();
   try {
     const manifestPath = await makeTree(dir, "repos");
-    assertEquals(await validate(manifestPath), 0);
+    assert.deepEqual(await validate(manifestPath), 0);
   } finally {
-    await Deno.remove(dir, { recursive: true });
+    await rm(dir, { recursive: true });
   }
 });

@@ -8,3 +8,6 @@
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Dependencies (Bun and Deno share node_modules)
+node_modules/
