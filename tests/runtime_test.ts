@@ -1,9 +1,8 @@
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-  assertStringIncludes,
-} from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import process from "node:process";
+import { symlink } from "node:fs/promises";
+import { assertRejects } from "./helpers.ts";
 import { join, relative } from "@std/path";
 import {
   currentDirectory,
@@ -19,13 +18,13 @@ import {
   writeTextFile,
 } from "@/runtime.ts";
 
-Deno.test("runProcess captures stdout and a zero exit code", async () => {
+test("runProcess captures stdout and a zero exit code", async () => {
   const result = await runProcess("git", ["--version"]);
-  assertEquals(result.code, 0);
-  assertStringIncludes(result.stdout, "git version");
+  assert.deepEqual(result.code, 0);
+  assert(result.stdout.includes("git version"), result.stdout);
 });
 
-Deno.test("runProcess resolves rather than throwing on a non-zero exit", async () => {
+test("runProcess resolves rather than throwing on a non-zero exit", async () => {
   const result = await runProcess("git", [
     "rev-parse",
     "--verify",
@@ -34,65 +33,65 @@ Deno.test("runProcess resolves rather than throwing on a non-zero exit", async (
   assert(result.code !== 0, `expected a non-zero exit, got ${result.code}`);
 });
 
-Deno.test("runProcess rejects when the binary cannot be spawned", async () => {
+test("runProcess rejects when the binary cannot be spawned", async () => {
   await assertRejects(() =>
     runProcess("wspace-definitely-not-a-real-binary-xyz", [])
   );
 });
 
-Deno.test("runProcess runs the subprocess in the requested directory", async () => {
+test("runProcess runs the subprocess in the requested directory", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
-    assertEquals((await runProcess("git", ["init"], { cwd: dir })).code, 0);
+    assert.deepEqual((await runProcess("git", ["init"], { cwd: dir })).code, 0);
     const inside = await runProcess(
       "git",
       ["rev-parse", "--is-inside-work-tree"],
       { cwd: dir },
     );
-    assertEquals(inside.stdout, "true");
+    assert.deepEqual(inside.stdout, "true");
   } finally {
     await removePath(dir);
   }
 });
 
-Deno.test("currentDirectory matches the runtime's own working directory", () => {
-  assertEquals(currentDirectory(), Deno.cwd());
+test("currentDirectory matches the runtime's own working directory", () => {
+  assert.deepEqual(currentDirectory(), process.cwd());
 });
 
-Deno.test("isWindows agrees with Deno.build.os", () => {
-  assertEquals(isWindows(), Deno.build.os === "windows");
+test("isWindows agrees with process.platform", () => {
+  assert.deepEqual(isWindows(), process.platform === "win32");
 });
 
-Deno.test("filesystem helpers round-trip", async () => {
+test("filesystem helpers round-trip", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     const nested = join(dir, "a", "b");
     await makeDirectory(nested);
-    assertEquals(await pathExists(nested), true);
+    assert.deepEqual(await pathExists(nested), true);
 
     const file = join(nested, "file.txt");
-    assertEquals(await pathExists(file), false);
+    assert.deepEqual(await pathExists(file), false);
     await writeTextFile(file, "hello");
-    assertEquals(await readTextFile(file), "hello");
+    assert.deepEqual(await readTextFile(file), "hello");
 
     const entries = await readDirectory(nested);
-    assertEquals(
+    assert.deepEqual(
       entries.map((entry) => [entry.name, entry.isDirectory]),
       [["file.txt", false]],
     );
 
     await removePath(dir);
-    assertEquals(await pathExists(dir), false);
+    assert.deepEqual(await pathExists(dir), false);
   } finally {
     if (await pathExists(dir)) await removePath(dir);
   }
 });
 
-Deno.test("makeTempDirectory creates a prefixed directory under the temp root", async () => {
+test("makeTempDirectory creates a prefixed directory under the temp root", async () => {
   const dir = await makeTempDirectory("wspace-prefix-check-");
   try {
     assert(dir.includes("wspace-prefix-check-"));
-    assertEquals(await pathExists(dir), true);
+    assert.deepEqual(await pathExists(dir), true);
   } finally {
     await removePath(dir);
   }
@@ -108,7 +107,7 @@ function relativeLabel(root: string, path: string): string {
   return relative(root, path).replaceAll("\\", "/");
 }
 
-Deno.test("walkDirectoryTree returns the root, then its depth-first descendants", async () => {
+test("walkDirectoryTree returns the root, then its depth-first descendants", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     await makeDirectory(join(dir, "a", "sub"));
@@ -123,7 +122,7 @@ Deno.test("walkDirectoryTree returns the root, then its depth-first descendants"
         `${relativeLabel(dir, entry.path)}${entry.isDirectory ? "/" : ""}`
       )
       .sort();
-    assertEquals(seen, [
+    assert.deepEqual(seen, [
       "./",
       "a/",
       "a/file.txt",
@@ -137,7 +136,7 @@ Deno.test("walkDirectoryTree returns the root, then its depth-first descendants"
   }
 });
 
-Deno.test("walkDirectoryTree counts the root as depth 0 for maxDepth", async () => {
+test("walkDirectoryTree counts the root as depth 0 for maxDepth", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     await makeDirectory(join(dir, "one", "two"));
@@ -145,22 +144,22 @@ Deno.test("walkDirectoryTree counts the root as depth 0 for maxDepth", async () 
       maxDepth: 1,
       includeFiles: false,
     })).map((entry) => relativeLabel(dir, entry.path)).sort();
-    assertEquals(depth1, [".", "one"]);
+    assert.deepEqual(depth1, [".", "one"]);
   } finally {
     await removePath(dir);
   }
 });
 
-Deno.test("walkDirectoryTree walks nothing for a negative maxDepth", async () => {
+test("walkDirectoryTree walks nothing for a negative maxDepth", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
-    assertEquals(await walkDirectoryTree(dir, { maxDepth: -1 }), []);
+    assert.deepEqual(await walkDirectoryTree(dir, { maxDepth: -1 }), []);
   } finally {
     await removePath(dir);
   }
 });
 
-Deno.test("walkDirectoryTree does not descend into skipped directories", async () => {
+test("walkDirectoryTree does not descend into skipped directories", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     await makeDirectory(join(dir, "node_modules", "pkg"));
@@ -168,7 +167,7 @@ Deno.test("walkDirectoryTree does not descend into skipped directories", async (
     await makeDirectory(join(dir, "keep"));
 
     const entries = await walkDirectoryTree(dir, { skip: [/node_modules/] });
-    assertEquals(
+    assert.deepEqual(
       entries.map((entry) => relativeLabel(dir, entry.path)).sort(),
       [".", "keep"],
     );
@@ -177,7 +176,7 @@ Deno.test("walkDirectoryTree does not descend into skipped directories", async (
   }
 });
 
-Deno.test("walkDirectoryTree matches skip against the whole path, not the basename", async () => {
+test("walkDirectoryTree matches skip against the whole path, not the basename", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     await makeDirectory(join(dir, ".hidden", "inner"));
@@ -197,23 +196,22 @@ Deno.test("walkDirectoryTree matches skip against the whole path, not the basena
   }
 });
 
-Deno.test({
-  name:
-    "walkDirectoryTree reports a symlinked directory as a non-directory and does not follow it",
-  // Creating symlinks on Windows needs Developer Mode or elevation.
-  ignore: isWindows(),
-  fn: async () => {
+// Creating symlinks on Windows needs Developer Mode or elevation.
+test(
+  "walkDirectoryTree reports a symlinked directory as a non-directory and does not follow it",
+  { skip: isWindows() },
+  async () => {
     const dir = await makeTempDirectory("wspace-runtime-test-");
     try {
       await makeDirectory(join(dir, "real"));
       await writeTextFile(join(dir, "real", "inner.txt"), "x");
-      await Deno.symlink(join(dir, "real"), join(dir, "link"));
+      await symlink(join(dir, "real"), join(dir, "link"));
 
       const entries = await walkDirectoryTree(dir);
       const link = entries.find((entry) => entry.name === "link");
       assert(link, "expected the symlink to be reported");
-      assertEquals(link.isDirectory, false);
-      assertEquals(
+      assert.deepEqual(link.isDirectory, false);
+      assert.deepEqual(
         entries.some((entry) => entry.path === join(dir, "link", "inner.txt")),
         false,
         "the symlink must not be followed",
@@ -222,16 +220,16 @@ Deno.test({
       await removePath(dir);
     }
   },
-});
+);
 
-Deno.test("pathExists resolves false for a path that cannot be stat'd", async () => {
+test("pathExists resolves false for a path that cannot be stat'd", async () => {
   const dir = await makeTempDirectory("wspace-runtime-test-");
   try {
     const file = join(dir, "file.txt");
     await writeTextFile(file, "x");
     // A child of a regular file fails with ENOTDIR rather than NotFound, and
     // `pathExists` still resolves rather than rejecting.
-    assertEquals(await pathExists(join(file, "child")), false);
+    assert.deepEqual(await pathExists(join(file, "child")), false);
   } finally {
     await removePath(dir);
   }

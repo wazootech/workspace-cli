@@ -1,5 +1,9 @@
-import { assert, assertEquals } from "@std/assert";
-import { exists } from "@std/fs";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { renameSync } from "node:fs";
+import { makeTempDir } from "./helpers.ts";
+import { pathExists } from "@/runtime.ts";
 import { join } from "@std/path";
 import { type GitRunner, worktreeList } from "@/git.ts";
 import { run } from "@/cli.ts";
@@ -15,12 +19,12 @@ import {
   slash,
 } from "./sweep_helpers.ts";
 
-Deno.test("sweep --dry-run plans removals and changes nothing", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep --dry-run plans removals and changes nothing", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/merged");
-    await Deno.writeTextFile(join(wt, "a.txt"), "feature\n");
+    await writeFile(join(wt, "a.txt"), "feature\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "feature"], wt);
     await rebaseMerge(dir, "a", "feature\n");
@@ -33,17 +37,17 @@ Deno.test("sweep --dry-run plans removals and changes nothing", async () => {
       pathsFor(dir),
       { dryRun: true },
     );
-    assertEquals(rows.length, 1);
-    assertEquals(rows[0].kind, "WOULD_REMOVE");
-    assertEquals(rows[0].name, "a");
-    assertEquals(rows[0].branch, "feat/merged");
-    assertEquals(slash(rows[0].worktree ?? ""), slash(wt));
-    assertEquals(
+    assert.deepEqual(rows.length, 1);
+    assert.deepEqual(rows[0].kind, "WOULD_REMOVE");
+    assert.deepEqual(rows[0].name, "a");
+    assert.deepEqual(rows[0].branch, "feat/merged");
+    assert.deepEqual(slash(rows[0].worktree ?? ""), slash(wt));
+    assert.deepEqual(
       await worktreeList(g, work),
       before,
       "dry-run must not remove the worktree",
     );
-    assert(await exists(wt), "dry-run must leave the tree on disk");
+    assert(await pathExists(wt), "dry-run must leave the tree on disk");
     assert(
       (await g.run(["rev-parse", "--verify", "refs/heads/feat/merged"], work))
         .code === 0,
@@ -54,12 +58,12 @@ Deno.test("sweep --dry-run plans removals and changes nothing", async () => {
   }
 });
 
-Deno.test("sweep removes a rebase-merged worktree that branch -d would refuse", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep removes a rebase-merged worktree that branch -d would refuse", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/rebased");
-    await Deno.writeTextFile(join(wt, "a.txt"), "feature\n");
+    await writeFile(join(wt, "a.txt"), "feature\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "feature"], wt);
     await rebaseMerge(dir, "a", "feature\n");
@@ -70,17 +74,21 @@ Deno.test("sweep removes a rebase-merged worktree that branch -d would refuse", 
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(rows.length, 1);
-    assertEquals(rows[0].kind, "SKIPPED_REMOTE");
-    assertEquals(rows[0].name, "a");
-    assertEquals(rows[0].branch, "feat/rebased");
-    assertEquals(slash(rows[0].worktree ?? ""), slash(wt));
+    assert.deepEqual(rows.length, 1);
+    assert.deepEqual(rows[0].kind, "SKIPPED_REMOTE");
+    assert.deepEqual(rows[0].name, "a");
+    assert.deepEqual(rows[0].branch, "feat/rebased");
+    assert.deepEqual(slash(rows[0].worktree ?? ""), slash(wt));
     assert(
       (rows[0].detail ?? "").startsWith("trees identical"),
       `expected a tree-equality proof, got: ${rows[0].detail}`,
     );
-    assertEquals((await worktreeList(g, work)).length, 1, "worktree removed");
-    assertEquals(await exists(wt), false, "tree gone from disk");
+    assert.deepEqual(
+      (await worktreeList(g, work)).length,
+      1,
+      "worktree removed",
+    );
+    assert.deepEqual(await pathExists(wt), false, "tree gone from disk");
     // rev-parse --verify exits non-zero (128) for a ref that is gone.
     assert(
       (await g.run(["rev-parse", "--verify", "refs/heads/feat/rebased"], work))
@@ -101,12 +109,12 @@ Deno.test("sweep removes a rebase-merged worktree that branch -d would refuse", 
   }
 });
 
-Deno.test("sweep --delete-remote removes the remote branch too", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep --delete-remote removes the remote branch too", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/pushed");
-    await Deno.writeTextFile(join(wt, "a.txt"), "feature\n");
+    await writeFile(join(wt, "a.txt"), "feature\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "feature"], wt);
     assert((await g.run(["push", "origin", "feat/pushed"], wt)).code === 0);
@@ -119,8 +127,8 @@ Deno.test("sweep --delete-remote removes the remote branch too", async () => {
       pathsFor(dir),
       { deleteRemote: true },
     );
-    assertEquals(rows[0].kind, "REMOVED");
-    assertEquals(
+    assert.deepEqual(rows[0].kind, "REMOVED");
+    assert.deepEqual(
       (await g.run(["ls-remote", "--heads", "origin", "feat/pushed"], work))
         .stdout,
       "",
@@ -131,12 +139,12 @@ Deno.test("sweep --delete-remote removes the remote branch too", async () => {
   }
 });
 
-Deno.test("sweep refuses an unmerged branch", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep refuses an unmerged branch", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/wip");
-    await Deno.writeTextFile(join(wt, "a.txt"), "work in progress\n");
+    await writeFile(join(wt, "a.txt"), "work in progress\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "wip"], wt);
 
@@ -146,40 +154,40 @@ Deno.test("sweep refuses an unmerged branch", async () => {
       pathsFor(dir),
       { dryRun: true },
     );
-    assertEquals(rows[0].kind, "SKIP_NOT_MERGED");
-    assert(await exists(wt), "unmerged worktree survives");
+    assert.deepEqual(rows[0].kind, "SKIP_NOT_MERGED");
+    assert(await pathExists(wt), "unmerged worktree survives");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep refuses a merged-but-dirty worktree and untracked files survive", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep refuses a merged-but-dirty worktree and untracked files survive", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/dirty");
-    await Deno.writeTextFile(join(wt, "a.txt"), "feature\n");
+    await writeFile(join(wt, "a.txt"), "feature\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "feature"], wt);
     await rebaseMerge(dir, "a", "feature\n");
     await g.run(["fetch", "--prune"], work);
     // Uncommitted work in the worktree: gate 2 must refuse.
-    await Deno.writeTextFile(join(wt, "scratch.md"), "notes\n");
+    await writeFile(join(wt, "scratch.md"), "notes\n");
 
     const rows = await runSweep(
       g,
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(rows[0].kind, "SKIP_DIRTY");
-    assert(await exists(join(wt, "scratch.md")), "untracked file survives");
+    assert.deepEqual(rows[0].kind, "SKIP_DIRTY");
+    assert(await pathExists(join(wt, "scratch.md")), "untracked file survives");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep skips a detached-HEAD worktree", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep skips a detached-HEAD worktree", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = join(dir, "wt-detached");
@@ -190,15 +198,15 @@ Deno.test("sweep skips a detached-HEAD worktree", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(rows[0].kind, "SKIP_DETACHED");
-    assert(await exists(wt), "detached worktree survives");
+    assert.deepEqual(rows[0].kind, "SKIP_DETACHED");
+    assert(await pathExists(wt), "detached worktree survives");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep never targets the default branch", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep never targets the default branch", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = join(dir, "wt-main");
@@ -212,8 +220,8 @@ Deno.test("sweep never targets the default branch", async () => {
       { repositories: [{ name: "a", url: "u" }] },
       pathsFor(dir),
     );
-    assertEquals(rows[0].kind, "SKIP_DEFAULT");
-    assert(await exists(wt), "default-branch worktree survives");
+    assert.deepEqual(rows[0].kind, "SKIP_DEFAULT");
+    assert(await pathExists(wt), "default-branch worktree survives");
     assert(
       (await g.run(["rev-parse", "--verify", "refs/heads/main"], work)).code ===
         0,
@@ -224,16 +232,16 @@ Deno.test("sweep never targets the default branch", async () => {
   }
 });
 
-Deno.test("sweep --force overrides both safety gates", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep --force overrides both safety gates", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     const wt = await addWorktree(work, dir, "feat/unmerged-dirty");
     // Unmerged and dirty: both gates would refuse.
-    await Deno.writeTextFile(join(wt, "a.txt"), "unmerged work\n");
+    await writeFile(join(wt, "a.txt"), "unmerged work\n");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "unmerged"], wt);
-    await Deno.writeTextFile(join(wt, "scratch.md"), "notes\n");
+    await writeFile(join(wt, "scratch.md"), "notes\n");
 
     const rows = await runSweep(
       g,
@@ -241,21 +249,21 @@ Deno.test("sweep --force overrides both safety gates", async () => {
       pathsFor(dir),
       { dryRun: true, force: true },
     );
-    assertEquals(rows[0].kind, "WOULD_REMOVE");
+    assert.deepEqual(rows[0].kind, "WOULD_REMOVE");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep includes the workspace root's own worktrees", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep includes the workspace root's own worktrees", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     const work = await makeRepoWithMain(dir, "root");
     // The motivating case: the root repo carries a worktree that no manifest
     // entry can reach.
     await addWorktree(work, dir, "feat/root-work");
-    Deno.renameSync(work, rootDir);
+    renameSync(work, rootDir);
 
     const rows = await runSweep(
       g,
@@ -263,26 +271,26 @@ Deno.test("sweep includes the workspace root's own worktrees", async () => {
       { root: rootDir, repositoriesDirectory: join(dir, "repos") },
       { dryRun: true },
     );
-    assertEquals(rows.length, 1);
-    assertEquals(rows[0].name, "(workspace root)");
+    assert.deepEqual(rows.length, 1);
+    assert.deepEqual(rows[0].name, "(workspace root)");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep does not leak root worktrees through a non-repo repositories dir", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep does not leak root worktrees through a non-repo repositories dir", async () => {
+  const dir = await makeTempDir();
   try {
     // A root repo with a linked worktree...
     const rootDir = join(dir, "root");
     const work = await makeRepoWithMain(dir, "root");
     await addWorktree(work, dir, "feat/root-only");
-    Deno.renameSync(work, rootDir);
+    renameSync(work, rootDir);
 
     // ...and a repos/ directory that exists but holds no git repo, mirroring
     // the real workspace's repos/worktrees/. A git command run there without a
     // .git guard would walk up and report the ROOT repo's worktrees.
-    await Deno.mkdir(join(dir, "repos", "worktrees"), { recursive: true });
+    await mkdir(join(dir, "repos", "worktrees"), { recursive: true });
 
     const rows = await runSweep(
       g,
@@ -293,14 +301,14 @@ Deno.test("sweep does not leak root worktrees through a non-repo repositories di
       },
       { dryRun: true },
     );
-    assertEquals(rows, [], "non-repo root must yield no rows at all");
+    assert.deepEqual(rows, [], "non-repo root must yield no rows at all");
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep produces no rows for a repository with no linked worktrees", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep produces no rows for a repository with no linked worktrees", async () => {
+  const dir = await makeTempDir();
   try {
     await makeRepoWithMain(dir, "a");
     const rows = await runSweep(
@@ -309,26 +317,26 @@ Deno.test("sweep produces no rows for a repository with no linked worktrees", as
       pathsFor(dir),
       { dryRun: true },
     );
-    assertEquals(rows, []);
+    assert.deepEqual(rows, []);
   } finally {
     await removeTempDir(dir);
   }
 });
 
-Deno.test("sweep exits 0 for refusals and 1 for failures", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep exits 0 for refusals and 1 for failures", async () => {
+  const dir = await makeTempDir();
   try {
     const rootDir = join(dir, "root");
     const work = await makeRepoWithMain(dir, "root");
     await addWorktree(work, dir, "feat/wip2");
-    await Deno.writeTextFile(
+    await writeFile(
       join(rootDir, "..", "wt-feat-wip2", "a.txt"),
       "wip\n",
     );
     const wt = join(dir, "wt-feat-wip2");
     await g.run(["add", "."], wt);
     await g.run(["commit", "-m", "wip"], wt);
-    await Deno.writeTextFile(
+    await writeFile(
       join(rootDir, "workspace.json"),
       JSON.stringify({
         schemaVersion: 4,
@@ -343,17 +351,17 @@ Deno.test("sweep exits 0 for refusals and 1 for failures", async () => {
 
     const manifestPath = join(rootDir, "workspace.json");
     // An unmerged branch is a refusal, not a failure.
-    assertEquals(
+    assert.deepEqual(
       await run(["sweep", "--offline", "--manifest", manifestPath]),
       0,
     );
     // --strict promotes refusals to a non-zero exit.
-    assertEquals(
+    assert.deepEqual(
       await run(["sweep", "--offline", "--strict", "--manifest", manifestPath]),
       1,
     );
     // Nothing to sweep at all is still success.
-    assertEquals(
+    assert.deepEqual(
       await run([
         "sweep",
         "--offline",
@@ -368,12 +376,12 @@ Deno.test("sweep exits 0 for refusals and 1 for failures", async () => {
   }
 });
 
-Deno.test("sweep --json emits machine-readable rows", async () => {
-  const dir = await Deno.makeTempDir();
+test("sweep --json emits machine-readable rows", async () => {
+  const dir = await makeTempDir();
   try {
     const work = await makeRepoWithMain(dir, "a");
     await addWorktree(work, dir, "feat/unmerged3");
-    await Deno.writeTextFile(
+    await writeFile(
       join(work, "..", "wt-feat-unmerged3", "a.txt"),
       "x\n",
     );
@@ -382,7 +390,7 @@ Deno.test("sweep --json emits machine-readable rows", async () => {
     await g.run(["commit", "-m", "x"], wt);
 
     const manifestPath = join(dir, "workspace.json");
-    await Deno.writeTextFile(
+    await writeFile(
       manifestPath,
       JSON.stringify({
         schemaVersion: 4,
@@ -407,10 +415,10 @@ Deno.test("sweep --json emits machine-readable rows", async () => {
     ]);
     console.log = original;
 
-    assertEquals(code, 0);
+    assert.deepEqual(code, 0);
     const rows = JSON.parse(output);
-    assertEquals(rows[0].kind, "SKIP_NOT_MERGED");
-    assertEquals(rows[0].branch, "feat/unmerged3");
+    assert.deepEqual(rows[0].kind, "SKIP_NOT_MERGED");
+    assert.deepEqual(rows[0].branch, "feat/unmerged3");
   } finally {
     await removeTempDir(dir);
   }
