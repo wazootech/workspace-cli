@@ -76,7 +76,7 @@ Options:
   --strict            sweep: exit non-zero on refusals, not only on failures
                       check: exit non-zero on stray (unmanaged) entries too
   --offline           sweep: prove merges from local refs only; never call gh
-  --deps              validate: also check minimumDependencyAge for first-party JSR imports
+  --deps              validate: also check the Deno and Bun release-age delay
   --as-workspace       add: place the entry in the workspaces array and require a child manifest
 
 Sweep Command:

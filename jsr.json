@@ -13,7 +13,8 @@
     "@/": "./src/",
     "@std/cli": "jsr:@std/cli@^1.0.32",
     "@std/jsonc": "jsr:@std/jsonc@^1.0.3",
-    "@std/path": "jsr:@std/path@^1.1.6"
+    "@std/path": "jsr:@std/path@^1.1.6",
+    "@std/toml": "jsr:@std/toml@^1.0.11"
   },
   "publish": {
     "include": ["src/", "schema/", "skills/", "LICENSE", "README.md"]
