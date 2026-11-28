@@ -126,12 +126,21 @@ sub-workspaces are checked out under `repos/`. You create worktrees with plain
   `--delete-remote` is passed. Fast-forwards are left to `wspace update`, so the
   usual pairing is `wspace sweep && wspace update`. See ADR-0006.
 - `wspace validate [--deps] [--json]` — validate the manifest without touching
-  any repository. With `--deps`, also audit every checked-out repo's
-  `deno.json`: a repo that imports a first-party JSR package (a scope some
-  checked-out repo publishes) must list it in `minimumDependencyAge.exclude`,
-  and `minimumDependencyAge` must not be `0`. Exits 1 on findings. Deno 2.9
-  refuses releases younger than 24 hours, so an unlisted first-party package
-  fails CI on release day or silently resolves to the previous version.
+  any repository. With `--deps`, also audit the release-age delay in every
+  checked-out repo. A first-party JSR package is one in a scope some
+  checked-out repo publishes (the `name` in its `jsr.json` or `deno.json`).
+  - Deno (`deno.json`): a repo that imports a first-party package must list it
+    in `minimumDependencyAge.exclude`, and `minimumDependencyAge` must not be
+    `0`.
+  - Bun (`bunfig.toml` with `package.json`): `minimumReleaseAge` must be set
+    above `0`, and each first-party dependency must be in
+    `minimumReleaseAgeExcludes` under its registry name
+    (`@jsr/<scope>__<name>`; Bun does not match the import name). Repos without
+    a `bunfig.toml` are not audited.
+
+  Exits 1 on findings. A delayed first-party package fails CI on release day or
+  silently resolves to the previous version.
+
 - `wspace workspaces [--json]` — list discovered sub-workspaces with repo
   counts. `check`, `install`, and `update` accept `--workspace <name>` to scope
   the command to one sub-workspace.

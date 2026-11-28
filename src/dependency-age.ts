@@ -1,5 +1,5 @@
 /**
- * Dependency-age rule for `wspace validate --deps`.
+ * The Deno side of `wspace validate --deps` (Bun: `bun-release-age.ts`).
  *
  * Deno 2.9 refuses to install a JSR or npm release younger than
  * `minimumDependencyAge` (24 hours by default). For packages this workspace
@@ -12,14 +12,14 @@
  * "minimumDependencyAge": { "age": "P1D", "exclude": ["jsr:@wazoo/reasoner"] }
  * ```
  *
- * A package is first-party when some checked-out repo's `deno.json` declares a
- * `name` in the same JSR scope. `exclude` takes exact package names, so every
- * imported first-party package must be listed.
+ * A package is first-party when some checked-out repo's `jsr.json` or
+ * `deno.json` declares a `name` in the same JSR scope. `exclude` takes exact
+ * package names, so every imported first-party package must be listed.
  */
 
-import { relative } from "@std/path";
 import { parse as parseJsonc } from "@std/jsonc";
-import { readTextFile, walkDirectoryTree } from "./runtime.ts";
+import { type ConfigFile, collectConfigFiles } from "./config-files.ts";
+import { parseObject } from "./parse-object.ts";
 
 /** One parsed `deno.json` / `deno.jsonc` found inside a repository checkout. */
 export interface DenoConfigFile {
@@ -37,40 +37,33 @@ export interface DependencyAgeFinding {
 }
 
 const CONFIG_NAME = /^deno\.jsonc?$/;
-const SKIP = [
-  /node_modules/,
-  /[/]\.git([/]|$)/,
-  /[/]_fresh([/]|$)/,
-  /[/]dist([/]|$)/,
-  /[/]vendor([/]|$)/,
-  /[/]generated([/]|$)/,
-  /[/]\.wrangler([/]|$)/,
-];
 
 /** Find and parse every Deno config under `repoPaths` (`name` → checkout dir). */
 export async function collectDenoConfigs(
   repoPaths: Map<string, string>,
 ): Promise<DenoConfigFile[]> {
-  const found: DenoConfigFile[] = [];
-  for (const [repo, root] of repoPaths) {
-    const entries = await walkDirectoryTree(root, { skip: SKIP });
-    for (const entry of entries) {
-      if (entry.isDirectory || !CONFIG_NAME.test(entry.name)) continue;
-      let config: unknown;
-      try {
-        config = parseJsonc(await readTextFile(entry.path));
-      } catch {
-        continue; // unparseable configs are Deno's to report
-      }
-      if (typeof config !== "object" || config === null) continue;
-      found.push({
-        repo,
-        file: relative(root, entry.path).replaceAll("\\", "/"),
-        config: config as Record<string, unknown>,
-      });
-    }
+  const files = await collectConfigFiles(repoPaths, CONFIG_NAME);
+  return files.flatMap(({ repo, file, text }) => {
+    const config = parseObject(text, parseJsonc);
+    return config ? [{ repo, file, config }] : [];
+  });
+}
+
+/** The JSR scopes this workspace publishes, from each manifest's `name`. */
+export function firstPartyScopes(
+  configs: DenoConfigFile[],
+  jsrManifests: ConfigFile[] = [],
+): Set<string> {
+  const names = [
+    ...configs.map(({ config }) => config.name),
+    ...jsrManifests.map(({ text }) => parseObject(text, JSON.parse)?.["name"]),
+  ];
+  const scopes = new Set<string>();
+  for (const name of names) {
+    const scope = typeof name === "string" ? scopeOf(name) : undefined;
+    if (scope) scopes.add(scope);
   }
-  return found;
+  return scopes;
 }
 
 const JSR_SPECIFIER = /^jsr:(@[^/@]+\/[^/@]+)/;
@@ -104,15 +97,8 @@ function excludedNames(value: unknown): Set<string> {
 /** Apply the rule to already-parsed configs. Pure; no I/O. */
 export function auditDependencyAge(
   configs: DenoConfigFile[],
+  scopes: Set<string> = firstPartyScopes(configs),
 ): DependencyAgeFinding[] {
-  const firstPartyScopes = new Set<string>();
-  for (const { config } of configs) {
-    if (typeof config.name === "string") {
-      const scope = scopeOf(config.name);
-      if (scope) firstPartyScopes.add(scope);
-    }
-  }
-
   const findings: DependencyAgeFinding[] = [];
   for (const { repo, file, config } of configs) {
     const age = config.minimumDependencyAge;
@@ -136,11 +122,7 @@ export function auditDependencyAge(
       const name = JSR_SPECIFIER.exec(specifier)?.[1];
       if (!name || config.name === name) continue;
       const scope = scopeOf(name);
-      if (
-        scope &&
-        firstPartyScopes.has(scope) &&
-        !excluded.has(`jsr:${name}`)
-      ) {
+      if (scope && scopes.has(scope) && !excluded.has(`jsr:${name}`)) {
         missing.add(`jsr:${name}`);
       }
     }
